@@ -19,8 +19,11 @@ var (
 	procCreateNamedPipeW                                     = modkernel32.NewProc("CreateNamedPipeW")
 	procCreateFileW                                          = modkernel32.NewProc("CreateFileW")
 	procWaitNamedPipeW                                       = modkernel32.NewProc("WaitNamedPipeW")
+	procLookupAccountNameW                                   = modadvapi32.NewProc("LookupAccountNameW")
+	procConvertSidToStringSidW                               = modadvapi32.NewProc("ConvertSidToStringSidW")
 	procConvertStringSecurityDescriptorToSecurityDescriptorW = modadvapi32.NewProc("ConvertStringSecurityDescriptorToSecurityDescriptorW")
 	procLocalFree                                            = modkernel32.NewProc("LocalFree")
+	procGetSecurityDescriptorLength                          = modadvapi32.NewProc("GetSecurityDescriptorLength")
 )
 
 func cancelIoEx(file syscall.Handle, o *syscall.Overlapped) (err error) {
@@ -84,7 +87,7 @@ func connectNamedPipe(pipe syscall.Handle, o *syscall.Overlapped) (err error) {
 	return
 }
 
-func createNamedPipe(name string, flags uint32, pipeMode uint32, maxInstances uint32, outSize uint32, inSize uint32, defaultTimeout uint32, sa *syscall.SecurityAttributes) (handle syscall.Handle, err error) {
+func createNamedPipe(name string, flags uint32, pipeMode uint32, maxInstances uint32, outSize uint32, inSize uint32, defaultTimeout uint32, sa *securityAttributes) (handle syscall.Handle, err error) {
 	var _p0 *uint16
 	_p0, err = syscall.UTF16PtrFromString(name)
 	if err != nil {
@@ -93,7 +96,7 @@ func createNamedPipe(name string, flags uint32, pipeMode uint32, maxInstances ui
 	return _createNamedPipe(_p0, flags, pipeMode, maxInstances, outSize, inSize, defaultTimeout, sa)
 }
 
-func _createNamedPipe(name *uint16, flags uint32, pipeMode uint32, maxInstances uint32, outSize uint32, inSize uint32, defaultTimeout uint32, sa *syscall.SecurityAttributes) (handle syscall.Handle, err error) {
+func _createNamedPipe(name *uint16, flags uint32, pipeMode uint32, maxInstances uint32, outSize uint32, inSize uint32, defaultTimeout uint32, sa *securityAttributes) (handle syscall.Handle, err error) {
 	r0, _, e1 := syscall.Syscall9(procCreateNamedPipeW.Addr(), 8, uintptr(unsafe.Pointer(name)), uintptr(flags), uintptr(pipeMode), uintptr(maxInstances), uintptr(outSize), uintptr(inSize), uintptr(defaultTimeout), uintptr(unsafe.Pointer(sa)), 0)
 	handle = syscall.Handle(r0)
 	if handle == syscall.InvalidHandle {
@@ -106,7 +109,7 @@ func _createNamedPipe(name *uint16, flags uint32, pipeMode uint32, maxInstances 
 	return
 }
 
-func createFile(name string, access uint32, mode uint32, sa *syscall.SecurityAttributes, createmode uint32, attrs uint32, templatefile syscall.Handle) (handle syscall.Handle, err error) {
+func createFile(name string, access uint32, mode uint32, sa *securityAttributes, createmode uint32, attrs uint32, templatefile syscall.Handle) (handle syscall.Handle, err error) {
 	var _p0 *uint16
 	_p0, err = syscall.UTF16PtrFromString(name)
 	if err != nil {
@@ -115,7 +118,7 @@ func createFile(name string, access uint32, mode uint32, sa *syscall.SecurityAtt
 	return _createFile(_p0, access, mode, sa, createmode, attrs, templatefile)
 }
 
-func _createFile(name *uint16, access uint32, mode uint32, sa *syscall.SecurityAttributes, createmode uint32, attrs uint32, templatefile syscall.Handle) (handle syscall.Handle, err error) {
+func _createFile(name *uint16, access uint32, mode uint32, sa *securityAttributes, createmode uint32, attrs uint32, templatefile syscall.Handle) (handle syscall.Handle, err error) {
 	r0, _, e1 := syscall.Syscall9(procCreateFileW.Addr(), 7, uintptr(unsafe.Pointer(name)), uintptr(access), uintptr(mode), uintptr(unsafe.Pointer(sa)), uintptr(createmode), uintptr(attrs), uintptr(templatefile), 0, 0)
 	handle = syscall.Handle(r0)
 	if handle == syscall.InvalidHandle {
@@ -149,6 +152,39 @@ func _waitNamedPipe(name *uint16, timeout uint32) (err error) {
 	return
 }
 
+func lookupAccountName(systemName *uint16, accountName string, sid *byte, sidSize *uint32, refDomain *uint16, refDomainSize *uint32, sidNameUse *uint32) (err error) {
+	var _p0 *uint16
+	_p0, err = syscall.UTF16PtrFromString(accountName)
+	if err != nil {
+		return
+	}
+	return _lookupAccountName(systemName, _p0, sid, sidSize, refDomain, refDomainSize, sidNameUse)
+}
+
+func _lookupAccountName(systemName *uint16, accountName *uint16, sid *byte, sidSize *uint32, refDomain *uint16, refDomainSize *uint32, sidNameUse *uint32) (err error) {
+	r1, _, e1 := syscall.Syscall9(procLookupAccountNameW.Addr(), 7, uintptr(unsafe.Pointer(systemName)), uintptr(unsafe.Pointer(accountName)), uintptr(unsafe.Pointer(sid)), uintptr(unsafe.Pointer(sidSize)), uintptr(unsafe.Pointer(refDomain)), uintptr(unsafe.Pointer(refDomainSize)), uintptr(unsafe.Pointer(sidNameUse)), 0, 0)
+	if r1 == 0 {
+		if e1 != 0 {
+			err = error(e1)
+		} else {
+			err = syscall.EINVAL
+		}
+	}
+	return
+}
+
+func convertSidToStringSid(sid *byte, str **uint16) (err error) {
+	r1, _, e1 := syscall.Syscall(procConvertSidToStringSidW.Addr(), 2, uintptr(unsafe.Pointer(sid)), uintptr(unsafe.Pointer(str)), 0)
+	if r1 == 0 {
+		if e1 != 0 {
+			err = error(e1)
+		} else {
+			err = syscall.EINVAL
+		}
+	}
+	return
+}
+
 func convertStringSecurityDescriptorToSecurityDescriptor(str string, revision uint32, sd *uintptr, size *uint32) (err error) {
 	var _p0 *uint16
 	_p0, err = syscall.UTF16PtrFromString(str)
@@ -172,5 +208,11 @@ func _convertStringSecurityDescriptorToSecurityDescriptor(str *uint16, revision 
 
 func localFree(mem uintptr) {
 	syscall.Syscall(procLocalFree.Addr(), 1, uintptr(mem), 0, 0)
+	return
+}
+
+func getSecurityDescriptorLength(sd uintptr) (len uint32) {
+	r0, _, _ := syscall.Syscall(procGetSecurityDescriptorLength.Addr(), 1, uintptr(sd), 0, 0)
+	len = uint32(r0)
 	return
 }

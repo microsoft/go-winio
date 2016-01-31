@@ -10,11 +10,15 @@ import (
 )
 
 //sys connectNamedPipe(pipe syscall.Handle, o *syscall.Overlapped) (err error) = ConnectNamedPipe
-//sys createNamedPipe(name string, flags uint32, pipeMode uint32, maxInstances uint32, outSize uint32, inSize uint32, defaultTimeout uint32, sa *syscall.SecurityAttributes) (handle syscall.Handle, err error)  [failretval==syscall.InvalidHandle] = CreateNamedPipeW
-//sys createFile(name string, access uint32, mode uint32, sa *syscall.SecurityAttributes, createmode uint32, attrs uint32, templatefile syscall.Handle) (handle syscall.Handle, err error) [failretval==syscall.InvalidHandle] = CreateFileW
+//sys createNamedPipe(name string, flags uint32, pipeMode uint32, maxInstances uint32, outSize uint32, inSize uint32, defaultTimeout uint32, sa *securityAttributes) (handle syscall.Handle, err error)  [failretval==syscall.InvalidHandle] = CreateNamedPipeW
+//sys createFile(name string, access uint32, mode uint32, sa *securityAttributes, createmode uint32, attrs uint32, templatefile syscall.Handle) (handle syscall.Handle, err error) [failretval==syscall.InvalidHandle] = CreateFileW
 //sys waitNamedPipe(name string, timeout uint32) (err error) = WaitNamedPipeW
-//sys convertStringSecurityDescriptorToSecurityDescriptor(str string, revision uint32, sd *uintptr, size *uint32) (err error) = advapi32.ConvertStringSecurityDescriptorToSecurityDescriptorW
-//sys localFree(mem uintptr) = LocalFree
+
+type securityAttributes struct {
+	Length             uint32
+	SecurityDescriptor *byte
+	InheritHandle      uint32
+}
 
 const (
 	cERROR_PIPE_BUSY      = syscall.Errno(231)
@@ -127,31 +131,23 @@ type acceptResponse struct {
 type win32PipeListener struct {
 	firstHandle        syscall.Handle
 	path               string
-	securityDescriptor string
+	securityDescriptor []byte
 	acceptCh           chan (chan acceptResponse)
 	closeCh            chan int
 	doneCh             chan int
 }
 
-func makeServerPipeHandle(path, securityDescriptor string, first bool) (syscall.Handle, error) {
+func makeServerPipeHandle(path string, securityDescriptor []byte, first bool) (syscall.Handle, error) {
 	var flags uint32 = cPIPE_ACCESS_DUPLEX | syscall.FILE_FLAG_OVERLAPPED
 	if first {
 		flags |= cFILE_FLAG_FIRST_PIPE_INSTANCE
 	}
-	var sd uintptr
-	if securityDescriptor != "" {
-		err := convertStringSecurityDescriptorToSecurityDescriptor(securityDescriptor, 1, &sd, nil)
-		if err != nil {
-			return 0, err
-		}
-	}
-	var sa syscall.SecurityAttributes
+	var sa securityAttributes
 	sa.Length = uint32(unsafe.Sizeof(sa))
-	sa.SecurityDescriptor = sd
-	h, err := createNamedPipe(path, flags, cPIPE_REJECT_REMOTE_CLIENTS, cPIPE_UNLIMITED_INSTANCES, 4096, 4096, 0, &sa)
-	if sd != 0 {
-		localFree(sd)
+	if securityDescriptor != nil {
+		sa.SecurityDescriptor = &securityDescriptor[0]
 	}
+	h, err := createNamedPipe(path, flags, cPIPE_REJECT_REMOTE_CLIENTS, cPIPE_UNLIMITED_INSTANCES, 4096, 4096, 0, &sa)
 	if err != nil {
 		return 0, &os.PathError{"open", path, err}
 	}
@@ -211,8 +207,18 @@ func (l *win32PipeListener) listenerRoutine() {
 	close(l.doneCh)
 }
 
-func ListenPipe(path, securityDescriptor string) (net.Listener, error) {
-	h, err := makeServerPipeHandle(path, securityDescriptor, true)
+func ListenPipe(path, sddl string) (net.Listener, error) {
+	var (
+		sd  []byte
+		err error
+	)
+	if sddl != "" {
+		sd, err = sddlToSecurityDescriptor(sddl)
+		if err != nil {
+			return nil, err
+		}
+	}
+	h, err := makeServerPipeHandle(path, sd, true)
 	if err != nil {
 		return nil, err
 	}
@@ -227,7 +233,7 @@ func ListenPipe(path, securityDescriptor string) (net.Listener, error) {
 	l := &win32PipeListener{
 		firstHandle:        h,
 		path:               path,
-		securityDescriptor: securityDescriptor,
+		securityDescriptor: sd,
 		acceptCh:           make(chan (chan acceptResponse)),
 		closeCh:            make(chan int),
 		doneCh:             make(chan int),
