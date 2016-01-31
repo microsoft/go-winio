@@ -23,6 +23,8 @@ const (
 
 	cPIPE_ACCESS_DUPLEX            = 0x3
 	cFILE_FLAG_FIRST_PIPE_INSTANCE = 0x80000
+	cSECURITY_SQOS_PRESENT         = 0x100000
+	cSECURITY_ANONYMOUS            = 0
 
 	cPIPE_REJECT_REMOTE_CLIENTS = 0x8
 
@@ -85,7 +87,7 @@ func DialPipe(path string, timeout *time.Duration) (net.Conn, error) {
 	var err error
 	var h syscall.Handle
 	for {
-		h, err = createFile(path, syscall.GENERIC_READ|syscall.GENERIC_WRITE, 0, nil, syscall.OPEN_EXISTING, syscall.FILE_FLAG_OVERLAPPED, 0)
+		h, err = createFile(path, syscall.GENERIC_READ|syscall.GENERIC_WRITE, 0, nil, syscall.OPEN_EXISTING, syscall.FILE_FLAG_OVERLAPPED|cSECURITY_SQOS_PRESENT|cSECURITY_ANONYMOUS, 0)
 		if err != cERROR_PIPE_BUSY {
 			break
 		}
@@ -216,7 +218,7 @@ func ListenPipe(path, securityDescriptor string) (net.Listener, error) {
 	}
 	// Immediately open and then close a client handle so that the named pipe is
 	// created but not currently accepting connections.
-	h2, err := createFile(path, 0, 0, nil, syscall.OPEN_EXISTING, 0, 0)
+	h2, err := createFile(path, 0, 0, nil, syscall.OPEN_EXISTING, cSECURITY_SQOS_PRESENT|cSECURITY_ANONYMOUS, 0)
 	if err != nil {
 		syscall.CloseHandle(h)
 		return nil, err
