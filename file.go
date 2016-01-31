@@ -46,7 +46,7 @@ type ioOperation struct {
 }
 
 func initIo() {
-	h, err := createIoCompletionPort(syscall.InvalidHandle, syscall.Handle(0), 0, 0xffffffff)
+	h, err := createIoCompletionPort(syscall.InvalidHandle, 0, 0, 0xffffffff)
 	if err != nil {
 		panic(err)
 	}
@@ -92,7 +92,7 @@ func (f *win32File) closeHandle() {
 		cancelIoEx(f.handle, nil)
 		f.wg.Wait()
 		// at this point, no new IO can start
-		syscall.CloseHandle(f.handle)
+		syscall.Close(f.handle)
 		f.handle = 0
 	}
 }

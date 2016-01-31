@@ -113,7 +113,7 @@ func DialPipe(path string, timeout *time.Duration) (net.Conn, error) {
 	}
 	p, err := makeWin32Pipe(h, path)
 	if err != nil {
-		syscall.CloseHandle(h)
+		syscall.Close(h)
 		return nil, err
 	}
 	return p, nil
@@ -142,7 +142,7 @@ func makeServerPipeHandle(path, securityDescriptor string, first bool) (syscall.
 	if securityDescriptor != "" {
 		err := convertStringSecurityDescriptorToSecurityDescriptor(securityDescriptor, 1, &sd, nil)
 		if err != nil {
-			return syscall.Handle(0), err
+			return 0, err
 		}
 	}
 	var sa syscall.SecurityAttributes
@@ -153,7 +153,7 @@ func makeServerPipeHandle(path, securityDescriptor string, first bool) (syscall.
 		localFree(sd)
 	}
 	if err != nil {
-		return syscall.Handle(0), &os.PathError{"open", path, err}
+		return 0, &os.PathError{"open", path, err}
 	}
 	return h, nil
 }
@@ -165,7 +165,7 @@ func (l *win32PipeListener) makeServerPipe() (*win32Pipe, error) {
 	}
 	p, err := makeWin32Pipe(h, l.path)
 	if err != nil {
-		syscall.CloseHandle(h)
+		syscall.Close(h)
 		return nil, err
 	}
 	return p, nil
@@ -205,8 +205,8 @@ func (l *win32PipeListener) listenerRoutine() {
 			responseCh <- acceptResponse{p, err}
 		}
 	}
-	syscall.CloseHandle(l.firstHandle)
-	l.firstHandle = syscall.Handle(0)
+	syscall.Close(l.firstHandle)
+	l.firstHandle = 0
 	// Notify Close() and Accept() callers that the handle has been closed.
 	close(l.doneCh)
 }
@@ -220,10 +220,10 @@ func ListenPipe(path, securityDescriptor string) (net.Listener, error) {
 	// created but not currently accepting connections.
 	h2, err := createFile(path, 0, 0, nil, syscall.OPEN_EXISTING, cSECURITY_SQOS_PRESENT|cSECURITY_ANONYMOUS, 0)
 	if err != nil {
-		syscall.CloseHandle(h)
+		syscall.Close(h)
 		return nil, err
 	}
-	syscall.CloseHandle(h2)
+	syscall.Close(h2)
 	l := &win32PipeListener{
 		firstHandle:        h,
 		path:               path,
