@@ -114,8 +114,9 @@ type win32PipeListener struct {
 	firstHandle        syscall.Handle
 	path               string
 	securityDescriptor string
-	closeCh            chan (chan int)
 	acceptCh           chan (chan acceptResponse)
+	closeCh            chan int
+	doneCh             chan int
 }
 
 func makeServerPipeHandle(path, securityDescriptor string, first bool) (syscall.Handle, error) {
@@ -157,40 +158,43 @@ func (l *win32PipeListener) makeServerPipe() (*win32Pipe, error) {
 }
 
 func (l *win32PipeListener) listenerRoutine() {
-	var closeResponseCh (chan int)
-Loop:
-	for {
-		var responseCh (chan acceptResponse)
+	closed := false
+	for !closed {
 		select {
-		case closeResponseCh = <-l.closeCh:
-			break Loop
-		case responseCh = <-l.acceptCh:
-		}
-		p, err := l.makeServerPipe()
-		if err != nil {
-			responseCh <- acceptResponse{nil, err}
-		} else {
-			ch := make(chan error)
-			go func() {
-				ch <- connectPipe(p)
-			}()
-			select {
-			case closeResponseCh = <-l.closeCh:
-				p.Close()
-				<-ch
-				break Loop
-			case err = <-ch:
-				if err != nil {
+		case <-l.closeCh:
+			closed = true
+		case responseCh := <-l.acceptCh:
+			p, err := l.makeServerPipe()
+			if err == nil {
+				// Wait for the client to connect.
+				ch := make(chan error)
+				go func() {
+					ch <- connectPipe(p)
+				}()
+				select {
+				case err = <-ch:
+					if err != nil {
+						p.Close()
+						p = nil
+					}
+				case <-l.closeCh:
+					// Abort the connect request by closing the handle.
 					p.Close()
 					p = nil
+					err = <-ch
+					if err == nil {
+						err = FileClosed
+					}
+					closed = true
 				}
-				responseCh <- acceptResponse{p, err}
 			}
+			responseCh <- acceptResponse{p, err}
 		}
 	}
 	syscall.CloseHandle(l.firstHandle)
 	l.firstHandle = syscall.Handle(0)
-	closeResponseCh <- 1
+	// Notify Close() and Accept() callers that the handle has been closed.
+	close(l.doneCh)
 }
 
 func ListenPipe(path, securityDescriptor string) (net.Listener, error) {
@@ -210,8 +214,9 @@ func ListenPipe(path, securityDescriptor string) (net.Listener, error) {
 		firstHandle:        h,
 		path:               path,
 		securityDescriptor: securityDescriptor,
-		closeCh:            make(chan (chan int)),
 		acceptCh:           make(chan (chan acceptResponse)),
+		closeCh:            make(chan int),
+		doneCh:             make(chan int),
 	}
 	go l.listenerRoutine()
 	return l, nil
@@ -232,15 +237,21 @@ func connectPipe(p *win32Pipe) error {
 
 func (l *win32PipeListener) Accept() (net.Conn, error) {
 	ch := make(chan acceptResponse)
-	l.acceptCh <- ch
-	response := <-ch
-	return response.p, response.err
+	select {
+	case l.acceptCh <- ch:
+		response := <-ch
+		return response.p, response.err
+	case <-l.doneCh:
+		return nil, FileClosed
+	}
 }
 
 func (l *win32PipeListener) Close() error {
-	ch := make(chan int)
-	l.closeCh <- ch
-	<-ch
+	select {
+	case l.closeCh <- 1:
+		<-l.doneCh
+	case <-l.doneCh:
+	}
 	return nil
 }
 

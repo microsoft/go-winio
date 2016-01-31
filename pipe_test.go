@@ -93,12 +93,11 @@ func TestReadTimeout(t *testing.T) {
 	}
 }
 
-func server(l net.Listener) {
+func server(l net.Listener, ch chan int) {
 	c, err := l.Accept()
 	if err != nil {
 		panic(err)
 	}
-	defer c.Close()
 	rw := bufio.NewReadWriter(bufio.NewReader(c), bufio.NewWriter(c))
 	s, err := rw.ReadString('\n')
 	if err != nil {
@@ -112,6 +111,8 @@ func server(l net.Listener) {
 	if err != nil {
 		panic(err)
 	}
+	c.Close()
+	ch <- 1
 }
 
 func TestFullListenDialReadWrite(t *testing.T) {
@@ -119,13 +120,16 @@ func TestFullListenDialReadWrite(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	defer l.Close()
 
-	go server(l)
+	ch := make(chan int)
+	go server(l, ch)
 
 	c, err := DialPipe(testPipeName, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
+	defer c.Close()
 
 	rw := bufio.NewReadWriter(bufio.NewReader(c), bufio.NewWriter(c))
 	_, err = rw.WriteString("hello world\n")
@@ -144,5 +148,40 @@ func TestFullListenDialReadWrite(t *testing.T) {
 	ms := "got hello world\n"
 	if s != ms {
 		t.Errorf("expected '%s', got '%s'", ms, s)
+	}
+
+	<-ch
+}
+
+func TestCloseAbortsListen(t *testing.T) {
+	l, err := ListenPipe(testPipeName, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	ch := make(chan int)
+	go func() {
+		_, err := l.Accept()
+		if err != syscall.ERROR_OPERATION_ABORTED {
+			t.Fatalf("expected ERROR_OPERATION_ABORTED, got %v", err)
+		}
+		ch <- 1
+	}()
+
+	time.Sleep(30 * time.Millisecond)
+	l.Close()
+
+	<-ch
+}
+
+func TestAcceptAfterCloseFails(t *testing.T) {
+	l, err := ListenPipe(testPipeName, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	l.Close()
+	_, err = l.Accept()
+	if err != FileClosed {
+		t.Fatalf("expected FileClosed, got %v", err)
 	}
 }

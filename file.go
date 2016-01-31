@@ -71,7 +71,7 @@ func makeWin32File(h syscall.Handle) (*win32File, error) {
 }
 
 func MakeOpenFile(h syscall.Handle) (io.ReadWriteCloser, error) {
-    return makeWin32File(h)
+	return makeWin32File(h)
 }
 
 // closeHandle closes the resources associated with a Win32 handle
