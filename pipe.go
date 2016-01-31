@@ -1,6 +1,7 @@
 package winio
 
 import (
+	"errors"
 	"net"
 	"os"
 	"syscall"
@@ -26,6 +27,11 @@ const (
 	pipeModeRejectRemoteClients = 0x8
 
 	pipeUnlimitedInstances = 255
+)
+
+var (
+	// This error should match net.errClosing since docker takes a dependency on its text
+	ErrPipeListenerClosed = errors.New("use of closed network connection")
 )
 
 type win32Pipe struct {
@@ -65,7 +71,7 @@ func makeWin32Pipe(h syscall.Handle, path string) (*win32Pipe, error) {
 	return &win32Pipe{f, path}, nil
 }
 
-func DialPipe(s string, timeout *time.Duration) (net.Conn, error) {
+func DialPipe(path string, timeout *time.Duration) (net.Conn, error) {
 	var absTimeout time.Time
 	if timeout != nil {
 		absTimeout = time.Now().Add(*timeout)
@@ -73,7 +79,7 @@ func DialPipe(s string, timeout *time.Duration) (net.Conn, error) {
 	var err error
 	var h syscall.Handle
 	for {
-		h, err = createFile(s, syscall.GENERIC_READ|syscall.GENERIC_WRITE, 0, nil, syscall.OPEN_EXISTING, syscall.FILE_FLAG_OVERLAPPED, 0)
+		h, err = createFile(path, syscall.GENERIC_READ|syscall.GENERIC_WRITE, 0, nil, syscall.OPEN_EXISTING, syscall.FILE_FLAG_OVERLAPPED, 0)
 		if err != cERROR_PIPE_BUSY {
 			break
 		}
@@ -86,18 +92,18 @@ func DialPipe(s string, timeout *time.Duration) (net.Conn, error) {
 		} else {
 			ms = uint32(absTimeout.Sub(now).Nanoseconds() / 1000 / 1000)
 		}
-		err = waitNamedPipe(s, ms)
+		err = waitNamedPipe(path, ms)
 		if err != nil {
 			if err == cERROR_SEM_TIMEOUT {
-				return nil, syscall.ETIMEDOUT
+				return nil, ErrTimeout
 			}
 			break
 		}
 	}
 	if err != nil {
-		return nil, &os.PathError{"open", s, err}
+		return nil, &os.PathError{"open", path, err}
 	}
-	p, err := makeWin32Pipe(h, s)
+	p, err := makeWin32Pipe(h, path)
 	if err != nil {
 		syscall.CloseHandle(h)
 		return nil, err
@@ -182,8 +188,8 @@ func (l *win32PipeListener) listenerRoutine() {
 					p.Close()
 					p = nil
 					err = <-ch
-					if err == nil {
-						err = FileClosed
+					if err == nil || err == ErrFileClosed {
+						err = ErrPipeListenerClosed
 					}
 					closed = true
 				}
@@ -242,7 +248,7 @@ func (l *win32PipeListener) Accept() (net.Conn, error) {
 		response := <-ch
 		return response.p, response.err
 	case <-l.doneCh:
-		return nil, FileClosed
+		return nil, ErrPipeListenerClosed
 	}
 }
 

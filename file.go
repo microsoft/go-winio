@@ -19,7 +19,17 @@ const (
 	fileSkipSetEventOnHandle    = 2
 )
 
-var FileClosed = errors.New("File has already been closed.")
+var (
+	ErrFileClosed = errors.New("file has already been closed")
+	ErrTimeout    = &timeoutError{}
+)
+
+type timeoutError struct{}
+
+func (e *timeoutError) Error() string   { return "i/o timeout" }
+func (e *timeoutError) Timeout() bool   { return true }
+func (e *timeoutError) Temporary() bool { return true }
+
 var ioInitOnce sync.Once
 var ioCompletionPort syscall.Handle
 
@@ -98,7 +108,7 @@ func (f *win32File) Close() error {
 func (f *win32File) prepareIo() (*ioOperation, error) {
 	f.wg.Add(1)
 	if f.closing {
-		return nil, FileClosed
+		return nil, ErrFileClosed
 	}
 	c := &ioOperation{}
 	c.ch = make(chan ioResult)
@@ -150,12 +160,17 @@ func (f *win32File) asyncIo(c *ioOperation, deadline time.Time, bytes uint32, er
 		}
 		if wait {
 			r = <-c.ch
-			if timedout && r.err == syscall.ERROR_OPERATION_ABORTED {
-				r.err = syscall.ETIMEDOUT
+		}
+		err = r.err
+		if err == syscall.ERROR_OPERATION_ABORTED {
+			if f.closing {
+				err = ErrFileClosed
+			} else if timedout {
+				err = ErrTimeout
 			}
 		}
 		f.wg.Done()
-		return int(r.bytes), r.err
+		return int(r.bytes), err
 	}
 }
 

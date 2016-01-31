@@ -26,8 +26,8 @@ func TestDialListenerTimesOut(t *testing.T) {
 	defer l.Close()
 	var d = time.Duration(10 * time.Millisecond)
 	_, err = DialPipe(testPipeName, &d)
-	if err != syscall.ETIMEDOUT {
-		t.Fatalf("expected ETIMEDOUT, got %v", err)
+	if err != ErrTimeout {
+		t.Fatalf("expected ErrTimeout, got %v", err)
 	}
 }
 
@@ -88,8 +88,8 @@ func TestReadTimeout(t *testing.T) {
 
 	buf := make([]byte, 10)
 	_, err = c.Read(buf)
-	if err != syscall.ETIMEDOUT {
-		t.Fatalf("expected ETIMEDOUT, got %v", err)
+	if err != ErrTimeout {
+		t.Fatalf("expected ErrTimeout, got %v", err)
 	}
 }
 
@@ -159,19 +159,19 @@ func TestCloseAbortsListen(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	ch := make(chan int)
+	ch := make(chan error)
 	go func() {
 		_, err := l.Accept()
-		if err != syscall.ERROR_OPERATION_ABORTED {
-			t.Fatalf("expected ERROR_OPERATION_ABORTED, got %v", err)
-		}
-		ch <- 1
+		ch <- err
 	}()
 
 	time.Sleep(30 * time.Millisecond)
 	l.Close()
 
-	<-ch
+	err = <-ch
+	if err != ErrPipeListenerClosed {
+		t.Fatalf("expected ErrPipeListenerClosed, got %v", err)
+	}
 }
 
 func TestAcceptAfterCloseFails(t *testing.T) {
@@ -181,7 +181,7 @@ func TestAcceptAfterCloseFails(t *testing.T) {
 	}
 	l.Close()
 	_, err = l.Accept()
-	if err != FileClosed {
-		t.Fatalf("expected FileClosed, got %v", err)
+	if err != ErrPipeListenerClosed {
+		t.Fatalf("expected ErrPipeListenerClosed, got %v", err)
 	}
 }
