@@ -39,7 +39,7 @@ func TestDialAccessDeniedWithRestrictedSD(t *testing.T) {
 	defer l.Close()
 	_, err = DialPipe(testPipeName, nil)
 	if err.(*os.PathError).Err != syscall.ERROR_ACCESS_DENIED {
-		t.Fatalf("expected EACCES, got %v", err)
+		t.Fatalf("expected ERROR_ACCESS_DENIED, got %v", err)
 	}
 }
 
@@ -183,5 +183,17 @@ func TestAcceptAfterCloseFails(t *testing.T) {
 	_, err = l.Accept()
 	if err != ErrPipeListenerClosed {
 		t.Fatalf("expected ErrPipeListenerClosed, got %v", err)
+	}
+}
+
+func TestDialTimesOutByDefault(t *testing.T) {
+	l, err := ListenPipe(testPipeName, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer l.Close()
+	_, err = DialPipe(testPipeName, nil)
+	if err != ErrTimeout {
+		t.Fatalf("expected ErrTimeout, got %v", err)
 	}
 }

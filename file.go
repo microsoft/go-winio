@@ -15,8 +15,8 @@ import (
 //sys setFileCompletionNotificationModes(h syscall.Handle, flags uint8) (err error) = SetFileCompletionNotificationModes
 
 const (
-	fileSkipCompletionOnSuccess = 1
-	fileSkipSetEventOnHandle    = 2
+	cFILE_SKIP_COMPLETION_PORT_ON_SUCCESS = 1
+	cFILE_SKIP_SET_EVENT_ON_HANDLE        = 2
 )
 
 var (
@@ -72,7 +72,7 @@ func makeWin32File(h syscall.Handle) (*win32File, error) {
 	if err != nil {
 		return nil, err
 	}
-	err = setFileCompletionNotificationModes(h, fileSkipCompletionOnSuccess|fileSkipSetEventOnHandle)
+	err = setFileCompletionNotificationModes(h, cFILE_SKIP_COMPLETION_PORT_ON_SUCCESS|cFILE_SKIP_SET_EVENT_ON_HANDLE)
 	if err != nil {
 		return nil, err
 	}

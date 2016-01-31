@@ -21,12 +21,15 @@ const (
 	cERROR_PIPE_CONNECTED = syscall.Errno(535)
 	cERROR_SEM_TIMEOUT    = syscall.Errno(121)
 
-	pipeFlagAccessDuplex  = 0x3
-	pipeFlagFirstInstance = 0x80000
+	cPIPE_ACCESS_DUPLEX            = 0x3
+	cFILE_FLAG_FIRST_PIPE_INSTANCE = 0x80000
 
-	pipeModeRejectRemoteClients = 0x8
+	cPIPE_REJECT_REMOTE_CLIENTS = 0x8
 
-	pipeUnlimitedInstances = 255
+	cPIPE_UNLIMITED_INSTANCES = 255
+
+	cNMPWAIT_USE_DEFAULT_WAIT = 0
+	cNMPWAIT_NOWAIT           = 1
 )
 
 var (
@@ -71,6 +74,9 @@ func makeWin32Pipe(h syscall.Handle, path string) (*win32Pipe, error) {
 	return &win32Pipe{f, path}, nil
 }
 
+// DialPipe connects to a named pipe by path, timing out if the connection
+// takes longer than the specified duration. If timeout is nil, then the timeout
+// is the default timeout established by the pipe server.
 func DialPipe(path string, timeout *time.Duration) (net.Conn, error) {
 	var absTimeout time.Time
 	if timeout != nil {
@@ -86,9 +92,9 @@ func DialPipe(path string, timeout *time.Duration) (net.Conn, error) {
 		now := time.Now()
 		var ms uint32
 		if absTimeout.IsZero() {
-			ms = syscall.INFINITE
+			ms = cNMPWAIT_USE_DEFAULT_WAIT
 		} else if now.After(absTimeout) {
-			ms = 1
+			ms = cNMPWAIT_NOWAIT
 		} else {
 			ms = uint32(absTimeout.Sub(now).Nanoseconds() / 1000 / 1000)
 		}
@@ -126,9 +132,9 @@ type win32PipeListener struct {
 }
 
 func makeServerPipeHandle(path, securityDescriptor string, first bool) (syscall.Handle, error) {
-	var flags uint32 = pipeFlagAccessDuplex | syscall.FILE_FLAG_OVERLAPPED
+	var flags uint32 = cPIPE_ACCESS_DUPLEX | syscall.FILE_FLAG_OVERLAPPED
 	if first {
-		flags |= pipeFlagFirstInstance
+		flags |= cFILE_FLAG_FIRST_PIPE_INSTANCE
 	}
 	var sd uintptr
 	if securityDescriptor != "" {
@@ -140,7 +146,7 @@ func makeServerPipeHandle(path, securityDescriptor string, first bool) (syscall.
 	var sa syscall.SecurityAttributes
 	sa.Length = uint32(unsafe.Sizeof(sa))
 	sa.SecurityDescriptor = sd
-	h, err := createNamedPipe(path, flags, pipeModeRejectRemoteClients, pipeUnlimitedInstances, 4096, 4096, 0, &sa)
+	h, err := createNamedPipe(path, flags, cPIPE_REJECT_REMOTE_CLIENTS, cPIPE_UNLIMITED_INSTANCES, 4096, 4096, 0, &sa)
 	if sd != 0 {
 		localFree(sd)
 	}
