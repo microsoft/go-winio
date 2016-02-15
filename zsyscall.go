@@ -24,6 +24,8 @@ var (
 	procConvertStringSecurityDescriptorToSecurityDescriptorW = modadvapi32.NewProc("ConvertStringSecurityDescriptorToSecurityDescriptorW")
 	procLocalFree                                            = modkernel32.NewProc("LocalFree")
 	procGetSecurityDescriptorLength                          = modadvapi32.NewProc("GetSecurityDescriptorLength")
+	procBackupRead                                           = modkernel32.NewProc("BackupRead")
+	procBackupWrite                                          = modkernel32.NewProc("BackupWrite")
 )
 
 func cancelIoEx(file syscall.Handle, o *syscall.Overlapped) (err error) {
@@ -214,5 +216,61 @@ func localFree(mem uintptr) {
 func getSecurityDescriptorLength(sd uintptr) (len uint32) {
 	r0, _, _ := syscall.Syscall(procGetSecurityDescriptorLength.Addr(), 1, uintptr(sd), 0, 0)
 	len = uint32(r0)
+	return
+}
+
+func backupRead(h syscall.Handle, b []byte, bytesRead *uint32, abort bool, processSecurity bool, context *uintptr) (err error) {
+	var _p0 *byte
+	if len(b) > 0 {
+		_p0 = &b[0]
+	}
+	var _p1 uint32
+	if abort {
+		_p1 = 1
+	} else {
+		_p1 = 0
+	}
+	var _p2 uint32
+	if processSecurity {
+		_p2 = 1
+	} else {
+		_p2 = 0
+	}
+	r1, _, e1 := syscall.Syscall9(procBackupRead.Addr(), 7, uintptr(h), uintptr(unsafe.Pointer(_p0)), uintptr(len(b)), uintptr(unsafe.Pointer(bytesRead)), uintptr(_p1), uintptr(_p2), uintptr(unsafe.Pointer(context)), 0, 0)
+	if r1 == 0 {
+		if e1 != 0 {
+			err = error(e1)
+		} else {
+			err = syscall.EINVAL
+		}
+	}
+	return
+}
+
+func backupWrite(h syscall.Handle, b []byte, bytesWritten *uint32, abort bool, processSecurity bool, context *uintptr) (err error) {
+	var _p0 *byte
+	if len(b) > 0 {
+		_p0 = &b[0]
+	}
+	var _p1 uint32
+	if abort {
+		_p1 = 1
+	} else {
+		_p1 = 0
+	}
+	var _p2 uint32
+	if processSecurity {
+		_p2 = 1
+	} else {
+		_p2 = 0
+	}
+	r1, _, e1 := syscall.Syscall9(procBackupWrite.Addr(), 7, uintptr(h), uintptr(unsafe.Pointer(_p0)), uintptr(len(b)), uintptr(unsafe.Pointer(bytesWritten)), uintptr(_p1), uintptr(_p2), uintptr(unsafe.Pointer(context)), 0, 0)
+	if r1 == 0 {
+		if e1 != 0 {
+			err = error(e1)
+		} else {
+			err = syscall.EINVAL
+		}
+	}
 	return
 }
