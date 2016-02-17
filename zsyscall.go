@@ -22,10 +22,13 @@ var (
 	procLookupAccountNameW                                   = modadvapi32.NewProc("LookupAccountNameW")
 	procConvertSidToStringSidW                               = modadvapi32.NewProc("ConvertSidToStringSidW")
 	procConvertStringSecurityDescriptorToSecurityDescriptorW = modadvapi32.NewProc("ConvertStringSecurityDescriptorToSecurityDescriptorW")
+	procConvertSecurityDescriptorToStringSecurityDescriptorW = modadvapi32.NewProc("ConvertSecurityDescriptorToStringSecurityDescriptorW")
 	procLocalFree                                            = modkernel32.NewProc("LocalFree")
 	procGetSecurityDescriptorLength                          = modadvapi32.NewProc("GetSecurityDescriptorLength")
 	procBackupRead                                           = modkernel32.NewProc("BackupRead")
 	procBackupWrite                                          = modkernel32.NewProc("BackupWrite")
+	procGetFileInformationByHandleEx                         = modkernel32.NewProc("GetFileInformationByHandleEx")
+	procSetFileInformationByHandle                           = modkernel32.NewProc("SetFileInformationByHandle")
 )
 
 func cancelIoEx(file syscall.Handle, o *syscall.Overlapped) (err error) {
@@ -208,6 +211,18 @@ func _convertStringSecurityDescriptorToSecurityDescriptor(str *uint16, revision 
 	return
 }
 
+func convertSecurityDescriptorToStringSecurityDescriptor(sd *byte, revision uint32, secInfo uint32, sddl **uint16, sddlSize *uint32) (err error) {
+	r1, _, e1 := syscall.Syscall6(procConvertSecurityDescriptorToStringSecurityDescriptorW.Addr(), 5, uintptr(unsafe.Pointer(sd)), uintptr(revision), uintptr(secInfo), uintptr(unsafe.Pointer(sddl)), uintptr(unsafe.Pointer(sddlSize)), 0)
+	if r1 == 0 {
+		if e1 != 0 {
+			err = error(e1)
+		} else {
+			err = syscall.EINVAL
+		}
+	}
+	return
+}
+
 func localFree(mem uintptr) {
 	syscall.Syscall(procLocalFree.Addr(), 1, uintptr(mem), 0, 0)
 	return
@@ -265,6 +280,30 @@ func backupWrite(h syscall.Handle, b []byte, bytesWritten *uint32, abort bool, p
 		_p2 = 0
 	}
 	r1, _, e1 := syscall.Syscall9(procBackupWrite.Addr(), 7, uintptr(h), uintptr(unsafe.Pointer(_p0)), uintptr(len(b)), uintptr(unsafe.Pointer(bytesWritten)), uintptr(_p1), uintptr(_p2), uintptr(unsafe.Pointer(context)), 0, 0)
+	if r1 == 0 {
+		if e1 != 0 {
+			err = error(e1)
+		} else {
+			err = syscall.EINVAL
+		}
+	}
+	return
+}
+
+func getFileInformationByHandleEx(h syscall.Handle, class uint32, buffer *byte, size uint32) (err error) {
+	r1, _, e1 := syscall.Syscall6(procGetFileInformationByHandleEx.Addr(), 4, uintptr(h), uintptr(class), uintptr(unsafe.Pointer(buffer)), uintptr(size), 0, 0)
+	if r1 == 0 {
+		if e1 != 0 {
+			err = error(e1)
+		} else {
+			err = syscall.EINVAL
+		}
+	}
+	return
+}
+
+func setFileInformationByHandle(h syscall.Handle, class uint32, buffer *byte, size uint32) (err error) {
+	r1, _, e1 := syscall.Syscall6(procSetFileInformationByHandle.Addr(), 4, uintptr(h), uintptr(class), uintptr(unsafe.Pointer(buffer)), uintptr(size), 0, 0)
 	if r1 == 0 {
 		if e1 != 0 {
 			err = error(e1)

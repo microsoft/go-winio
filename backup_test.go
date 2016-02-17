@@ -95,7 +95,7 @@ func TestBackupStreamRead(t *testing.T) {
 		}
 
 		switch hdr.Id {
-		case StreamIdData:
+		case BackupData:
 			if gotData {
 				t.Fatal("duplicate data")
 			}
@@ -110,7 +110,7 @@ func TestBackupStreamRead(t *testing.T) {
 				t.Fatalf("incorrect data %v", b)
 			}
 			gotData = true
-		case StreamIdAltData:
+		case BackupAlternateData:
 			if gotAltData {
 				t.Fatal("duplicate alt data")
 			}
@@ -147,7 +147,7 @@ func TestBackupStreamWrite(t *testing.T) {
 	altData := "alternate stream\n"
 
 	br := NewBackupStreamWriter(w)
-	err = br.Next(&BackupHeader{Id: StreamIdData, Size: int64(len(data))})
+	err = br.WriteHeader(&BackupHeader{Id: BackupData, Size: int64(len(data))})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -159,7 +159,7 @@ func TestBackupStreamWrite(t *testing.T) {
 		t.Fatal("short write")
 	}
 
-	err = br.Next(&BackupHeader{Id: StreamIdAltData, Size: int64(len(altData)), Name: ":ads.txt:$DATA"})
+	err = br.WriteHeader(&BackupHeader{Id: BackupAlternateData, Size: int64(len(altData)), Name: ":ads.txt:$DATA"})
 	if err != nil {
 		t.Fatal(err)
 	}

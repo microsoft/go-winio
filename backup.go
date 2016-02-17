@@ -1,26 +1,35 @@
 package winio
 
 import (
+	"bytes"
 	"encoding/binary"
 	"errors"
 	"fmt"
 	"io"
 	"io/ioutil"
 	"runtime"
+	"strings"
 	"syscall"
 	"unicode/utf16"
+	"unsafe"
 )
 
 //sys backupRead(h syscall.Handle, b []byte, bytesRead *uint32, abort bool, processSecurity bool, context *uintptr) (err error) = BackupRead
 //sys backupWrite(h syscall.Handle, b []byte, bytesWritten *uint32, abort bool, processSecurity bool, context *uintptr) (err error) = BackupWrite
 
 const (
-	StreamIdData     = uint32(1)
-	StreamIdEaData   = uint32(2)
-	StreamIdSecurity = uint32(3)
-	StreamIdAltData  = uint32(4)
-	StreamIdReparse  = uint32(8)
-	StreamIdSparse   = uint32(9)
+	BackupData = uint32(iota + 1)
+	BackupEaData
+	BackupSecurity
+	BackupAlternateData
+	BackupLink
+	BackupPropertyData
+	BackupObjectId
+	BackupReparseData
+	BackupSparseBlock
+	BackupTxfsData
+
+	StreamSparseAttributes = uint32(8)
 )
 
 // BackupHeader represents a backup stream of a file.
@@ -28,8 +37,8 @@ type BackupHeader struct {
 	Id         uint32 // The backup stream ID
 	Attributes uint32 // Stream attributes
 	Size       int64  // The size of the stream in bytes
-	Name       string // The name of the stream (for StreamIdAltData only).
-	Offset     int64  // The offset of the stream in the file (for StreamIdSparse only).
+	Name       string // The name of the stream (for BackupAlternateData only).
+	Offset     int64  // The offset of the stream in the file (for BackupSparseBlock only).
 }
 
 type win32StreamId struct {
@@ -75,7 +84,7 @@ func (r *BackupStreamReader) Next() (*BackupHeader, error) {
 		}
 		hdr.Name = syscall.UTF16ToString(name)
 	}
-	if wsi.StreamId == StreamIdSparse {
+	if wsi.StreamId == BackupSparseBlock {
 		if err := binary.Read(r.r, binary.LittleEndian, &hdr.Offset); err != nil {
 			return nil, err
 		}
@@ -90,11 +99,10 @@ func (r *BackupStreamReader) Read(b []byte) (int, error) {
 	if r.bytesLeft == 0 {
 		return 0, io.EOF
 	}
-	c := len(b)
-	if int64(c) > r.bytesLeft {
-		c = int(r.bytesLeft)
+	if int64(len(b)) > r.bytesLeft {
+		b = b[:r.bytesLeft]
 	}
-	n, err := r.r.Read(b[:c])
+	n, err := r.r.Read(b)
 	r.bytesLeft -= int64(n)
 	if err == io.EOF {
 		err = io.ErrUnexpectedEOF
@@ -115,32 +123,32 @@ func NewBackupStreamWriter(w io.Writer) *BackupStreamWriter {
 	return &BackupStreamWriter{w, 0}
 }
 
-// Next writes the next backup stream header and prepares for calls to Write().
-func (w *BackupStreamWriter) Next(hdr *BackupHeader) error {
+// WriteHeader writes the next backup stream header and prepares for calls to Write().
+func (w *BackupStreamWriter) WriteHeader(hdr *BackupHeader) error {
 	if w.bytesLeft != 0 {
 		return fmt.Errorf("missing %d bytes", w.bytesLeft)
 	}
+	name := utf16.Encode([]rune(hdr.Name))
 	wsi := win32StreamId{
 		StreamId:   hdr.Id,
 		Attributes: hdr.Attributes,
 		Size:       uint64(hdr.Size),
-		NameSize:   uint32(len(hdr.Name) * 2),
+		NameSize:   uint32(len(name) * 2),
 	}
-	if hdr.Id == StreamIdSparse {
+	if hdr.Id == BackupSparseBlock {
 		// Include space for the int64 block offset
 		wsi.Size += 8
 	}
 	if err := binary.Write(w.w, binary.LittleEndian, &wsi); err != nil {
 		return err
 	}
-	if len(hdr.Name) != 0 {
-		name := utf16.Encode([]rune(hdr.Name))
+	if len(name) != 0 {
 		if err := binary.Write(w.w, binary.LittleEndian, name); err != nil {
 			return err
 		}
 	}
-	if hdr.Id == StreamIdSparse {
-		if err := binary.Write(w.w, binary.LittleEndian, &hdr.Offset); err != nil {
+	if hdr.Id == BackupSparseBlock {
+		if err := binary.Write(w.w, binary.LittleEndian, hdr.Offset); err != nil {
 			return err
 		}
 	}
@@ -232,4 +240,101 @@ func (w *BackupFileWriter) Close() error {
 		w.ctx = 0
 	}
 	return nil
+}
+
+const (
+	ReparseSymlink = 0
+	ReparseMountPoint
+)
+
+const (
+	reparseTagMountPoint = 0xA0000003
+	reparseTagSymlink    = 0xA000000C
+)
+
+type reparseDataBuffer struct {
+	ReparseTag           uint32
+	ReparseDataLength    uint16
+	Reserved             uint16
+	SubstituteNameOffset uint16
+	SubstituteNameLength uint16
+	PrintNameOffset      uint16
+	PrintNameLength      uint16
+}
+
+func DecodeReparsePoint(b []byte) (string, bool, error) {
+	isMountPoint := false
+	tag := binary.LittleEndian.Uint32(b[0:4])
+	switch tag {
+	case reparseTagMountPoint:
+		isMountPoint = true
+	case reparseTagSymlink:
+	default:
+		return "", false, fmt.Errorf("unsupported reparse point %x", tag)
+	}
+	nameOffset := 16 + binary.LittleEndian.Uint16(b[12:14])
+	if !isMountPoint {
+		nameOffset += 4
+	}
+	nameLength := binary.LittleEndian.Uint16(b[14:16])
+	name := make([]uint16, nameLength/2)
+	err := binary.Read(bytes.NewReader(b[nameOffset:nameOffset+nameLength]), binary.LittleEndian, &name)
+	if err != nil {
+		return "", isMountPoint, err
+	}
+	return string(utf16.Decode(name)), isMountPoint, nil
+}
+
+func isDriveLetter(c byte) bool {
+	return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z')
+}
+
+func EncodeReparsePoint(target string, isMountPoint bool) []byte {
+	var ntTarget string
+	relative := false
+	if strings.HasPrefix(target, `\\?\`) {
+		ntTarget = target
+	} else if strings.HasPrefix(target, `\\`) {
+		ntTarget = `\??\UNC\` + target[2:]
+	} else if len(target) >= 2 && isDriveLetter(target[0]) && target[1] == ':' {
+		ntTarget = `\??\` + target
+	} else {
+		ntTarget = target
+		relative = true
+	}
+
+	target16 := utf16.Encode([]rune(target + "\x00"))
+	ntTarget16 := utf16.Encode([]rune(ntTarget + "\x00"))
+
+	size := int(unsafe.Sizeof(reparseDataBuffer{})) - 8
+	if !isMountPoint {
+		size += 4
+	}
+	size += len(ntTarget16)*2 + len(target16)*2
+
+	data := reparseDataBuffer{
+		ReparseTag:           reparseTagSymlink,
+		ReparseDataLength:    uint16(size),
+		SubstituteNameOffset: 0,
+		SubstituteNameLength: uint16((len(ntTarget16) - 1) * 2),
+		PrintNameOffset:      uint16(len(ntTarget16) * 2),
+		PrintNameLength:      uint16((len(target16) - 1) * 2),
+	}
+	if isMountPoint {
+		data.ReparseTag = reparseTagMountPoint
+	}
+
+	var b bytes.Buffer
+	binary.Write(&b, binary.LittleEndian, &data)
+	if !isMountPoint {
+		flags := uint32(0)
+		if relative {
+			flags |= 1
+		}
+		binary.Write(&b, binary.LittleEndian, flags)
+	}
+
+	binary.Write(&b, binary.LittleEndian, ntTarget16)
+	binary.Write(&b, binary.LittleEndian, target16)
+	return b.Bytes()
 }
