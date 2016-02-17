@@ -1,17 +1,14 @@
 package winio
 
 import (
-	"bytes"
 	"encoding/binary"
 	"errors"
 	"fmt"
 	"io"
 	"io/ioutil"
 	"runtime"
-	"strings"
 	"syscall"
 	"unicode/utf16"
-	"unsafe"
 )
 
 //sys backupRead(h syscall.Handle, b []byte, bytesRead *uint32, abort bool, processSecurity bool, context *uintptr) (err error) = BackupRead
@@ -240,101 +237,4 @@ func (w *BackupFileWriter) Close() error {
 		w.ctx = 0
 	}
 	return nil
-}
-
-const (
-	ReparseSymlink = 0
-	ReparseMountPoint
-)
-
-const (
-	reparseTagMountPoint = 0xA0000003
-	reparseTagSymlink    = 0xA000000C
-)
-
-type reparseDataBuffer struct {
-	ReparseTag           uint32
-	ReparseDataLength    uint16
-	Reserved             uint16
-	SubstituteNameOffset uint16
-	SubstituteNameLength uint16
-	PrintNameOffset      uint16
-	PrintNameLength      uint16
-}
-
-func DecodeReparsePoint(b []byte) (string, bool, error) {
-	isMountPoint := false
-	tag := binary.LittleEndian.Uint32(b[0:4])
-	switch tag {
-	case reparseTagMountPoint:
-		isMountPoint = true
-	case reparseTagSymlink:
-	default:
-		return "", false, fmt.Errorf("unsupported reparse point %x", tag)
-	}
-	nameOffset := 16 + binary.LittleEndian.Uint16(b[12:14])
-	if !isMountPoint {
-		nameOffset += 4
-	}
-	nameLength := binary.LittleEndian.Uint16(b[14:16])
-	name := make([]uint16, nameLength/2)
-	err := binary.Read(bytes.NewReader(b[nameOffset:nameOffset+nameLength]), binary.LittleEndian, &name)
-	if err != nil {
-		return "", isMountPoint, err
-	}
-	return string(utf16.Decode(name)), isMountPoint, nil
-}
-
-func isDriveLetter(c byte) bool {
-	return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z')
-}
-
-func EncodeReparsePoint(target string, isMountPoint bool) []byte {
-	var ntTarget string
-	relative := false
-	if strings.HasPrefix(target, `\\?\`) {
-		ntTarget = target
-	} else if strings.HasPrefix(target, `\\`) {
-		ntTarget = `\??\UNC\` + target[2:]
-	} else if len(target) >= 2 && isDriveLetter(target[0]) && target[1] == ':' {
-		ntTarget = `\??\` + target
-	} else {
-		ntTarget = target
-		relative = true
-	}
-
-	target16 := utf16.Encode([]rune(target + "\x00"))
-	ntTarget16 := utf16.Encode([]rune(ntTarget + "\x00"))
-
-	size := int(unsafe.Sizeof(reparseDataBuffer{})) - 8
-	if !isMountPoint {
-		size += 4
-	}
-	size += len(ntTarget16)*2 + len(target16)*2
-
-	data := reparseDataBuffer{
-		ReparseTag:           reparseTagSymlink,
-		ReparseDataLength:    uint16(size),
-		SubstituteNameOffset: 0,
-		SubstituteNameLength: uint16((len(ntTarget16) - 1) * 2),
-		PrintNameOffset:      uint16(len(ntTarget16) * 2),
-		PrintNameLength:      uint16((len(target16) - 1) * 2),
-	}
-	if isMountPoint {
-		data.ReparseTag = reparseTagMountPoint
-	}
-
-	var b bytes.Buffer
-	binary.Write(&b, binary.LittleEndian, &data)
-	if !isMountPoint {
-		flags := uint32(0)
-		if relative {
-			flags |= 1
-		}
-		binary.Write(&b, binary.LittleEndian, flags)
-	}
-
-	binary.Write(&b, binary.LittleEndian, ntTarget16)
-	binary.Write(&b, binary.LittleEndian, target16)
-	return b.Bytes()
 }
