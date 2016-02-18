@@ -1,6 +1,7 @@
 package winio
 
 import (
+	"os"
 	"syscall"
 	"unsafe"
 )
@@ -13,14 +14,14 @@ type FileBasicInfo struct {
 	FileAttributes                                          uintptr // includes padding
 }
 
-func GetFileBasicInfo(h syscall.Handle) (*FileBasicInfo, error) {
+func GetFileBasicInfo(f *os.File) (*FileBasicInfo, error) {
 	bi := &FileBasicInfo{}
-	if err := getFileInformationByHandleEx(h, 0, (*byte)(unsafe.Pointer(bi)), uint32(unsafe.Sizeof(bi))); err != nil {
+	if err := getFileInformationByHandleEx(syscall.Handle(f.Fd()), 0, (*byte)(unsafe.Pointer(bi)), uint32(unsafe.Sizeof(bi))); err != nil {
 		return nil, err
 	}
 	return bi, nil
 }
 
-func SetFileBasicInfo(h syscall.Handle, bi *FileBasicInfo) error {
-	return setFileInformationByHandle(h, 0, (*byte)(unsafe.Pointer(bi)), uint32(unsafe.Sizeof(bi)))
+func SetFileBasicInfo(f *os.File, bi *FileBasicInfo) error {
+	return setFileInformationByHandle(syscall.Handle(f.Fd()), 0, (*byte)(unsafe.Pointer(bi)), uint32(unsafe.Sizeof(bi)))
 }

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
+	"os"
 	"runtime"
 	"syscall"
 	"unicode/utf16"
@@ -165,15 +166,15 @@ func (w *BackupStreamWriter) Write(b []byte) (int, error) {
 
 // BackupFileReader provides an io.ReadCloser interface on top of the BackupRead Win32 API.
 type BackupFileReader struct {
-	h               syscall.Handle
+	f               *os.File
 	includeSecurity bool
 	ctx             uintptr
 }
 
 // NewBackupFileReader returns a new BackupFileReader from a file handle. If includeSecurity is true,
 // Read will attempt to read the security descriptor of the file.
-func NewBackupFileReader(h syscall.Handle, includeSecurity bool) *BackupFileReader {
-	r := &BackupFileReader{h, includeSecurity, 0}
+func NewBackupFileReader(f *os.File, includeSecurity bool) *BackupFileReader {
+	r := &BackupFileReader{f, includeSecurity, 0}
 	runtime.SetFinalizer(r, func(r *BackupFileReader) { r.Close() })
 	return r
 }
@@ -181,7 +182,7 @@ func NewBackupFileReader(h syscall.Handle, includeSecurity bool) *BackupFileRead
 // Read reads a backup stream from the file by calling the Win32 API BackupRead().
 func (r *BackupFileReader) Read(b []byte) (int, error) {
 	var bytesRead uint32
-	err := backupRead(r.h, b, &bytesRead, false, r.includeSecurity, &r.ctx)
+	err := backupRead(syscall.Handle(r.f.Fd()), b, &bytesRead, false, r.includeSecurity, &r.ctx)
 	if err != nil {
 		return 0, err
 	}
@@ -195,7 +196,7 @@ func (r *BackupFileReader) Read(b []byte) (int, error) {
 // the underlying file.
 func (r *BackupFileReader) Close() error {
 	if r.ctx != 0 {
-		backupRead(r.h, nil, nil, true, false, &r.ctx)
+		backupRead(syscall.Handle(r.f.Fd()), nil, nil, true, false, &r.ctx)
 		r.ctx = 0
 	}
 	return nil
@@ -203,15 +204,15 @@ func (r *BackupFileReader) Close() error {
 
 // BackupFileWriter provides an io.WriteCloser interface on top of the BackupWrite Win32 API.
 type BackupFileWriter struct {
-	h               syscall.Handle
+	f               *os.File
 	includeSecurity bool
 	ctx             uintptr
 }
 
 // NewBackupFileWrtier returns a new BackupFileWriter from a file handle. If includeSecurity is true,
 // Write() will attempt to restore the security descriptor from the stream.
-func NewBackupFileWriter(h syscall.Handle, includeSecurity bool) *BackupFileWriter {
-	w := &BackupFileWriter{h, includeSecurity, 0}
+func NewBackupFileWriter(f *os.File, includeSecurity bool) *BackupFileWriter {
+	w := &BackupFileWriter{f, includeSecurity, 0}
 	runtime.SetFinalizer(w, func(w *BackupFileWriter) { w.Close() })
 	return w
 }
@@ -219,7 +220,7 @@ func NewBackupFileWriter(h syscall.Handle, includeSecurity bool) *BackupFileWrit
 // Write restores a portion of the file using the provided backup stream.
 func (w *BackupFileWriter) Write(b []byte) (int, error) {
 	var bytesWritten uint32
-	err := backupWrite(w.h, b, &bytesWritten, false, w.includeSecurity, &w.ctx)
+	err := backupWrite(syscall.Handle(w.f.Fd()), b, &bytesWritten, false, w.includeSecurity, &w.ctx)
 	if err != nil {
 		return 0, err
 	}
@@ -233,7 +234,7 @@ func (w *BackupFileWriter) Write(b []byte) (int, error) {
 // close the underlying file.
 func (w *BackupFileWriter) Close() error {
 	if w.ctx != 0 {
-		backupWrite(w.h, nil, nil, true, false, &w.ctx)
+		backupWrite(syscall.Handle(w.f.Fd()), nil, nil, true, false, &w.ctx)
 		w.ctx = 0
 	}
 	return nil

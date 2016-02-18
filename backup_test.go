@@ -52,12 +52,12 @@ func TestBackupRead(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	h, err := syscall.Open(testFileName, syscall.O_RDONLY, 0)
+	f, err := os.Open(testFileName)
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer syscall.Close(h)
-	r := NewBackupFileReader(h, false)
+	defer f.Close()
+	r := NewBackupFileReader(f, false)
 	defer r.Close()
 	b, err := ioutil.ReadAll(r)
 	if err != nil {
@@ -74,12 +74,12 @@ func TestBackupStreamRead(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	h, err := syscall.Open(testFileName, syscall.O_RDONLY, 0)
+	f, err := os.Open(testFileName)
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer syscall.Close(h)
-	r := NewBackupFileReader(h, false)
+	defer f.Close()
+	r := NewBackupFileReader(f, false)
 	defer r.Close()
 
 	br := NewBackupStreamReader(r)
@@ -135,12 +135,12 @@ func TestBackupStreamRead(t *testing.T) {
 }
 
 func TestBackupStreamWrite(t *testing.T) {
-	h, err := syscall.Open(testFileName, syscall.O_CREAT|syscall.O_WRONLY, 0)
+	f, err := os.Create(testFileName)
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer syscall.Close(h)
-	w := NewBackupFileWriter(h, false)
+	defer f.Close()
+	w := NewBackupFileWriter(f, false)
 	defer w.Close()
 
 	data := "testing 1 2 3\n"
@@ -171,8 +171,7 @@ func TestBackupStreamWrite(t *testing.T) {
 		t.Fatal("short write")
 	}
 
-	syscall.Close(h)
-	h = 0
+	f.Close()
 
 	b, err := ioutil.ReadFile(testFileName)
 	if err != nil {
@@ -193,33 +192,33 @@ func TestBackupStreamWrite(t *testing.T) {
 
 func makeSparseFile() error {
 	os.Remove(testFileName)
-	h, err := syscall.Open(testFileName, syscall.O_CREAT|syscall.O_RDWR, 0)
+	f, err := os.Create(testFileName)
 	if err != nil {
 		return err
 	}
-	defer syscall.Close(h)
+	defer f.Close()
 
 	const (
 		FSCTL_SET_SPARSE    = 0x000900c4
 		FSCTL_SET_ZERO_DATA = 0x000980c8
 	)
 
-	err = syscall.DeviceIoControl(h, FSCTL_SET_SPARSE, nil, 0, nil, 0, nil, nil)
+	err = syscall.DeviceIoControl(syscall.Handle(f.Fd()), FSCTL_SET_SPARSE, nil, 0, nil, 0, nil, nil)
 	if err != nil {
 		return err
 	}
 
-	_, err = syscall.Write(h, []byte("testing 1 2 3\n"))
+	_, err = f.Write([]byte("testing 1 2 3\n"))
 	if err != nil {
 		return err
 	}
 
-	_, err = syscall.Seek(h, 1000000, 0)
+	_, err = f.Seek(1000000, 0)
 	if err != nil {
 		return err
 	}
 
-	_, err = syscall.Write(h, []byte("more data later\n"))
+	_, err = f.Write([]byte("more data later\n"))
 	if err != nil {
 		return err
 	}
@@ -233,12 +232,12 @@ func TestBackupSparseFile(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	h, err := syscall.Open(testFileName, syscall.O_RDONLY, 0)
+	f, err := os.Open(testFileName)
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer syscall.Close(h)
-	r := NewBackupFileReader(h, false)
+	defer f.Close()
+	r := NewBackupFileReader(f, false)
 	defer r.Close()
 
 	br := NewBackupStreamReader(r)
