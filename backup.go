@@ -184,7 +184,7 @@ func (r *BackupFileReader) Read(b []byte) (int, error) {
 	var bytesRead uint32
 	err := backupRead(syscall.Handle(r.f.Fd()), b, &bytesRead, false, r.includeSecurity, &r.ctx)
 	if err != nil {
-		return 0, err
+		return 0, &os.PathError{"BackupRead", r.f.Name(), err}
 	}
 	if bytesRead == 0 {
 		return 0, io.EOF
@@ -222,7 +222,7 @@ func (w *BackupFileWriter) Write(b []byte) (int, error) {
 	var bytesWritten uint32
 	err := backupWrite(syscall.Handle(w.f.Fd()), b, &bytesWritten, false, w.includeSecurity, &w.ctx)
 	if err != nil {
-		return 0, err
+		return 0, &os.PathError{"BackupWrite", w.f.Name(), err}
 	}
 	if int(bytesWritten) != len(b) {
 		return int(bytesWritten), errors.New("not all bytes could be written")

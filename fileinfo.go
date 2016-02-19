@@ -16,14 +16,14 @@ type FileBasicInfo struct {
 
 func GetFileBasicInfo(f *os.File) (*FileBasicInfo, error) {
 	bi := &FileBasicInfo{}
-	if err := getFileInformationByHandleEx(syscall.Handle(f.Fd()), 0, (*byte)(unsafe.Pointer(bi)), uint32(unsafe.Sizeof(bi))); err != nil {
+	if err := getFileInformationByHandleEx(syscall.Handle(f.Fd()), 0, (*byte)(unsafe.Pointer(bi)), uint32(unsafe.Sizeof(*bi))); err != nil {
 		return nil, &os.PathError{"GetFileInformationByHandleEx", f.Name(), err}
 	}
 	return bi, nil
 }
 
 func SetFileBasicInfo(f *os.File, bi *FileBasicInfo) error {
-	if err := setFileInformationByHandle(syscall.Handle(f.Fd()), 0, (*byte)(unsafe.Pointer(bi)), uint32(unsafe.Sizeof(bi))); err != nil {
+	if err := setFileInformationByHandle(syscall.Handle(f.Fd()), 0, (*byte)(unsafe.Pointer(bi)), uint32(unsafe.Sizeof(*bi))); err != nil {
 		return &os.PathError{"SetFileInformationByHandle", f.Name(), err}
 	}
 	return nil

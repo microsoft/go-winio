@@ -176,7 +176,7 @@ func WriteTarFileFromBackupStream(t *tar.Writer, r io.Reader, name string, size 
 		case winio.BackupEaData, winio.BackupLink, winio.BackupPropertyData, winio.BackupObjectId, winio.BackupTxfsData:
 			// ignore these streams
 		default:
-			return fmt.Errorf("unknown stream ID %d", bhdr.Id)
+			return fmt.Errorf("%s: unknown stream ID %d", name, bhdr.Id)
 		}
 	}
 
@@ -247,7 +247,7 @@ func WriteTarFileFromBackupStream(t *tar.Writer, r io.Reader, name string, size 
 		case winio.BackupEaData, winio.BackupLink, winio.BackupPropertyData, winio.BackupObjectId, winio.BackupTxfsData:
 			// ignore these streams
 		default:
-			return fmt.Errorf("unknown stream ID %d after data", bhdr.Id)
+			return fmt.Errorf("%s: unknown stream ID %d after data", name, bhdr.Id)
 		}
 	}
 	return nil
