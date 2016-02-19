@@ -29,6 +29,14 @@ var (
 	procBackupWrite                                          = modkernel32.NewProc("BackupWrite")
 	procGetFileInformationByHandleEx                         = modkernel32.NewProc("GetFileInformationByHandleEx")
 	procSetFileInformationByHandle                           = modkernel32.NewProc("SetFileInformationByHandle")
+	procAdjustTokenPrivileges                                = modadvapi32.NewProc("AdjustTokenPrivileges")
+	procImpersonateSelf                                      = modadvapi32.NewProc("ImpersonateSelf")
+	procRevertToSelf                                         = modadvapi32.NewProc("RevertToSelf")
+	procOpenThreadToken                                      = modadvapi32.NewProc("OpenThreadToken")
+	procGetCurrentThread                                     = modkernel32.NewProc("GetCurrentThread")
+	procLookupPrivilegeValueW                                = modadvapi32.NewProc("LookupPrivilegeValueW")
+	procLookupPrivilegeNameW                                 = modadvapi32.NewProc("LookupPrivilegeNameW")
+	procLookupPrivilegeDisplayNameW                          = modadvapi32.NewProc("LookupPrivilegeDisplayNameW")
 )
 
 func cancelIoEx(file syscall.Handle, o *syscall.Overlapped) (err error) {
@@ -304,6 +312,140 @@ func getFileInformationByHandleEx(h syscall.Handle, class uint32, buffer *byte, 
 
 func setFileInformationByHandle(h syscall.Handle, class uint32, buffer *byte, size uint32) (err error) {
 	r1, _, e1 := syscall.Syscall6(procSetFileInformationByHandle.Addr(), 4, uintptr(h), uintptr(class), uintptr(unsafe.Pointer(buffer)), uintptr(size), 0, 0)
+	if r1 == 0 {
+		if e1 != 0 {
+			err = error(e1)
+		} else {
+			err = syscall.EINVAL
+		}
+	}
+	return
+}
+
+func adjustTokenPrivileges(token syscall.Handle, releaseAll bool, input *byte, outputSize uint32, output *byte, requiredSize *uint32) (err error) {
+	var _p0 uint32
+	if releaseAll {
+		_p0 = 1
+	} else {
+		_p0 = 0
+	}
+	r1, _, e1 := syscall.Syscall6(procAdjustTokenPrivileges.Addr(), 6, uintptr(token), uintptr(_p0), uintptr(unsafe.Pointer(input)), uintptr(outputSize), uintptr(unsafe.Pointer(output)), uintptr(unsafe.Pointer(requiredSize)))
+	if r1 == 0 {
+		if e1 != 0 {
+			err = error(e1)
+		} else {
+			err = syscall.EINVAL
+		}
+	}
+	return
+}
+
+func impersonateSelf(level uint32) (err error) {
+	r1, _, e1 := syscall.Syscall(procImpersonateSelf.Addr(), 1, uintptr(level), 0, 0)
+	if r1 == 0 {
+		if e1 != 0 {
+			err = error(e1)
+		} else {
+			err = syscall.EINVAL
+		}
+	}
+	return
+}
+
+func revertToSelf() (err error) {
+	r1, _, e1 := syscall.Syscall(procRevertToSelf.Addr(), 0, 0, 0, 0)
+	if r1 == 0 {
+		if e1 != 0 {
+			err = error(e1)
+		} else {
+			err = syscall.EINVAL
+		}
+	}
+	return
+}
+
+func openThreadToken(thread syscall.Handle, accessMask uint32, openAsSelf bool, token *syscall.Handle) (err error) {
+	var _p0 uint32
+	if openAsSelf {
+		_p0 = 1
+	} else {
+		_p0 = 0
+	}
+	r1, _, e1 := syscall.Syscall6(procOpenThreadToken.Addr(), 4, uintptr(thread), uintptr(accessMask), uintptr(_p0), uintptr(unsafe.Pointer(token)), 0, 0)
+	if r1 == 0 {
+		if e1 != 0 {
+			err = error(e1)
+		} else {
+			err = syscall.EINVAL
+		}
+	}
+	return
+}
+
+func getCurrentThread() (h syscall.Handle) {
+	r0, _, _ := syscall.Syscall(procGetCurrentThread.Addr(), 0, 0, 0, 0)
+	h = syscall.Handle(r0)
+	return
+}
+
+func lookupPrivilegeValue(systemName string, name string, luid *uint64) (err error) {
+	var _p0 *uint16
+	_p0, err = syscall.UTF16PtrFromString(systemName)
+	if err != nil {
+		return
+	}
+	var _p1 *uint16
+	_p1, err = syscall.UTF16PtrFromString(name)
+	if err != nil {
+		return
+	}
+	return _lookupPrivilegeValue(_p0, _p1, luid)
+}
+
+func _lookupPrivilegeValue(systemName *uint16, name *uint16, luid *uint64) (err error) {
+	r1, _, e1 := syscall.Syscall(procLookupPrivilegeValueW.Addr(), 3, uintptr(unsafe.Pointer(systemName)), uintptr(unsafe.Pointer(name)), uintptr(unsafe.Pointer(luid)))
+	if r1 == 0 {
+		if e1 != 0 {
+			err = error(e1)
+		} else {
+			err = syscall.EINVAL
+		}
+	}
+	return
+}
+
+func lookupPrivilegeName(systemName string, luid *uint64, buffer *uint16, size *uint32) (err error) {
+	var _p0 *uint16
+	_p0, err = syscall.UTF16PtrFromString(systemName)
+	if err != nil {
+		return
+	}
+	return _lookupPrivilegeName(_p0, luid, buffer, size)
+}
+
+func _lookupPrivilegeName(systemName *uint16, luid *uint64, buffer *uint16, size *uint32) (err error) {
+	r1, _, e1 := syscall.Syscall6(procLookupPrivilegeNameW.Addr(), 4, uintptr(unsafe.Pointer(systemName)), uintptr(unsafe.Pointer(luid)), uintptr(unsafe.Pointer(buffer)), uintptr(unsafe.Pointer(size)), 0, 0)
+	if r1 == 0 {
+		if e1 != 0 {
+			err = error(e1)
+		} else {
+			err = syscall.EINVAL
+		}
+	}
+	return
+}
+
+func lookupPrivilegeDisplayName(systemName string, name *uint16, buffer *uint16, size *uint32, languageId *uint32) (err error) {
+	var _p0 *uint16
+	_p0, err = syscall.UTF16PtrFromString(systemName)
+	if err != nil {
+		return
+	}
+	return _lookupPrivilegeDisplayName(_p0, name, buffer, size, languageId)
+}
+
+func _lookupPrivilegeDisplayName(systemName *uint16, name *uint16, buffer *uint16, size *uint32, languageId *uint32) (err error) {
+	r1, _, e1 := syscall.Syscall6(procLookupPrivilegeDisplayNameW.Addr(), 5, uintptr(unsafe.Pointer(systemName)), uintptr(unsafe.Pointer(name)), uintptr(unsafe.Pointer(buffer)), uintptr(unsafe.Pointer(size)), uintptr(unsafe.Pointer(languageId)), 0)
 	if r1 == 0 {
 		if e1 != 0 {
 			err = error(e1)
