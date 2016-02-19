@@ -22,6 +22,7 @@ var (
 	procLookupAccountNameW                                   = modadvapi32.NewProc("LookupAccountNameW")
 	procConvertSidToStringSidW                               = modadvapi32.NewProc("ConvertSidToStringSidW")
 	procConvertStringSecurityDescriptorToSecurityDescriptorW = modadvapi32.NewProc("ConvertStringSecurityDescriptorToSecurityDescriptorW")
+	procConvertSecurityDescriptorToStringSecurityDescriptorW = modadvapi32.NewProc("ConvertSecurityDescriptorToStringSecurityDescriptorW")
 	procLocalFree                                            = modkernel32.NewProc("LocalFree")
 	procGetSecurityDescriptorLength                          = modadvapi32.NewProc("GetSecurityDescriptorLength")
 	procGetFileInformationByHandleEx                         = modkernel32.NewProc("GetFileInformationByHandleEx")
@@ -34,6 +35,8 @@ var (
 	procLookupPrivilegeValueW                                = modadvapi32.NewProc("LookupPrivilegeValueW")
 	procLookupPrivilegeNameW                                 = modadvapi32.NewProc("LookupPrivilegeNameW")
 	procLookupPrivilegeDisplayNameW                          = modadvapi32.NewProc("LookupPrivilegeDisplayNameW")
+	procBackupRead                                           = modkernel32.NewProc("BackupRead")
+	procBackupWrite                                          = modkernel32.NewProc("BackupWrite")
 )
 
 func cancelIoEx(file syscall.Handle, o *syscall.Overlapped) (err error) {
@@ -216,6 +219,18 @@ func _convertStringSecurityDescriptorToSecurityDescriptor(str *uint16, revision 
 	return
 }
 
+func convertSecurityDescriptorToStringSecurityDescriptor(sd *byte, revision uint32, secInfo uint32, sddl **uint16, sddlSize *uint32) (err error) {
+	r1, _, e1 := syscall.Syscall6(procConvertSecurityDescriptorToStringSecurityDescriptorW.Addr(), 5, uintptr(unsafe.Pointer(sd)), uintptr(revision), uintptr(secInfo), uintptr(unsafe.Pointer(sddl)), uintptr(unsafe.Pointer(sddlSize)), 0)
+	if r1 == 0 {
+		if e1 != 0 {
+			err = error(e1)
+		} else {
+			err = syscall.EINVAL
+		}
+	}
+	return
+}
+
 func localFree(mem uintptr) {
 	syscall.Syscall(procLocalFree.Addr(), 1, uintptr(mem), 0, 0)
 	return
@@ -375,6 +390,62 @@ func lookupPrivilegeDisplayName(systemName string, name *uint16, buffer *uint16,
 
 func _lookupPrivilegeDisplayName(systemName *uint16, name *uint16, buffer *uint16, size *uint32, languageId *uint32) (err error) {
 	r1, _, e1 := syscall.Syscall6(procLookupPrivilegeDisplayNameW.Addr(), 5, uintptr(unsafe.Pointer(systemName)), uintptr(unsafe.Pointer(name)), uintptr(unsafe.Pointer(buffer)), uintptr(unsafe.Pointer(size)), uintptr(unsafe.Pointer(languageId)), 0)
+	if r1 == 0 {
+		if e1 != 0 {
+			err = error(e1)
+		} else {
+			err = syscall.EINVAL
+		}
+	}
+	return
+}
+
+func backupRead(h syscall.Handle, b []byte, bytesRead *uint32, abort bool, processSecurity bool, context *uintptr) (err error) {
+	var _p0 *byte
+	if len(b) > 0 {
+		_p0 = &b[0]
+	}
+	var _p1 uint32
+	if abort {
+		_p1 = 1
+	} else {
+		_p1 = 0
+	}
+	var _p2 uint32
+	if processSecurity {
+		_p2 = 1
+	} else {
+		_p2 = 0
+	}
+	r1, _, e1 := syscall.Syscall9(procBackupRead.Addr(), 7, uintptr(h), uintptr(unsafe.Pointer(_p0)), uintptr(len(b)), uintptr(unsafe.Pointer(bytesRead)), uintptr(_p1), uintptr(_p2), uintptr(unsafe.Pointer(context)), 0, 0)
+	if r1 == 0 {
+		if e1 != 0 {
+			err = error(e1)
+		} else {
+			err = syscall.EINVAL
+		}
+	}
+	return
+}
+
+func backupWrite(h syscall.Handle, b []byte, bytesWritten *uint32, abort bool, processSecurity bool, context *uintptr) (err error) {
+	var _p0 *byte
+	if len(b) > 0 {
+		_p0 = &b[0]
+	}
+	var _p1 uint32
+	if abort {
+		_p1 = 1
+	} else {
+		_p1 = 0
+	}
+	var _p2 uint32
+	if processSecurity {
+		_p2 = 1
+	} else {
+		_p2 = 0
+	}
+	r1, _, e1 := syscall.Syscall9(procBackupWrite.Addr(), 7, uintptr(h), uintptr(unsafe.Pointer(_p0)), uintptr(len(b)), uintptr(unsafe.Pointer(bytesWritten)), uintptr(_p1), uintptr(_p2), uintptr(unsafe.Pointer(context)), 0, 0)
 	if r1 == 0 {
 		if e1 != 0 {
 			err = error(e1)
