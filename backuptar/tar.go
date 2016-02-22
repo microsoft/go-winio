@@ -93,7 +93,7 @@ func win32TimeFromTar(key string, xattrs map[string]string, unixTime time.Time) 
 }
 
 func win32TimeToTar(ft syscall.Filetime) (string, time.Time) {
-	return fmt.Sprintf("%u", uint64(ft.LowDateTime)+(uint64(ft.HighDateTime)<<32)), time.Unix(0, ft.Nanoseconds())
+	return fmt.Sprintf("%d", uint64(ft.LowDateTime)+(uint64(ft.HighDateTime)<<32)), time.Unix(0, ft.Nanoseconds())
 }
 
 // Writes a file to a tar writer using data from a Win32 backup stream.
