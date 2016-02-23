@@ -59,6 +59,7 @@ type Header struct {
 	AccessTime time.Time // access time
 	ChangeTime time.Time // status change time
 	Xattrs     map[string]string
+	Winheaders map[string]string
 }
 
 // File name constants from the tar spec.
@@ -192,6 +193,7 @@ const (
 	paxUid      = "uid"
 	paxUname    = "uname"
 	paxXattr    = "SCHILY.xattr."
+	paxWindows  = "MSWINDOWS."
 	paxNone     = ""
 )
 

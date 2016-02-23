@@ -314,6 +314,11 @@ func mergePAX(hdr *Header, headers map[string]string) error {
 					hdr.Xattrs = make(map[string]string)
 				}
 				hdr.Xattrs[k[len(paxXattr):]] = v
+			} else if strings.HasPrefix(k, paxWindows) {
+				if hdr.Winheaders == nil {
+					hdr.Winheaders = make(map[string]string)
+				}
+				hdr.Winheaders[k[len(paxWindows):]] = v
 			}
 		}
 	}

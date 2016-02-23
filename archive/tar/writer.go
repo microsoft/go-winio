@@ -268,6 +268,9 @@ func (tw *Writer) writeHeader(hdr *Header, allowPax bool) error {
 		for k, v := range hdr.Xattrs {
 			paxHeaders[paxXattr+k] = v
 		}
+		for k, v := range hdr.Winheaders {
+			paxHeaders[paxWindows+k] = v
+		}
 	}
 
 	if len(paxHeaders) > 0 {
