@@ -1,7 +1,6 @@
 package backuptar
 
 import (
-	"archive/tar"
 	"errors"
 	"fmt"
 	"io"
@@ -13,6 +12,7 @@ import (
 	"time"
 
 	"github.com/Microsoft/go-winio"
+	"github.com/Microsoft/go-winio/archive/tar" // until archive/tar supports pax extensions in its interface
 )
 
 const (
@@ -29,13 +29,13 @@ const (
 )
 
 const (
-	xattrFileAttributes     = "MSWINDOWS.fileattr"
-	xattrAccessTime         = "MSWINDOWS.accesstime"
-	xattrChangeTime         = "MSWINDOWS.changetime"
-	xattrCreateTime         = "MSWINDOWS.createtime"
-	xattrWriteTime          = "MSWINDOWS.writetime"
-	xattrSecurityDescriptor = "MSWINDOWS.sd"
-	xattrMountPoint         = "MSWINDOWS.mountpoint"
+	hdrFileAttributes     = "fileattr"
+	hdrAccessTime         = "accesstime"
+	hdrChangeTime         = "changetime"
+	hdrCreateTime         = "createtime"
+	hdrWriteTime          = "writetime"
+	hdrSecurityDescriptor = "sd"
+	hdrMountPoint         = "mountpoint"
 )
 
 func writeZeroes(w io.Writer, count int64) error {
@@ -82,8 +82,8 @@ func copySparse(t *tar.Writer, br *winio.BackupStreamReader) error {
 	return nil
 }
 
-func win32TimeFromTar(key string, xattrs map[string]string, unixTime time.Time) syscall.Filetime {
-	if s, ok := xattrs[key]; ok {
+func win32TimeFromTar(key string, hdrs map[string]string, unixTime time.Time) syscall.Filetime {
+	if s, ok := hdrs[key]; ok {
 		n, err := strconv.ParseUint(s, 10, 64)
 		if err == nil {
 			return syscall.Filetime{uint32(n & 0xffffffff), uint32(n >> 32)}
@@ -98,8 +98,7 @@ func win32TimeToTar(ft syscall.Filetime) (string, time.Time) {
 
 // Writes a file to a tar writer using data from a Win32 backup stream.
 //
-// Currently this encodes Win32 metadata as tar xattrs (i.e. SCHILY.xattr.*), which is incorrect.
-// This should be fixed archive/tar exposes the ability to write general pax headers.
+// This encodes Win32 metadata as tar pax vendor extensions starting with MSWINDOWS.
 //
 // The additional Win32 metadata is:
 //
@@ -119,16 +118,16 @@ func win32TimeToTar(ft syscall.Filetime) (string, time.Time) {
 func WriteTarFileFromBackupStream(t *tar.Writer, r io.Reader, name string, size int64, fileInfo *winio.FileBasicInfo) error {
 	name = filepath.ToSlash(name)
 	hdr := &tar.Header{
-		Name:     name,
-		Size:     size,
-		Typeflag: tar.TypeReg,
-		Xattrs:   make(map[string]string),
+		Name:       name,
+		Size:       size,
+		Typeflag:   tar.TypeReg,
+		Winheaders: make(map[string]string),
 	}
-	hdr.Xattrs[xattrFileAttributes] = fmt.Sprintf("%d", fileInfo.FileAttributes)
-	hdr.Xattrs[xattrAccessTime], hdr.AccessTime = win32TimeToTar(fileInfo.LastAccessTime)
-	hdr.Xattrs[xattrChangeTime], hdr.ChangeTime = win32TimeToTar(fileInfo.ChangeTime)
-	hdr.Xattrs[xattrCreateTime], _ = win32TimeToTar(fileInfo.CreationTime)
-	hdr.Xattrs[xattrWriteTime], hdr.ModTime = win32TimeToTar(fileInfo.LastWriteTime)
+	hdr.Winheaders[hdrFileAttributes] = fmt.Sprintf("%d", fileInfo.FileAttributes)
+	hdr.Winheaders[hdrAccessTime], hdr.AccessTime = win32TimeToTar(fileInfo.LastAccessTime)
+	hdr.Winheaders[hdrChangeTime], hdr.ChangeTime = win32TimeToTar(fileInfo.ChangeTime)
+	hdr.Winheaders[hdrCreateTime], _ = win32TimeToTar(fileInfo.CreationTime)
+	hdr.Winheaders[hdrWriteTime], hdr.ModTime = win32TimeToTar(fileInfo.LastWriteTime)
 
 	if (fileInfo.FileAttributes & syscall.FILE_ATTRIBUTE_DIRECTORY) != 0 {
 		hdr.Mode |= c_ISDIR
@@ -159,7 +158,7 @@ func WriteTarFileFromBackupStream(t *tar.Writer, r io.Reader, name string, size 
 			if err != nil {
 				return err
 			}
-			hdr.Xattrs[xattrSecurityDescriptor] = sddl
+			hdr.Winheaders[hdrSecurityDescriptor] = sddl
 
 		case winio.BackupReparseData:
 			hdr.Mode |= c_ISLNK
@@ -170,7 +169,7 @@ func WriteTarFileFromBackupStream(t *tar.Writer, r io.Reader, name string, size 
 				return err
 			}
 			if rp.IsMountPoint {
-				hdr.Xattrs[xattrMountPoint] = "1"
+				hdr.Winheaders[hdrMountPoint] = "1"
 			}
 			hdr.Linkname = rp.Target
 		case winio.BackupEaData, winio.BackupLink, winio.BackupPropertyData, winio.BackupObjectId, winio.BackupTxfsData:
@@ -261,12 +260,12 @@ func FileInfoFromHeader(hdr *tar.Header) (name string, size int64, fileInfo *win
 		size = hdr.Size
 	}
 	fileInfo = &winio.FileBasicInfo{
-		LastAccessTime: win32TimeFromTar(xattrAccessTime, hdr.Xattrs, hdr.AccessTime),
-		LastWriteTime:  win32TimeFromTar(xattrWriteTime, hdr.Xattrs, hdr.ModTime),
-		ChangeTime:     win32TimeFromTar(xattrChangeTime, hdr.Xattrs, hdr.ChangeTime),
-		CreationTime:   win32TimeFromTar(xattrCreateTime, hdr.Xattrs, hdr.ModTime),
+		LastAccessTime: win32TimeFromTar(hdrAccessTime, hdr.Winheaders, hdr.AccessTime),
+		LastWriteTime:  win32TimeFromTar(hdrWriteTime, hdr.Winheaders, hdr.ModTime),
+		ChangeTime:     win32TimeFromTar(hdrChangeTime, hdr.Winheaders, hdr.ChangeTime),
+		CreationTime:   win32TimeFromTar(hdrCreateTime, hdr.Winheaders, hdr.ModTime),
 	}
-	if attrStr, ok := hdr.Xattrs[xattrFileAttributes]; ok {
+	if attrStr, ok := hdr.Winheaders[hdrFileAttributes]; ok {
 		attr, err := strconv.ParseUint(attrStr, 10, 32)
 		if err != nil {
 			return "", 0, nil, err
@@ -285,7 +284,7 @@ func FileInfoFromHeader(hdr *tar.Header) (name string, size int64, fileInfo *win
 // tar file that was not processed, or io.EOF is there are no more.
 func WriteBackupStreamFromTarFile(w io.Writer, t *tar.Reader, hdr *tar.Header) (*tar.Header, error) {
 	bw := winio.NewBackupStreamWriter(w)
-	if sddl, ok := hdr.Xattrs[xattrSecurityDescriptor]; ok {
+	if sddl, ok := hdr.Winheaders[hdrSecurityDescriptor]; ok {
 		sd, err := winio.SddlToSecurityDescriptor(sddl)
 		if err != nil {
 			return nil, err
@@ -304,7 +303,7 @@ func WriteBackupStreamFromTarFile(w io.Writer, t *tar.Reader, hdr *tar.Header) (
 		}
 	}
 	if hdr.Typeflag == tar.TypeSymlink {
-		_, isMountPoint := hdr.Xattrs[xattrMountPoint]
+		_, isMountPoint := hdr.Winheaders[hdrMountPoint]
 		rp := winio.ReparsePoint{
 			Target:       hdr.Linkname,
 			IsMountPoint: isMountPoint,
