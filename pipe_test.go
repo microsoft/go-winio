@@ -2,6 +2,7 @@ package winio
 
 import (
 	"bufio"
+	"io"
 	"net"
 	"os"
 	"syscall"
@@ -172,6 +173,38 @@ func TestCloseAbortsListen(t *testing.T) {
 	if err != ErrPipeListenerClosed {
 		t.Fatalf("expected ErrPipeListenerClosed, got %v", err)
 	}
+}
+
+func ensureEOFOnClose(t *testing.T, r io.Reader, w io.Closer) {
+	b := make([]byte, 10)
+	w.Close()
+	n, err := r.Read(b)
+	if n > 0 {
+		t.Errorf("unexpected byte count %d", n)
+	}
+	if err != io.EOF {
+		t.Errorf("expected EOF: %v", err)
+	}
+}
+
+func TestCloseClientEOFServer(t *testing.T) {
+	c, s, err := getConnection()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer c.Close()
+	defer s.Close()
+	ensureEOFOnClose(t, c, s)
+}
+
+func TestCloseServerEOFClient(t *testing.T) {
+	c, s, err := getConnection()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer c.Close()
+	defer s.Close()
+	ensureEOFOnClose(t, s, c)
 }
 
 func TestAcceptAfterCloseFails(t *testing.T) {
