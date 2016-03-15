@@ -230,7 +230,7 @@ func makeServerPipeHandle(path string, securityDescriptor []byte, c *PipeConfig,
 	if securityDescriptor != nil {
 		sa.SecurityDescriptor = &securityDescriptor[0]
 	}
-	h, err := createNamedPipe(path, flags, mode, cPIPE_UNLIMITED_INSTANCES, 4096, 4096, 0, &sa)
+	h, err := createNamedPipe(path, flags, mode, cPIPE_UNLIMITED_INSTANCES, uint32(c.OutputBufferSize), uint32(c.InputBufferSize), 0, &sa)
 	if err != nil {
 		return 0, &os.PathError{Op: "open", Path: path, Err: err}
 	}
@@ -302,6 +302,12 @@ type PipeConfig struct {
 	// transferred to the reader (and returned as io.EOF in this implementation)
 	// when the pipe is in message mode.
 	MessageMode bool
+
+	// InputBufferSize specifies the size the input buffer, in bytes.
+	InputBufferSize int32
+
+	// OutputBufferSize specifies the size the input buffer, in bytes.
+	OutputBufferSize int32
 }
 
 // ListenPipe creates a listener on a Windows named pipe path, e.g. \\.\pipe\mypipe.
