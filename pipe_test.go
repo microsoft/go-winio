@@ -20,7 +20,7 @@ func TestDialUnknownFailsImmediately(t *testing.T) {
 }
 
 func TestDialListenerTimesOut(t *testing.T) {
-	l, err := ListenPipe(testPipeName, "")
+	l, err := ListenPipe(testPipeName, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -33,7 +33,10 @@ func TestDialListenerTimesOut(t *testing.T) {
 }
 
 func TestDialAccessDeniedWithRestrictedSD(t *testing.T) {
-	l, err := ListenPipe(testPipeName, "D:P(A;;0x1200FF;;;WD)")
+	c := PipeConfig{
+		SecurityDescriptor: "D:P(A;;0x1200FF;;;WD)",
+	}
+	l, err := ListenPipe(testPipeName, &c)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -44,8 +47,8 @@ func TestDialAccessDeniedWithRestrictedSD(t *testing.T) {
 	}
 }
 
-func getConnection() (client net.Conn, server net.Conn, err error) {
-	l, err := ListenPipe(testPipeName, "")
+func getConnection(cfg *PipeConfig) (client net.Conn, server net.Conn, err error) {
+	l, err := ListenPipe(testPipeName, cfg)
 	if err != nil {
 		return
 	}
@@ -78,7 +81,7 @@ func getConnection() (client net.Conn, server net.Conn, err error) {
 }
 
 func TestReadTimeout(t *testing.T) {
-	c, s, err := getConnection()
+	c, s, err := getConnection(nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -117,7 +120,7 @@ func server(l net.Listener, ch chan int) {
 }
 
 func TestFullListenDialReadWrite(t *testing.T) {
-	l, err := ListenPipe(testPipeName, "")
+	l, err := ListenPipe(testPipeName, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -155,7 +158,7 @@ func TestFullListenDialReadWrite(t *testing.T) {
 }
 
 func TestCloseAbortsListen(t *testing.T) {
-	l, err := ListenPipe(testPipeName, "")
+	l, err := ListenPipe(testPipeName, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -188,7 +191,7 @@ func ensureEOFOnClose(t *testing.T, r io.Reader, w io.Closer) {
 }
 
 func TestCloseClientEOFServer(t *testing.T) {
-	c, s, err := getConnection()
+	c, s, err := getConnection(nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -198,7 +201,7 @@ func TestCloseClientEOFServer(t *testing.T) {
 }
 
 func TestCloseServerEOFClient(t *testing.T) {
-	c, s, err := getConnection()
+	c, s, err := getConnection(nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -207,8 +210,35 @@ func TestCloseServerEOFClient(t *testing.T) {
 	ensureEOFOnClose(t, s, c)
 }
 
+func TestCloseWriteEOF(t *testing.T) {
+	cfg := &PipeConfig{
+		MessageMode: true,
+	}
+	c, s, err := getConnection(cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer c.Close()
+	defer s.Close()
+
+	type closeWriter interface {
+		CloseWrite() error
+	}
+
+	err = c.(closeWriter).CloseWrite()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	b := make([]byte, 10)
+	_, err = s.Read(b)
+	if err != io.EOF {
+		t.Fatal(err)
+	}
+}
+
 func TestAcceptAfterCloseFails(t *testing.T) {
-	l, err := ListenPipe(testPipeName, "")
+	l, err := ListenPipe(testPipeName, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -220,7 +250,7 @@ func TestAcceptAfterCloseFails(t *testing.T) {
 }
 
 func TestDialTimesOutByDefault(t *testing.T) {
-	l, err := ListenPipe(testPipeName, "")
+	l, err := ListenPipe(testPipeName, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
