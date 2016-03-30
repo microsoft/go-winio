@@ -78,21 +78,10 @@ func copySparse(t *tar.Writer, br *winio.BackupStreamReader) error {
 	return nil
 }
 
-// WriteTarFileFromBackupStream writes a file to a tar writer using data from a Win32 backup stream.
-//
-// This encodes Win32 metadata as tar pax vendor extensions starting with MSWINDOWS.
-//
-// The additional Win32 metadata is:
-//
-// MSWINDOWS.fileattr: The Win32 file attributes, as a decimal value
-//
-// MSWINDOWS.sd: The Win32 security descriptor, in SDDL (string) format
-//
-// MSWINDOWS.mountpoint: If present, this is a mount point and not a symlink, even though the type is '2' (symlink)
-func WriteTarFileFromBackupStream(t *tar.Writer, r io.Reader, name string, size int64, fileInfo *winio.FileBasicInfo) error {
-	name = filepath.ToSlash(name)
+// BasicInfoHeader creates a tar header from basic file information.
+func BasicInfoHeader(name string, size int64, fileInfo *winio.FileBasicInfo) *tar.Header {
 	hdr := &tar.Header{
-		Name:         name,
+		Name:         filepath.ToSlash(name),
 		Size:         size,
 		Typeflag:     tar.TypeReg,
 		ModTime:      time.Unix(0, fileInfo.LastWriteTime.Nanoseconds()),
@@ -108,7 +97,23 @@ func WriteTarFileFromBackupStream(t *tar.Writer, r io.Reader, name string, size 
 		hdr.Size = 0
 		hdr.Typeflag = tar.TypeDir
 	}
+	return hdr
+}
 
+// WriteTarFileFromBackupStream writes a file to a tar writer using data from a Win32 backup stream.
+//
+// This encodes Win32 metadata as tar pax vendor extensions starting with MSWINDOWS.
+//
+// The additional Win32 metadata is:
+//
+// MSWINDOWS.fileattr: The Win32 file attributes, as a decimal value
+//
+// MSWINDOWS.sd: The Win32 security descriptor, in SDDL (string) format
+//
+// MSWINDOWS.mountpoint: If present, this is a mount point and not a symlink, even though the type is '2' (symlink)
+func WriteTarFileFromBackupStream(t *tar.Writer, r io.Reader, name string, size int64, fileInfo *winio.FileBasicInfo) error {
+	name = filepath.ToSlash(name)
+	hdr := BasicInfoHeader(name, size, fileInfo)
 	br := winio.NewBackupStreamReader(r)
 	var dataHdr *winio.BackupHeader
 	for dataHdr == nil {
