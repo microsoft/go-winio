@@ -153,11 +153,15 @@ const streamentrySize = 38
 // ParseError is returned when the WIM cannot be parsed.
 type ParseError struct {
 	Oper string
+	Path string
 	Err  error
 }
 
 func (e *ParseError) Error() string {
-	return "WIM parse error at " + e.Oper + ": " + e.Err.Error()
+	if e.Path == "" {
+		return "WIM parse error at " + e.Oper + ": " + e.Err.Error()
+	}
+	return fmt.Sprintf("WIM parse error: %s %s: %s", e.Oper, e.Path, e.Err.Error())
 }
 
 // Reader provides functions to read a WIM file.
@@ -205,7 +209,6 @@ type FileHeader struct {
 	LinkID             int64
 	ReparseTag         uint32
 	ReparseReserved    uint32
-	ReparseStream      *Stream
 }
 
 // File represents a file or directory in a WIM image.
@@ -227,7 +230,7 @@ func NewReader(f io.ReaderAt) (*Reader, error) {
 	}
 
 	if r.hdr.ImageTag != wimImageTag {
-		return nil, &ParseError{"image tag", errors.New("not a WIM file")}
+		return nil, &ParseError{Oper: "image tag", Err: errors.New("not a WIM file")}
 	}
 
 	if r.hdr.Flags&^supportedHdrFlags != 0 {
@@ -295,12 +298,12 @@ func (r *Reader) ReadXML() (string, error) {
 	XMLData := make([]uint16, r.hdr.XMLData.OriginalSize/2)
 	err = binary.Read(rsrc, binary.LittleEndian, XMLData)
 	if err != nil {
-		return "", &ParseError{"XML data", err}
+		return "", &ParseError{Oper: "XML data", Err: err}
 	}
 
 	// The BOM will always indicate little-endian UTF-16.
 	if XMLData[0] != 0xfeff {
-		return "", &ParseError{"XML data", errors.New("invalid BOM")}
+		return "", &ParseError{Oper: "XML data", Err: errors.New("invalid BOM")}
 	}
 	return string(utf16.Decode(XMLData[1:])), nil
 }
@@ -311,39 +314,39 @@ func (r *Reader) readOffsetTable(res *resourceDescriptor) (map[SHA1Hash]resource
 
 	offsetTable, err := r.readResource(res)
 	if err != nil {
-		return nil, nil, &ParseError{"offset table", err}
+		return nil, nil, &ParseError{Oper: "offset table", Err: err}
 	}
 
 	br := bytes.NewReader(offsetTable)
-	for {
+	for i := 0; ; i++ {
 		var res streamDescriptor
 		err := binary.Read(br, binary.LittleEndian, &res)
 		if err == io.EOF {
 			break
 		}
 		if err != nil {
-			return nil, nil, &ParseError{"offset table", err}
+			return nil, nil, &ParseError{Oper: "offset table", Err: err}
 		}
 		if res.Flags()&^supportedResFlags != 0 {
-			return nil, nil, &ParseError{"offset table", errors.New("unsupported resource flag")}
+			return nil, nil, &ParseError{Oper: "offset table", Err: errors.New("unsupported resource flag")}
 		}
 
 		// Validation for ad-hoc testing
 		if validate {
 			sec, err := r.resourceReader(&res.resourceDescriptor)
 			if err != nil {
-				return nil, nil, err
+				panic(fmt.Sprint(i, err))
 			}
 			hash := sha1.New()
 			_, err = io.Copy(hash, sec)
 			sec.Close()
 			if err != nil {
-				return nil, nil, err
+				panic(fmt.Sprint(i, err))
 			}
 			var cmphash SHA1Hash
 			copy(cmphash[:], hash.Sum(nil))
 			if cmphash != res.Hash {
-				return nil, nil, errors.New("hash mismatch")
+				panic(fmt.Sprint(i, "hash mismatch"))
 			}
 		}
 
@@ -359,7 +362,7 @@ func (r *Reader) readOffsetTable(res *resourceDescriptor) (map[SHA1Hash]resource
 	}
 
 	if len(images) != int(r.hdr.ImageCount) {
-		return nil, nil, &ParseError{"offset table", errors.New("mismatched image count")}
+		return nil, nil, &ParseError{Oper: "offset table", Err: errors.New("mismatched image count")}
 	}
 
 	return fileData, images, nil
@@ -369,7 +372,7 @@ func (r *Reader) readSecurityDescriptors(rsrc io.Reader) (sds [][]byte, n int64,
 	var secBlock securityblockDisk
 	err = binary.Read(rsrc, binary.LittleEndian, &secBlock)
 	if err != nil {
-		err = &ParseError{"security table", err}
+		err = &ParseError{Oper: "security table", Err: err}
 		return
 	}
 
@@ -378,7 +381,7 @@ func (r *Reader) readSecurityDescriptors(rsrc io.Reader) (sds [][]byte, n int64,
 	secSizes := make([]int64, secBlock.NumEntries)
 	err = binary.Read(rsrc, binary.LittleEndian, &secSizes)
 	if err != nil {
-		err = &ParseError{"security table sizes", err}
+		err = &ParseError{Oper: "security table sizes", Err: err}
 		return
 	}
 
@@ -389,7 +392,7 @@ func (r *Reader) readSecurityDescriptors(rsrc io.Reader) (sds [][]byte, n int64,
 		sd := make([]byte, size&0xffffffff)
 		_, err = io.ReadFull(rsrc, sd)
 		if err != nil {
-			err = &ParseError{"security descriptor", err}
+			err = &ParseError{Oper: "security descriptor", Err: err}
 			return
 		}
 		n += int64(len(sd))
@@ -398,7 +401,7 @@ func (r *Reader) readSecurityDescriptors(rsrc io.Reader) (sds [][]byte, n int64,
 
 	secsize := int64((secBlock.TotalLength + 7) &^ 7)
 	if n > secsize {
-		err = &ParseError{"security descriptor", errors.New("security descriptor table too small")}
+		err = &ParseError{Oper: "security descriptor", Err: errors.New("security descriptor table too small")}
 		return
 	}
 
@@ -432,7 +435,7 @@ func (img *Image) Open() (*File, error) {
 		return nil, err
 	}
 	if len(f) != 1 {
-		return nil, &ParseError{"root directory", errors.New("expected exactly 1 root directory entry")}
+		return nil, &ParseError{Oper: "root directory", Err: errors.New("expected exactly 1 root directory entry")}
 	}
 	return f[0], err
 }
@@ -457,7 +460,7 @@ func (img *Image) readdir(rsrc io.Reader) ([]*File, error) {
 func (img *Image) readNextEntry(r *bufio.Reader) (*File, error) {
 	lengthBuf, err := r.Peek(8)
 	if err != nil {
-		return nil, &ParseError{"directory length check", err}
+		return nil, &ParseError{Oper: "directory length check", Err: err}
 	}
 
 	left := int(binary.LittleEndian.Uint64(lengthBuf))
@@ -466,16 +469,38 @@ func (img *Image) readNextEntry(r *bufio.Reader) (*File, error) {
 	}
 
 	if left < direntrySize {
-		return nil, &ParseError{"directory entry", errors.New("size too short")}
+		return nil, &ParseError{Oper: "directory entry", Err: errors.New("size too short")}
 	}
 
 	var dentry direntry
 	err = binary.Read(r, binary.LittleEndian, &dentry)
 	if err != nil {
-		return nil, &ParseError{"directory entry", err}
+		return nil, &ParseError{Oper: "directory entry", Err: err}
 	}
 
 	left -= direntrySize
+
+	namesLen := int(dentry.FileNameLength + 2 + dentry.ShortNameLength)
+	if left < namesLen {
+		return nil, &ParseError{Oper: "directory entry", Err: errors.New("size too short for names")}
+	}
+
+	names := make([]uint16, namesLen/2)
+	err = binary.Read(r, binary.LittleEndian, names)
+	if err != nil {
+		return nil, &ParseError{Oper: "file name", Err: err}
+	}
+
+	left -= namesLen
+
+	var name, shortName string
+	if dentry.FileNameLength > 0 {
+		name = string(utf16.Decode(names[:dentry.FileNameLength/2]))
+	}
+
+	if dentry.ShortNameLength > 0 {
+		shortName = string(utf16.Decode(names[dentry.FileNameLength/2+1:]))
+	}
 
 	var offset resourceDescriptor
 	zerohash := SHA1Hash{}
@@ -483,7 +508,7 @@ func (img *Image) readNextEntry(r *bufio.Reader) (*File, error) {
 		var ok bool
 		offset, ok = img.wim.fileData[dentry.Hash]
 		if !ok {
-			return nil, &ParseError{"directory entry", fmt.Errorf("could not find file data matching hash %v", dentry.Hash)}
+			return nil, &ParseError{Oper: "directory entry", Path: name, Err: fmt.Errorf("could not find file data matching hash %#v", dentry)}
 		}
 	}
 
@@ -495,6 +520,8 @@ func (img *Image) readNextEntry(r *bufio.Reader) (*File, error) {
 			LastWriteTime:  dentry.LastWriteTime,
 			Hash:           dentry.Hash,
 			Size:           offset.OriginalSize,
+			Name:           name,
+			ShortName:      shortName,
 		},
 
 		offset:       offset,
@@ -502,36 +529,26 @@ func (img *Image) readNextEntry(r *bufio.Reader) (*File, error) {
 		subdirOffset: dentry.SubdirOffset,
 	}
 
+	isDir := false
+
 	if dentry.Attributes&syscall.FILE_ATTRIBUTE_REPARSE_POINT == 0 {
 		f.LinkID = dentry.ReparseHardLink
+		if dentry.Attributes&syscall.FILE_ATTRIBUTE_DIRECTORY != 0 {
+			isDir = true
+		}
 	} else {
 		f.ReparseTag = uint32(dentry.ReparseHardLink)
 		f.ReparseReserved = uint32(dentry.ReparseHardLink >> 32)
 	}
 
+	if isDir && f.subdirOffset == 0 {
+		return nil, &ParseError{Oper: "directory entry", Path: name, Err: errors.New("no subdirectory data for directory")}
+	} else if !isDir && f.subdirOffset != 0 {
+		return nil, &ParseError{Oper: "directory entry", Path: name, Err: errors.New("unexpected subdirectory data for non-directory")}
+	}
+
 	if dentry.SecurityID != 0xffffffff {
 		f.SecurityDescriptor = img.sds[dentry.SecurityID]
-	}
-
-	namesLen := int(dentry.FileNameLength + 2 + dentry.ShortNameLength)
-	if left < namesLen {
-		return nil, &ParseError{"directory entry", errors.New("size too short for names")}
-	}
-
-	names := make([]uint16, namesLen/2)
-	err = binary.Read(r, binary.LittleEndian, names)
-	if err != nil {
-		return nil, &ParseError{"file name", err}
-	}
-
-	left -= namesLen
-
-	if dentry.FileNameLength > 0 {
-		f.Name = string(utf16.Decode(names[:dentry.FileNameLength/2]))
-	}
-
-	if dentry.ShortNameLength > 0 {
-		f.ShortName = string(utf16.Decode(names[dentry.FileNameLength/2+1:]))
 	}
 
 	_, err = r.Discard(left)
@@ -546,19 +563,20 @@ func (img *Image) readNextEntry(r *bufio.Reader) (*File, error) {
 			if err != nil {
 				return nil, err
 			}
-			if !(s.Name == "" && s.Size == 0) {
-				if dentry.Attributes&syscall.FILE_ATTRIBUTE_REPARSE_POINT != 0 && s.Name == "" {
-					f.ReparseStream = s
-				} else {
-					streams = append(streams, s)
-				}
+			// The first unnamed stream should be treated as the file stream.
+			if i == 0 && s.Name == "" {
+				f.Hash = s.Hash
+				f.Size = s.Size
+				f.offset = s.offset
+			} else if s.Name != "" {
+				streams = append(streams, s)
 			}
 		}
 		f.Streams = streams
 	}
 
-	if dentry.Attributes&syscall.FILE_ATTRIBUTE_REPARSE_POINT != 0 && f.ReparseStream == nil {
-		return nil, &ParseError{"directory entry", errors.New("reparse point is missing reparse stream")}
+	if dentry.Attributes&syscall.FILE_ATTRIBUTE_REPARSE_POINT != 0 && f.Size == 0 {
+		return nil, &ParseError{Oper: "directory entry", Path: name, Err: errors.New("reparse point is missing reparse stream")}
 	}
 
 	return f, nil
@@ -567,28 +585,41 @@ func (img *Image) readNextEntry(r *bufio.Reader) (*File, error) {
 func (img *Image) readNextStream(r *bufio.Reader) (*Stream, error) {
 	lengthBuf, err := r.Peek(8)
 	if err != nil {
-		return nil, &ParseError{"stream length check", err}
+		return nil, &ParseError{Oper: "stream length check", Err: err}
 	}
 
 	left := int(binary.LittleEndian.Uint64(lengthBuf))
 	if left < streamentrySize {
-		return nil, &ParseError{"stream entry", errors.New("size too short")}
+		return nil, &ParseError{Oper: "stream entry", Err: errors.New("size too short")}
 	}
 
 	var sentry streamentry
 	err = binary.Read(r, binary.LittleEndian, &sentry)
 	if err != nil {
-		return nil, &ParseError{"stream entry", err}
+		return nil, &ParseError{Oper: "stream entry", Err: err}
 	}
 
 	left -= streamentrySize
+
+	if left < int(sentry.NameLength) {
+		return nil, &ParseError{Oper: "stream entry", Err: errors.New("size too short for name")}
+	}
+
+	names := make([]uint16, sentry.NameLength/2)
+	err = binary.Read(r, binary.LittleEndian, names)
+	if err != nil {
+		return nil, &ParseError{Oper: "file name", Err: err}
+	}
+
+	left -= int(sentry.NameLength)
+	name := string(utf16.Decode(names))
 
 	var offset resourceDescriptor
 	if sentry.Hash != (SHA1Hash{}) {
 		var ok bool
 		offset, ok = img.wim.fileData[sentry.Hash]
 		if !ok {
-			return nil, &ParseError{"stream entry", fmt.Errorf("could not find file data matching hash %v", sentry.Hash)}
+			return nil, &ParseError{Oper: "stream entry", Path: name, Err: fmt.Errorf("could not find file data matching hash %v", sentry.Hash)}
 		}
 	}
 
@@ -596,23 +627,11 @@ func (img *Image) readNextStream(r *bufio.Reader) (*Stream, error) {
 		StreamHeader: StreamHeader{
 			Hash: sentry.Hash,
 			Size: offset.OriginalSize,
+			Name: name,
 		},
 		wim:    img.wim,
 		offset: offset,
 	}
-
-	if left < int(sentry.NameLength) {
-		return nil, &ParseError{"stream entry", errors.New("size too short for name")}
-	}
-
-	names := make([]uint16, sentry.NameLength/2)
-	err = binary.Read(r, binary.LittleEndian, names)
-	if err != nil {
-		return nil, &ParseError{"file name", err}
-	}
-
-	left -= int(sentry.NameLength)
-	s.Name = string(utf16.Decode(names))
 
 	_, err = r.Discard(left)
 	if err != nil {
@@ -634,7 +653,7 @@ func (f *File) Open() (io.ReadCloser, error) {
 
 // Readdir reads the directory entries.
 func (f *File) Readdir() ([]*File, error) {
-	if f.Attributes&syscall.FILE_ATTRIBUTE_DIRECTORY == 0 {
+	if !f.IsDir() {
 		return nil, errors.New("not a directory")
 	}
 	rsrc, err := f.img.wim.resourceReaderWithOffset(&f.img.offset, f.subdirOffset)
@@ -643,4 +662,10 @@ func (f *File) Readdir() ([]*File, error) {
 	}
 	defer rsrc.Close()
 	return f.img.readdir(rsrc)
+}
+
+// IsDir returns whether the given file is a directory. It returns false when it
+// is a directory reparse point.
+func (f *FileHeader) IsDir() bool {
+	return f.Attributes&(syscall.FILE_ATTRIBUTE_DIRECTORY|syscall.FILE_ATTRIBUTE_REPARSE_POINT) == syscall.FILE_ATTRIBUTE_DIRECTORY
 }
