@@ -13,8 +13,30 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
-	"syscall"
+	"time"
 	"unicode/utf16"
+)
+
+// File attribute constants from Windows.
+const (
+	FILE_ATTRIBUTE_READONLY            = 0x00000001
+	FILE_ATTRIBUTE_HIDDEN              = 0x00000002
+	FILE_ATTRIBUTE_SYSTEM              = 0x00000004
+	FILE_ATTRIBUTE_DIRECTORY           = 0x00000010
+	FILE_ATTRIBUTE_ARCHIVE             = 0x00000020
+	FILE_ATTRIBUTE_DEVICE              = 0x00000040
+	FILE_ATTRIBUTE_NORMAL              = 0x00000080
+	FILE_ATTRIBUTE_TEMPORARY           = 0x00000100
+	FILE_ATTRIBUTE_SPARSE_FILE         = 0x00000200
+	FILE_ATTRIBUTE_REPARSE_POINT       = 0x00000400
+	FILE_ATTRIBUTE_COMPRESSED          = 0x00000800
+	FILE_ATTRIBUTE_OFFLINE             = 0x00001000
+	FILE_ATTRIBUTE_NOT_CONTENT_INDEXED = 0x00002000
+	FILE_ATTRIBUTE_ENCRYPTED           = 0x00004000
+	FILE_ATTRIBUTE_INTEGRITY_STREAM    = 0x00008000
+	FILE_ATTRIBUTE_VIRTUAL             = 0x00010000
+	FILE_ATTRIBUTE_NO_SCRUB_DATA       = 0x00020000
+	FILE_ATTRIBUTE_EA                  = 0x00040000
 )
 
 var wimImageTag = [...]byte{'M', 'S', 'W', 'I', 'M', 0, 0, 0}
@@ -128,9 +150,9 @@ type direntry struct {
 	SecurityID       uint32
 	SubdirOffset     int64
 	Unused1, Unused2 int64
-	CreationTime     syscall.Filetime
-	LastAccessTime   syscall.Filetime
-	LastWriteTime    syscall.Filetime
+	CreationTime     filetime
+	LastAccessTime   filetime
+	LastWriteTime    filetime
 	Hash             SHA1Hash
 	Padding          uint32
 	ReparseHardLink  int64
@@ -149,6 +171,21 @@ type streamentry struct {
 }
 
 const streamentrySize = 38
+
+type filetime struct {
+	LowDateTime  uint32
+	HighDateTime uint32
+}
+
+func (ft *filetime) Time() time.Time {
+	// 100-nanosecond intervals since January 1, 1601
+	nsec := int64(ft.HighDateTime)<<32 + int64(ft.LowDateTime)
+	// change starting time to the Epoch (00:00:00 UTC, January 1, 1970)
+	nsec -= 116444736000000000
+	// convert into nanoseconds
+	nsec *= 100
+	return time.Unix(0, nsec)
+}
 
 // ParseError is returned when the WIM cannot be parsed.
 type ParseError struct {
@@ -201,9 +238,9 @@ type FileHeader struct {
 	ShortName          string
 	Attributes         uint32
 	SecurityDescriptor []byte
-	CreationTime       syscall.Filetime
-	LastAccessTime     syscall.Filetime
-	LastWriteTime      syscall.Filetime
+	CreationTime       time.Time
+	LastAccessTime     time.Time
+	LastWriteTime      time.Time
 	Hash               SHA1Hash
 	Size               int64
 	LinkID             int64
@@ -515,9 +552,9 @@ func (img *Image) readNextEntry(r *bufio.Reader) (*File, error) {
 	f := &File{
 		FileHeader: FileHeader{
 			Attributes:     dentry.Attributes,
-			CreationTime:   dentry.CreationTime,
-			LastAccessTime: dentry.LastAccessTime,
-			LastWriteTime:  dentry.LastWriteTime,
+			CreationTime:   dentry.CreationTime.Time(),
+			LastAccessTime: dentry.LastAccessTime.Time(),
+			LastWriteTime:  dentry.LastWriteTime.Time(),
 			Hash:           dentry.Hash,
 			Size:           offset.OriginalSize,
 			Name:           name,
@@ -531,9 +568,9 @@ func (img *Image) readNextEntry(r *bufio.Reader) (*File, error) {
 
 	isDir := false
 
-	if dentry.Attributes&syscall.FILE_ATTRIBUTE_REPARSE_POINT == 0 {
+	if dentry.Attributes&FILE_ATTRIBUTE_REPARSE_POINT == 0 {
 		f.LinkID = dentry.ReparseHardLink
-		if dentry.Attributes&syscall.FILE_ATTRIBUTE_DIRECTORY != 0 {
+		if dentry.Attributes&FILE_ATTRIBUTE_DIRECTORY != 0 {
 			isDir = true
 		}
 	} else {
@@ -575,7 +612,7 @@ func (img *Image) readNextEntry(r *bufio.Reader) (*File, error) {
 		f.Streams = streams
 	}
 
-	if dentry.Attributes&syscall.FILE_ATTRIBUTE_REPARSE_POINT != 0 && f.Size == 0 {
+	if dentry.Attributes&FILE_ATTRIBUTE_REPARSE_POINT != 0 && f.Size == 0 {
 		return nil, &ParseError{Oper: "directory entry", Path: name, Err: errors.New("reparse point is missing reparse stream")}
 	}
 
@@ -667,5 +704,5 @@ func (f *File) Readdir() ([]*File, error) {
 // IsDir returns whether the given file is a directory. It returns false when it
 // is a directory reparse point.
 func (f *FileHeader) IsDir() bool {
-	return f.Attributes&(syscall.FILE_ATTRIBUTE_DIRECTORY|syscall.FILE_ATTRIBUTE_REPARSE_POINT) == syscall.FILE_ATTRIBUTE_DIRECTORY
+	return f.Attributes&(FILE_ATTRIBUTE_DIRECTORY|FILE_ATTRIBUTE_REPARSE_POINT) == FILE_ATTRIBUTE_DIRECTORY
 }
