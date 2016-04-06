@@ -20,6 +20,9 @@ func main() {
 		panic(err)
 
 	}
+
+	fmt.Printf("%#v\n%#v\n", w.Image[0], w.Image[0].Windows)
+
 	dir, err := w.Image[0].Open()
 	if err != nil {
 		panic(err)

@@ -9,10 +9,12 @@ import (
 	"bytes"
 	"crypto/sha1"
 	"encoding/binary"
+	"encoding/xml"
 	"errors"
 	"fmt"
 	"io"
 	"io/ioutil"
+	"strconv"
 	"time"
 	"unicode/utf16"
 )
@@ -37,6 +39,23 @@ const (
 	FILE_ATTRIBUTE_VIRTUAL             = 0x00010000
 	FILE_ATTRIBUTE_NO_SCRUB_DATA       = 0x00020000
 	FILE_ATTRIBUTE_EA                  = 0x00040000
+)
+
+// Windows processor architectures.
+const (
+	PROCESSOR_ARCHITECTURE_INTEL         = 0
+	PROCESSOR_ARCHITECTURE_MIPS          = 1
+	PROCESSOR_ARCHITECTURE_ALPHA         = 2
+	PROCESSOR_ARCHITECTURE_PPC           = 3
+	PROCESSOR_ARCHITECTURE_SHX           = 4
+	PROCESSOR_ARCHITECTURE_ARM           = 5
+	PROCESSOR_ARCHITECTURE_IA64          = 6
+	PROCESSOR_ARCHITECTURE_ALPHA64       = 7
+	PROCESSOR_ARCHITECTURE_MSIL          = 8
+	PROCESSOR_ARCHITECTURE_AMD64         = 9
+	PROCESSOR_ARCHITECTURE_IA32_ON_WIN64 = 10
+	PROCESSOR_ARCHITECTURE_NEUTRAL       = 11
+	PROCESSOR_ARCHITECTURE_ARM64         = 12
 )
 
 var wimImageTag = [...]byte{'M', 'S', 'W', 'I', 'M', 0, 0, 0}
@@ -150,9 +169,9 @@ type direntry struct {
 	SecurityID       uint32
 	SubdirOffset     int64
 	Unused1, Unused2 int64
-	CreationTime     filetime
-	LastAccessTime   filetime
-	LastWriteTime    filetime
+	CreationTime     Filetime
+	LastAccessTime   Filetime
+	LastWriteTime    Filetime
 	Hash             SHA1Hash
 	Padding          uint32
 	ReparseHardLink  int64
@@ -172,12 +191,14 @@ type streamentry struct {
 
 const streamentrySize = 38
 
-type filetime struct {
+// Filetime represents a Windows time.
+type Filetime struct {
 	LowDateTime  uint32
 	HighDateTime uint32
 }
 
-func (ft *filetime) Time() time.Time {
+// Time returns the time as time.Time.
+func (ft *Filetime) Time() time.Time {
 	// 100-nanosecond intervals since January 1, 1601
 	nsec := int64(ft.HighDateTime)<<32 + int64(ft.LowDateTime)
 	// change starting time to the Epoch (00:00:00 UTC, January 1, 1970)
@@ -185,6 +206,67 @@ func (ft *filetime) Time() time.Time {
 	// convert into nanoseconds
 	nsec *= 100
 	return time.Unix(0, nsec)
+}
+
+// UnmarshalXML unmarshals the time from a WIM XML blob.
+func (ft *Filetime) UnmarshalXML(d *xml.Decoder, start xml.StartElement) error {
+	type time struct {
+		Low  string `xml:"LOWPART"`
+		High string `xml:"HIGHPART"`
+	}
+	var t time
+	err := d.DecodeElement(&t, &start)
+	if err != nil {
+		return err
+	}
+
+	low, err := strconv.ParseUint(t.Low, 0, 32)
+	if err != nil {
+		return err
+	}
+	high, err := strconv.ParseUint(t.High, 0, 32)
+	if err != nil {
+		return err
+	}
+
+	ft.LowDateTime = uint32(low)
+	ft.HighDateTime = uint32(high)
+	return nil
+}
+
+type info struct {
+	Image []ImageInfo `xml:"IMAGE"`
+}
+
+// ImageInfo contains information about the image.
+type ImageInfo struct {
+	Name         string       `xml:"NAME"`
+	Index        int          `xml:"INDEX,attr"`
+	CreationTime Filetime     `xml:"CREATIONTIME"`
+	ModTime      Filetime     `xml:"LASTMODIFICATIONTIME"`
+	Windows      *WindowsInfo `xml:"WINDOWS"`
+}
+
+// WindowsInfo contains information about the Windows installation in the image.
+type WindowsInfo struct {
+	Arch             byte     `xml:"ARCH"`
+	ProductName      string   `xml:"PRODUCTNAME"`
+	EditionID        string   `xml:"EDITIONID"`
+	InstallationType string   `xml:"INSTALLATIONTYPE"`
+	ProductType      string   `xml:"PRODUCTTYPE"`
+	Languages        []string `xml:"LANGUAGES>LANGUAGE"`
+	DefaultLanguage  string   `xml:"LANGUAGES>DEFAULT"`
+	Version          Version  `xml:"VERSION"`
+	SystemRoot       string   `xml:"SYSTEMROOT"`
+}
+
+// Version represents a Windows build version.
+type Version struct {
+	Major   int `xml:"MAJOR"`
+	Minor   int `xml:"MINOR"`
+	Build   int `xml:"BUILD"`
+	SPBuild int `xml:"SPBUILD"`
+	SPLevel int `xml:"SPLEVEL"`
 }
 
 // ParseError is returned when the WIM cannot be parsed.
@@ -207,7 +289,8 @@ type Reader struct {
 	r        io.ReaderAt
 	fileData map[SHA1Hash]resourceDescriptor
 
-	Image []*Image // The WIM's images.
+	XMLInfo string   // The XML information about the WIM.
+	Image   []*Image // The WIM's images.
 }
 
 // Image represents an image within a WIM file.
@@ -216,6 +299,8 @@ type Image struct {
 	offset     resourceDescriptor
 	sds        [][]byte
 	rootOffset int64
+
+	ImageInfo
 }
 
 // StreamHeader contains alternate data stream metadata.
@@ -238,9 +323,9 @@ type FileHeader struct {
 	ShortName          string
 	Attributes         uint32
 	SecurityDescriptor []byte
-	CreationTime       time.Time
-	LastAccessTime     time.Time
-	LastWriteTime      time.Time
+	CreationTime       Filetime
+	LastAccessTime     Filetime
+	LastWriteTime      Filetime
 	Hash               SHA1Hash
 	Size               int64
 	LinkID             int64
@@ -286,8 +371,30 @@ func NewReader(f io.ReaderAt) (*Reader, error) {
 	if err != nil {
 		return nil, err
 	}
+
+	xmlinfo, err := r.readXML()
+	if err != nil {
+		return nil, err
+	}
+
+	var info info
+	err = xml.Unmarshal([]byte(xmlinfo), &info)
+	if err != nil {
+		return nil, &ParseError{Oper: "XML info", Err: err}
+	}
+
+	for i, img := range images {
+		for _, imgInfo := range info.Image {
+			if imgInfo.Index == i+1 {
+				img.ImageInfo = imgInfo
+				break
+			}
+		}
+	}
+
 	r.fileData = fileData
 	r.Image = images
+	r.XMLInfo = xmlinfo
 	return r, nil
 }
 
@@ -321,8 +428,7 @@ func (r *Reader) readResource(hdr *resourceDescriptor) ([]byte, error) {
 	return ioutil.ReadAll(rsrc)
 }
 
-// ReadXML reads the XML metadata from a WIM.
-func (r *Reader) ReadXML() (string, error) {
+func (r *Reader) readXML() (string, error) {
 	if r.hdr.XMLData.CompressedSize() == 0 {
 		return "", nil
 	}
@@ -552,9 +658,9 @@ func (img *Image) readNextEntry(r *bufio.Reader) (*File, error) {
 	f := &File{
 		FileHeader: FileHeader{
 			Attributes:     dentry.Attributes,
-			CreationTime:   dentry.CreationTime.Time(),
-			LastAccessTime: dentry.LastAccessTime.Time(),
-			LastWriteTime:  dentry.LastWriteTime.Time(),
+			CreationTime:   dentry.CreationTime,
+			LastAccessTime: dentry.LastAccessTime,
+			LastWriteTime:  dentry.LastWriteTime,
 			Hash:           dentry.Hash,
 			Size:           offset.OriginalSize,
 			Name:           name,
