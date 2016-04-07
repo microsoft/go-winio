@@ -21,7 +21,7 @@ const (
 	maxBlockSize = 32768
 	windowSize   = 32768
 
-	treePathLenCount = 17
+	maxTreePathLen = 16
 
 	e8filesize  = 12000000
 	maxe8offset = 0x3fffffff
@@ -97,8 +97,8 @@ func (f *decompressor) feed() bool {
 // getBits retrieves the next n bits from the byte stream. n
 // must be <= 16. It sets f.err on error.
 func (f *decompressor) getBits(n byte) uint16 {
-	if f.nbits < 16 {
-		if !f.feed() && n > f.nbits {
+	if f.nbits < n {
+		if !f.feed() {
 			f.err = io.ErrUnexpectedEOF
 		}
 	}
@@ -115,12 +115,12 @@ type huffman struct {
 }
 
 // buildTable builds a huffman decoding table from a slice of code lengths,
-// one per code, in order. Each code length must be less than treePathLenCount.
+// one per code, in order. Each code length must be <= maxTreePathLen.
 // See https://en.wikipedia.org/wiki/Canonical_Huffman_code.
 func buildTable(codelens []byte) *huffman {
 	// Determine the number of codes of each length, and the
 	// maximum length.
-	var count [treePathLenCount]uint
+	var count [maxTreePathLen + 1]uint
 	var max byte
 	for _, cl := range codelens {
 		count[cl]++
@@ -134,7 +134,7 @@ func buildTable(codelens []byte) *huffman {
 	}
 
 	// Determine the first code of each length.
-	var first [treePathLenCount]uint
+	var first [maxTreePathLen + 1]uint
 	code := uint(0)
 	for i := byte(1); i <= max; i++ {
 		code <<= 1
@@ -178,7 +178,7 @@ func (f *decompressor) getCode(h *huffman) uint16 {
 		f.err = errCorrupt
 		return 0
 	}
-	if f.nbits < 16 {
+	if f.nbits < maxTreePathLen {
 		f.feed()
 	}
 	// For codes with length < h.maxbits, it doesn't matter
@@ -309,14 +309,21 @@ func (f *decompressor) readBlockHeader() (byte, uint16, error) {
 	case verbatimBlock, alignedOffsetBlock:
 		// The caller will read the huffman trees.
 	case uncompressedBlock:
-		// Not sure if this can happen...
-		if f.nbits > 16 || f.nbits == 0 {
-			return 0, 0, errCorrupt
+		if f.nbits > 16 {
+			panic("impossible: more than one 16-bit word remains")
 		}
 
-		// Drop the remaining bits in the current 16-bit word.
-		f.nbits = 0
-		f.c = 0
+		// Drop the remaining bits in the current 16-bit word
+		// If there are no bits left, discard a full 16-bit word.
+		n := f.nbits
+		if n == 0 {
+			n = 16
+		}
+
+		f.getBits(n)
+		if f.err != nil {
+			return 0, 0, f.err
+		}
 
 		// Read the LRU values for the next block.
 		var lru [12]byte
