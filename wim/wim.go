@@ -553,6 +553,7 @@ func (r *Reader) readSecurityDescriptors(rsrc io.Reader) (sds [][]byte, n int64,
 		return
 	}
 
+	n = secsize
 	return
 }
 
