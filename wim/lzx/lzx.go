@@ -17,6 +17,8 @@ const (
 	maincodecount = 496
 	maincodesplit = 256
 	lencodecount  = 249
+	lenshift      = 9
+	codemask      = 0x1ff
 
 	maxBlockSize = 32768
 	windowSize   = 32768
@@ -109,7 +111,6 @@ func (f *decompressor) getBits(n byte) uint16 {
 }
 
 type huffman struct {
-	lens    []byte
 	table   []uint16
 	maxbits byte
 }
@@ -157,14 +158,13 @@ func buildTable(codelens []byte) *huffman {
 			code := first[cl]
 			extendedCode := code << (max - cl)
 			for j := uint(0); j < 1<<(max-cl); j++ {
-				table[extendedCode+j] = uint16(i)
+				table[extendedCode+j] = uint16(cl)<<lenshift | uint16(i)
 			}
 			first[cl]++
 		}
 	}
 
 	return &huffman{
-		lens:    codelens,
 		table:   table,
 		maxbits: max,
 	}
@@ -186,7 +186,7 @@ func (f *decompressor) getCode(h *huffman) uint16 {
 	// are, since entries with all possible suffixes were
 	// added to the table.
 	c := h.table[f.c>>(32-h.maxbits)]
-	n := h.lens[c]
+	n := byte(c >> lenshift)
 	if f.nbits < n {
 		f.err = io.ErrUnexpectedEOF
 		return 0
@@ -195,7 +195,7 @@ func (f *decompressor) getCode(h *huffman) uint16 {
 	// code length.
 	f.c <<= n
 	f.nbits -= n
-	return c
+	return c & codemask
 }
 
 // mod17 computes the value mod 17.
