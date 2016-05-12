@@ -6,7 +6,6 @@
 package lzx
 
 import (
-	"bufio"
 	"bytes"
 	"encoding/binary"
 	"errors"
@@ -60,7 +59,7 @@ type Reader interface {
 }
 
 type decompressor struct {
-	r            Reader
+	r            io.Reader
 	err          error
 	unaligned    bool
 	nbits        byte
@@ -71,28 +70,59 @@ type decompressor struct {
 	mainlens     [maincodecount]byte
 	lenlens      [lencodecount]byte
 	window       [windowSize]byte
+	b            []byte
+	bv           int
+	bo           int
+}
+
+//go:noinline
+func (f *decompressor) fail(err error) {
+	if f.err == nil {
+		f.err = err
+	}
+	f.bo = 0
+	f.bv = 0
+}
+
+func (f *decompressor) ensureAtLeast(n int) error {
+	if f.bv-f.bo >= n {
+		return nil
+	}
+
+	if f.err != nil {
+		return f.err
+	}
+
+	if f.bv != f.bo {
+		copy(f.b[:f.bv-f.bo], f.b[f.bo:f.bv])
+	}
+	n, err := io.ReadAtLeast(f.r, f.b[f.bv-f.bo:], n)
+	if err != nil {
+		if err == io.EOF {
+			err = io.ErrUnexpectedEOF
+		} else {
+			f.fail(err)
+		}
+		return err
+	}
+	f.bv = f.bv - f.bo + n
+	f.bo = 0
+	return nil
 }
 
 // feed retrieves another 16-bit word from the stream and consumes
 // it into f.c. It returns false if there are no more bytes available.
 // Otherwise, on error, it sets f.err.
 func (f *decompressor) feed() bool {
-	if f.err != nil {
-		return true
-	}
-	var b0, b1 byte
-	b0, err := f.r.ReadByte()
-	if err == nil {
-		b1, err = f.r.ReadByte()
-	}
+	err := f.ensureAtLeast(2)
 	if err != nil {
-		if err == io.EOF {
+		if err == io.ErrUnexpectedEOF {
 			return false
 		}
-		f.err = err
 	}
-	f.c |= (uint32(b1)<<8 | uint32(b0)) << (16 - f.nbits)
+	f.c |= (uint32(f.b[f.bo+1])<<8 | uint32(f.b[f.bo])) << (16 - f.nbits)
 	f.nbits += 16
+	f.bo += 2
 	return true
 }
 
@@ -101,7 +131,7 @@ func (f *decompressor) feed() bool {
 func (f *decompressor) getBits(n byte) uint16 {
 	if f.nbits < n {
 		if !f.feed() {
-			f.err = io.ErrUnexpectedEOF
+			f.fail(io.ErrUnexpectedEOF)
 		}
 	}
 	c := uint16(f.c >> (32 - n))
@@ -175,7 +205,7 @@ func buildTable(codelens []byte) *huffman {
 func (f *decompressor) getCode(h *huffman) uint16 {
 	if h.maxbits == 0 {
 		// This is an empty tree. It should not be used.
-		f.err = errCorrupt
+		f.fail(errCorrupt)
 		return 0
 	}
 	if f.nbits < maxTreePathLen {
@@ -188,7 +218,7 @@ func (f *decompressor) getCode(h *huffman) uint16 {
 	c := h.table[f.c>>(32-h.maxbits)]
 	n := byte(c >> lenshift)
 	if f.nbits < n {
-		f.err = io.ErrUnexpectedEOF
+		f.fail(io.ErrUnexpectedEOF)
 		return 0
 	}
 	// Only consume the length of the code, not the maximum
@@ -279,13 +309,11 @@ func (f *decompressor) readBlockHeader() (byte, uint16, error) {
 	// If the previous block was an unaligned uncompressed block, restore
 	// 2-byte alignment.
 	if f.unaligned {
-		_, err := f.r.ReadByte()
+		err := f.ensureAtLeast(1)
 		if err != nil {
-			if err == io.EOF {
-				err = io.ErrUnexpectedEOF
-			}
 			return 0, 0, err
 		}
+		f.bo++
 		f.unaligned = false
 	}
 
@@ -321,19 +349,17 @@ func (f *decompressor) readBlockHeader() (byte, uint16, error) {
 		}
 
 		f.getBits(n)
-		if f.err != nil {
-			return 0, 0, f.err
-		}
 
 		// Read the LRU values for the next block.
-		var lru [12]byte
-		_, err := io.ReadFull(f.r, lru[:])
+		err := f.ensureAtLeast(12)
 		if err != nil {
 			return 0, 0, err
 		}
-		f.lru[0] = uint16(binary.LittleEndian.Uint32(lru[0:4]))
-		f.lru[1] = uint16(binary.LittleEndian.Uint32(lru[4:8]))
-		f.lru[2] = uint16(binary.LittleEndian.Uint32(lru[8:12]))
+
+		f.lru[0] = uint16(binary.LittleEndian.Uint32(f.b[f.bo : f.bo+4]))
+		f.lru[1] = uint16(binary.LittleEndian.Uint32(f.b[f.bo+4 : f.bo+8]))
+		f.lru[2] = uint16(binary.LittleEndian.Uint32(f.b[f.bo+8 : f.bo+12]))
+		f.bo += 12
 
 	default:
 		return 0, 0, errCorrupt
@@ -476,7 +502,18 @@ func (f *decompressor) readBlock(start uint16) (int, error) {
 			// Remember to realign the byte stream at the next block.
 			f.unaligned = true
 		}
-		return io.ReadFull(f.r, f.window[start:start+size])
+		copied := 0
+		if f.bo < f.bv {
+			copied = int(size)
+			s := int(start)
+			if copied > f.bv-f.bo {
+				copied = f.bv - f.bo
+			}
+			copy(f.window[s:s+copied], f.b[f.bo:f.bo+copied])
+			f.bo += copied
+		}
+		n, err := io.ReadFull(f.r, f.window[start+uint16(copied):start+size])
+		return copied + n, err
 	}
 
 	hmain, hlength, haligned, err := f.readTrees(blockType == alignedOffsetBlock)
@@ -543,11 +580,8 @@ func NewReader(r io.Reader, uncompressedSize int) (io.ReadCloser, error) {
 	f := &decompressor{
 		lru:          [3]uint16{1, 1, 1},
 		uncompressed: uncompressedSize,
-	}
-	if br, ok := r.(Reader); ok {
-		f.r = br
-	} else {
-		f.r = bufio.NewReader(r)
+		b:            make([]byte, 4096),
+		r:            r,
 	}
 	return f, nil
 }
