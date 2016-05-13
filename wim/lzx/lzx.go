@@ -18,6 +18,8 @@ const (
 	lencodecount  = 249
 	lenshift      = 9
 	codemask      = 0x1ff
+	tablebits     = 9
+	tablesize     = 1 << tablebits
 
 	maxBlockSize = 32768
 	windowSize   = 32768
@@ -141,8 +143,9 @@ func (f *decompressor) getBits(n byte) uint16 {
 }
 
 type huffman struct {
-	table   []uint16
+	extra   [][]uint16
 	maxbits byte
+	table   [tablesize]uint16
 }
 
 // buildTable builds a huffman decoding table from a slice of code lengths,
@@ -179,53 +182,78 @@ func buildTable(codelens []byte) *huffman {
 
 	// Build a table for code lookup. For code sizes < max,
 	// put all possible suffixes for the code into the table, too.
-	// Typically a huffman implementation will only do this up to
-	// a small code length maximum, then fall back to a different
-	// mechanism; this would probably improve performance.
-	table := make([]uint16, 1<<max)
-	for i, cl := range codelens {
-		if cl != 0 {
-			code := first[cl]
-			extendedCode := code << (max - cl)
-			for j := uint(0); j < 1<<(max-cl); j++ {
-				table[extendedCode+j] = uint16(cl)<<lenshift | uint16(i)
-			}
-			first[cl]++
+	// For max > tablebits, split long codes into additional tables
+	// of suffixes of max-tablebits length.
+	h := &huffman{maxbits: max}
+	if max > tablebits {
+		core := first[tablebits+1] / 2 // Number of codes that fit without extra tables
+		nextra := 1<<tablebits - core  // Number of extra entries
+		h.extra = make([][]uint16, nextra)
+		for code := core; code < 1<<tablebits; code++ {
+			h.table[code] = uint16(code - core)
+			h.extra[code-core] = make([]uint16, 1<<(max-tablebits))
 		}
 	}
 
-	return &huffman{
-		table:   table,
-		maxbits: max,
+	for i, cl := range codelens {
+		if cl != 0 {
+			code := first[cl]
+			first[cl]++
+			v := uint16(cl)<<lenshift | uint16(i)
+			if cl <= tablebits {
+				extendedCode := code << (tablebits - cl)
+				for j := uint(0); j < 1<<(tablebits-cl); j++ {
+					h.table[extendedCode+j] = v
+				}
+			} else {
+				prefix := code >> (cl - tablebits)
+				suffix := code & (1<<(cl-tablebits) - 1)
+				extendedCode := suffix << (max - cl)
+				for j := uint(0); j < 1<<(max-cl); j++ {
+					h.extra[h.table[prefix]][extendedCode+j] = v
+				}
+			}
+		}
 	}
+
+	return h
 }
 
 // getCode retrieves the next code using the provided
 // huffman tree. It sets f.err on error.
 func (f *decompressor) getCode(h *huffman) uint16 {
-	if h.maxbits == 0 {
-		// This is an empty tree. It should not be used.
-		f.fail(errCorrupt)
-		return 0
-	}
-	if f.nbits < maxTreePathLen {
-		f.feed()
-	}
-	// For codes with length < h.maxbits, it doesn't matter
-	// what the remainder of the bits used for table lookup
-	// are, since entries with all possible suffixes were
-	// added to the table.
-	c := h.table[f.c>>(32-h.maxbits)]
-	n := byte(c >> lenshift)
-	if f.nbits < n {
+	if h.maxbits > 0 {
+		if f.nbits < maxTreePathLen {
+			f.feed()
+		}
+
+		// For codes with length < tablebits, it doesn't matter
+		// what the remainder of the bits used for table lookup
+		// are, since entries with all possible suffixes were
+		// added to the table.
+		c := h.table[f.c>>(32-tablebits)]
+		if c >= 1<<lenshift {
+			// The code is already in c.
+		} else {
+			c = h.extra[c][f.c<<tablebits>>(32-(h.maxbits-tablebits))]
+		}
+
+		n := byte(c >> lenshift)
+		if f.nbits >= n {
+			// Only consume the length of the code, not the maximum
+			// code length.
+			f.c <<= n
+			f.nbits -= n
+			return c & codemask
+		}
+
 		f.fail(io.ErrUnexpectedEOF)
 		return 0
 	}
-	// Only consume the length of the code, not the maximum
-	// code length.
-	f.c <<= n
-	f.nbits -= n
-	return c & codemask
+
+	// This is an empty tree. It should not be used.
+	f.fail(errCorrupt)
+	return 0
 }
 
 // mod17 computes the value mod 17.
@@ -419,10 +447,11 @@ func (f *decompressor) readTrees(readAligned bool) (main *huffman, length *huffm
 // readCompressedBlock decodes a compressed block, writing into the window
 // starting at start and ending at end, and using the provided huffman trees.
 func (f *decompressor) readCompressedBlock(start, end uint16, hmain, hlength, haligned *huffman) (int, error) {
-	for i := start; i < end; {
+	i := start
+	for i < end {
 		main := f.getCode(hmain)
 		if f.err != nil {
-			return int(i - start), f.err
+			break
 		}
 		if main < 256 {
 			// Literal byte.
@@ -433,16 +462,13 @@ func (f *decompressor) readCompressedBlock(start, end uint16, hmain, hlength, ha
 
 		// This is a match backward in the window. Determine
 		// the offset and dlength.
-		lenheader := (main - 256) % 8
+		matchlen := (main - 256) % 8
 		slot := (main - 256) / 8
 
 		// The length is either the low bits of the code,
 		// or if this is 7, is encoded with the length tree.
-		var matchlen uint16
-		if lenheader == 7 {
-			matchlen = f.getCode(hlength) + 7
-		} else {
-			matchlen = lenheader
+		if matchlen == 7 {
+			matchlen += f.getCode(hlength)
 		}
 		matchlen += 2
 
@@ -478,16 +504,17 @@ func (f *decompressor) readCompressedBlock(start, end uint16, hmain, hlength, ha
 			f.lru[0] = matchoffset
 		}
 
-		if matchoffset > i || matchlen > end-i {
-			return int(i - start), errCorrupt
+		if matchoffset <= i && matchlen <= end-i {
+			copyend := i + matchlen
+			for ; i < copyend; i++ {
+				f.window[i] = f.window[i-matchoffset]
+			}
+		} else {
+			f.fail(errCorrupt)
+			break
 		}
-
-		for j := uint16(0); j < matchlen; j++ {
-			f.window[i+j] = f.window[i+j-matchoffset]
-		}
-		i += matchlen
 	}
-	return int(end - start), nil
+	return int(i - start), f.err
 }
 
 // readBlock decodes the current block and returns the number of uncompressed bytes.
