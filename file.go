@@ -63,6 +63,7 @@ type win32File struct {
 	closing       bool
 	readDeadline  time.Time
 	writeDeadline time.Time
+	noSetFileCompletionNotificationModes bool
 }
 
 // makeWin32File makes a new win32File from an existing file handle
@@ -73,10 +74,19 @@ func makeWin32File(h syscall.Handle) (*win32File, error) {
 	if err != nil {
 		return nil, err
 	}
-	err = setFileCompletionNotificationModes(h, cFILE_SKIP_COMPLETION_PORT_ON_SUCCESS|cFILE_SKIP_SET_EVENT_ON_HANDLE)
+	func(){
+		defer func(){
+			r:=recover()
+			if r!=nil{
+				f.noSetFileCompletionNotificationModes = true
+			}
+		}()
+		err = setFileCompletionNotificationModes(h, cFILE_SKIP_COMPLETION_PORT_ON_SUCCESS|cFILE_SKIP_SET_EVENT_ON_HANDLE)
+	}()
 	if err != nil {
 		return nil, err
 	}
+
 	runtime.SetFinalizer(f, (*win32File).closeHandle)
 	return f, nil
 }
@@ -135,7 +145,7 @@ func ioCompletionProcessor(h syscall.Handle) {
 // asyncIo processes the return value from ReadFile or WriteFile, blocking until
 // the operation has actually completed.
 func (f *win32File) asyncIo(c *ioOperation, deadline time.Time, bytes uint32, err error) (int, error) {
-	if err != syscall.ERROR_IO_PENDING {
+	if f.noSetFileCompletionNotificationModes == false && err != syscall.ERROR_IO_PENDING {
 		f.wg.Done()
 		return int(bytes), err
 	} else {
