@@ -7,6 +7,7 @@ import (
 	"sync"
 	"syscall"
 	"time"
+	"fmt"
 )
 
 //sys cancelIoEx(file syscall.Handle, o *syscall.Overlapped) (err error) = CancelIoEx
@@ -72,7 +73,7 @@ func makeWin32File(h syscall.Handle) (*win32File, error) {
 	ioInitOnce.Do(initIo)
 	_, err := createIoCompletionPort(h, ioCompletionPort, 0, 0xffffffff)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("createIoCompletionPort,%v",err)
 	}
 	func(){
 		defer func(){
@@ -82,10 +83,11 @@ func makeWin32File(h syscall.Handle) (*win32File, error) {
 			}
 		}()
 		err = setFileCompletionNotificationModes(h, cFILE_SKIP_COMPLETION_PORT_ON_SUCCESS|cFILE_SKIP_SET_EVENT_ON_HANDLE)
+		if err!=nil{
+			f.noSetFileCompletionNotificationModes=true
+		}
 	}()
-	if err != nil {
-		return nil, err
-	}
+
 
 	runtime.SetFinalizer(f, (*win32File).closeHandle)
 	return f, nil
