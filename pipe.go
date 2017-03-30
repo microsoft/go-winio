@@ -275,8 +275,8 @@ func (l *win32PipeListener) listenerRoutine() {
 				case <-l.closeCh:
 					// Abort the connect request by closing the handle.
 					p.Close()
-					p = nil
 					err = <-ch
+					p = nil
 					if err == nil || err == ErrFileClosed {
 						err = ErrPipeListenerClosed
 					}
