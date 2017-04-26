@@ -260,3 +260,68 @@ func TestDialTimesOutByDefault(t *testing.T) {
 		t.Fatalf("expected ErrTimeout, got %v", err)
 	}
 }
+
+type CloseWriter interface {
+	CloseWrite() error
+}
+
+func TestEchoWithMessaging(t *testing.T) {
+	c := PipeConfig{
+		MessageMode:      true,  // Use message mode so that CloseWrite() is supported
+		InputBufferSize:  65536, // Use 64KB buffers to improve performance
+		OutputBufferSize: 65536,
+	}
+	l, err := ListenPipe(testPipeName, &c)
+
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer l.Close()
+	listenerDone := make(chan bool)
+	clientDone := make(chan bool)
+	go func() {
+		// server echo
+		conn, e := l.Accept()
+		if e != nil {
+			t.Fatal(e)
+		}
+		time.Sleep(500 * time.Millisecond) // make *sure* we don't begin to read before eof signal is sent
+		io.Copy(conn, conn)
+		conn.(CloseWriter).CloseWrite()
+		close(listenerDone)
+	}()
+	timeout := 1 * time.Second
+	client, err := DialPipe(testPipeName, &timeout)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer client.Close()
+
+	go func() {
+		// client read back
+		bytes := make([]byte, 2)
+		n, e := client.Read(bytes)
+		if e != nil {
+			t.Fatal(e)
+		}
+		if n != 2 {
+			t.Fatalf("expected 2 bytes, got %v", n)
+		}
+		close(clientDone)
+	}()
+
+	payload := make([]byte, 2)
+	payload[0] = 0
+	payload[1] = 1
+
+	n, err := client.Write(payload)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if n != 2 {
+		t.Fatalf("expected 2 bytes, got %v", n)
+	}
+	client.(CloseWriter).CloseWrite()
+	<-listenerDone
+	<-clientDone
+}
