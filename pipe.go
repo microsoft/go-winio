@@ -2,6 +2,9 @@
 
 package winio
 
+// #include <stdlib.h>
+import "C"
+
 import (
 	"errors"
 	"io"
@@ -21,7 +24,7 @@ import (
 
 type securityAttributes struct {
 	Length             uint32
-	SecurityDescriptor *byte
+	SecurityDescriptor unsafe.Pointer
 	InheritHandle      uint32
 }
 
@@ -231,12 +234,13 @@ func makeServerPipeHandle(path string, securityDescriptor []byte, c *PipeConfig,
 		mode |= cPIPE_TYPE_MESSAGE
 	}
 
-	var sa securityAttributes
-	sa.Length = uint32(unsafe.Sizeof(sa))
+	sa := &securityAttributes{}
+	sa.Length = uint32(unsafe.Sizeof(*sa))
 	if securityDescriptor != nil {
-		sa.SecurityDescriptor = &securityDescriptor[0]
+		sa.SecurityDescriptor = C.CBytes(securityDescriptor)
+		defer C.free(sa.SecurityDescriptor)
 	}
-	h, err := createNamedPipe(path, flags, mode, cPIPE_UNLIMITED_INSTANCES, uint32(c.OutputBufferSize), uint32(c.InputBufferSize), 0, &sa)
+	h, err := createNamedPipe(path, flags, mode, cPIPE_UNLIMITED_INSTANCES, uint32(c.OutputBufferSize), uint32(c.InputBufferSize), 0, sa)
 	if err != nil {
 		return 0, &os.PathError{Op: "open", Path: path, Err: err}
 	}
