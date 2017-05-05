@@ -2,9 +2,6 @@
 
 package winio
 
-// #include <stdlib.h>
-import "C"
-
 import (
 	"errors"
 	"io"
@@ -21,10 +18,12 @@ import (
 //sys waitNamedPipe(name string, timeout uint32) (err error) = WaitNamedPipeW
 //sys getNamedPipeInfo(pipe syscall.Handle, flags *uint32, outSize *uint32, inSize *uint32, maxInstances *uint32) (err error) = GetNamedPipeInfo
 //sys getNamedPipeHandleState(pipe syscall.Handle, state *uint32, curInstances *uint32, maxCollectionCount *uint32, collectDataTimeout *uint32, userName *uint16, maxUserNameSize uint32) (err error) = GetNamedPipeHandleStateW
+//sys localAlloc(uFlags uint32, length uint32) (ptr uintptr) = LocalAlloc
+//sys copyMemory(dst uintptr, src uintptr, length uint32) = RtlCopyMemory
 
 type securityAttributes struct {
 	Length             uint32
-	SecurityDescriptor unsafe.Pointer
+	SecurityDescriptor uintptr
 	InheritHandle      uint32
 }
 
@@ -237,8 +236,10 @@ func makeServerPipeHandle(path string, securityDescriptor []byte, c *PipeConfig,
 	sa := &securityAttributes{}
 	sa.Length = uint32(unsafe.Sizeof(*sa))
 	if securityDescriptor != nil {
-		sa.SecurityDescriptor = C.CBytes(securityDescriptor)
-		defer C.free(sa.SecurityDescriptor)
+		len := uint32(len(securityDescriptor))
+		sa.SecurityDescriptor = localAlloc(0, len)
+		defer localFree(sa.SecurityDescriptor)
+		copyMemory(sa.SecurityDescriptor, uintptr(unsafe.Pointer(&securityDescriptor[0])), len)
 	}
 	h, err := createNamedPipe(path, flags, mode, cPIPE_UNLIMITED_INSTANCES, uint32(c.OutputBufferSize), uint32(c.InputBufferSize), 0, sa)
 	if err != nil {
