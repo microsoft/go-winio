@@ -12,6 +12,8 @@ import (
 
 var testPipeName = `\\.\pipe\winiotestpipe`
 
+var aLongTimeAgo = time.Unix(1, 0)
+
 func TestDialUnknownFailsImmediately(t *testing.T) {
 	_, err := DialPipe(testPipeName, nil)
 	if err.(*os.PathError).Err != syscall.ENOENT {
@@ -259,6 +261,99 @@ func TestDialTimesOutByDefault(t *testing.T) {
 	if err != ErrTimeout {
 		t.Fatalf("expected ErrTimeout, got %v", err)
 	}
+}
+
+func TestTimeoutPendingRead(t *testing.T) {
+	l, err := ListenPipe(testPipeName, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer l.Close()
+
+	serverDone := make(chan struct{})
+
+	go func() {
+		s, err := l.Accept()
+		if err != nil {
+			t.Fatal(err)
+		}
+		time.Sleep(1 * time.Second)
+		s.Close()
+		close(serverDone)
+	}()
+
+	client, err := DialPipe(testPipeName, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer client.Close()
+
+	clientErr := make(chan error)
+	go func() {
+		buf := make([]byte, 10)
+		_, err = client.Read(buf)
+		clientErr <- err
+	}()
+
+	time.Sleep(100 * time.Millisecond) // make *sure* the pipe is reading before we set the deadline
+	client.SetReadDeadline(aLongTimeAgo)
+
+	select {
+	case err = <-clientErr:
+		if err != ErrTimeout {
+			t.Fatalf("expected ErrTimeout, got %v", err)
+		}
+	case <-time.After(100 * time.Millisecond):
+		t.Fatalf("timed out while waiting for read to cancel")
+		<-clientErr
+	}
+	<-serverDone
+}
+
+func TestTimeoutPendingWrite(t *testing.T) {
+	l, err := ListenPipe(testPipeName, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer l.Close()
+
+	serverDone := make(chan struct{})
+
+	go func() {
+		s, err := l.Accept()
+		if err != nil {
+			t.Fatal(err)
+		}
+		time.Sleep(1 * time.Second)
+		s.Close()
+		close(serverDone)
+	}()
+
+	client, err := DialPipe(testPipeName, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer client.Close()
+
+	clientErr := make(chan error)
+	go func() {
+		_, err = client.Write([]byte("this should timeout"))
+		clientErr <- err
+	}()
+
+	time.Sleep(100 * time.Millisecond) // make *sure* the pipe is writing before we set the deadline
+	client.SetWriteDeadline(aLongTimeAgo)
+
+	select {
+	case err = <-clientErr:
+		if err != ErrTimeout {
+			t.Fatalf("expected ErrTimeout, got %v", err)
+		}
+	case <-time.After(100 * time.Millisecond):
+		t.Fatalf("timed out while waiting for write to cancel")
+		<-clientErr
+	}
+	<-serverDone
 }
 
 type CloseWriter interface {
