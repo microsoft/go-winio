@@ -2,6 +2,8 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
+// Hard-coding unicode mode for VHD library.
+
 // +build ignore
 
 /*
@@ -556,8 +558,7 @@ func (f *Fn) HelperCallParamList() string {
 // IsUTF16 is true, if f is W (utf16) function. It is false
 // for all A (ascii) functions.
 func (f *Fn) IsUTF16() bool {
-	s := f.DLLFuncName()
-	return s[len(s)-1] == 'W'
+	return true
 }
 
 // StrconvFunc returns name of Go string to OS string function for f.
