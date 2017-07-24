@@ -20,9 +20,11 @@ import (
 
 type atomicBool int32
 
-func (b *atomicBool) isSet() bool { return atomic.LoadInt32((*int32)(b)) != 0 }
-func (b *atomicBool) setFalse()   { atomic.StoreInt32((*int32)(b), 0) }
-func (b *atomicBool) setTrue()    { atomic.StoreInt32((*int32)(b), 1) }
+func (b *atomicBool) isSet() bool            { return atomic.LoadInt32((*int32)(b)) != 0 }
+func (b *atomicBool) setFalse()              { atomic.StoreInt32((*int32)(b), 0) }
+func (b *atomicBool) setFalseIfNotSet() bool { return atomic.CompareAndSwapInt32((*int32)(b), 1, 0) }
+func (b *atomicBool) setTrue()               { atomic.StoreInt32((*int32)(b), 1) }
+func (b *atomicBool) setTrueIfNotSet() bool  { return atomic.CompareAndSwapInt32((*int32)(b), 0, 1) }
 
 const (
 	cFILE_SKIP_COMPLETION_PORT_ON_SUCCESS = 1
@@ -71,7 +73,7 @@ func initIo() {
 type win32File struct {
 	handle        syscall.Handle
 	wg            sync.WaitGroup
-	closing       bool
+	closing       atomicBool
 	readDeadline  deadlineHandler
 	writeDeadline deadlineHandler
 }
@@ -107,9 +109,8 @@ func MakeOpenFile(h syscall.Handle) (io.ReadWriteCloser, error) {
 
 // closeHandle closes the resources associated with a Win32 handle
 func (f *win32File) closeHandle() {
-	if !f.closing {
+	if f.closing.setTrueIfNotSet() {
 		// cancel all IO and wait for it to complete
-		f.closing = true
 		cancelIoEx(f.handle, nil)
 		f.wg.Wait()
 		// at this point, no new IO can start
@@ -127,7 +128,7 @@ func (f *win32File) Close() error {
 // prepareIo prepares for a new IO operation.
 // The caller must call f.wg.Done() when the IO is finished, prior to Close() returning.
 func (f *win32File) prepareIo() (*ioOperation, error) {
-	if f.closing {
+	if f.closing.isSet() {
 		return nil, ErrFileClosed
 	}
 	f.wg.Add(1)
@@ -159,7 +160,7 @@ func (f *win32File) asyncIo(c *ioOperation, d *deadlineHandler, bytes uint32, er
 		return int(bytes), err
 	}
 
-	if f.closing {
+	if f.closing.isSet() {
 		cancelIoEx(f.handle, &c.o)
 	}
 
@@ -175,7 +176,7 @@ func (f *win32File) asyncIo(c *ioOperation, d *deadlineHandler, bytes uint32, er
 	case r = <-c.ch:
 		err = r.err
 		if err == syscall.ERROR_OPERATION_ABORTED {
-			if f.closing {
+			if f.closing.isSet() {
 				err = ErrFileClosed
 			}
 		}
