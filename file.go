@@ -78,6 +78,7 @@ func initIo() {
 type win32File struct {
 	handle        syscall.Handle
 	wg            sync.WaitGroup
+	wgLock        sync.RWMutex
 	closing       atomicBool
 	readDeadline  deadlineHandler
 	writeDeadline deadlineHandler
@@ -118,7 +119,9 @@ func (f *win32File) closeHandle() {
 	if !f.closing.swap(true) {
 		// cancel all IO and wait for it to complete
 		cancelIoEx(f.handle, nil)
+		f.wgLock.Lock()
 		f.wg.Wait()
+		f.wgLock.Unlock()
 		// at this point, no new IO can start
 		syscall.Close(f.handle)
 		f.handle = 0
@@ -134,10 +137,13 @@ func (f *win32File) Close() error {
 // prepareIo prepares for a new IO operation.
 // The caller must call f.wg.Done() when the IO is finished, prior to Close() returning.
 func (f *win32File) prepareIo() (*ioOperation, error) {
+	f.wgLock.RLock()
 	if f.closing.isSet() {
+		f.wgLock.RUnlock()
 		return nil, ErrFileClosed
 	}
 	f.wg.Add(1)
+	f.wgLock.RUnlock()
 	c := &ioOperation{}
 	c.ch = make(chan ioResult)
 	return c, nil
