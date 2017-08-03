@@ -115,16 +115,18 @@ func MakeOpenFile(h syscall.Handle) (io.ReadWriteCloser, error) {
 
 // closeHandle closes the resources associated with a Win32 handle
 func (f *win32File) closeHandle() {
+	f.wgLock.Lock()
 	// Atomically set that we are closing, releasing the resources only once.
 	if !f.closing.swap(true) {
+		f.wgLock.Unlock()
 		// cancel all IO and wait for it to complete
 		cancelIoEx(f.handle, nil)
-		f.wgLock.Lock()
 		f.wg.Wait()
-		f.wgLock.Unlock()
 		// at this point, no new IO can start
 		syscall.Close(f.handle)
 		f.handle = 0
+	} else {
+		f.wgLock.Unlock()
 	}
 }
 
