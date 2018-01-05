@@ -45,7 +45,6 @@ var (
 	procCreateIoCompletionPort                               = modkernel32.NewProc("CreateIoCompletionPort")
 	procGetQueuedCompletionStatus                            = modkernel32.NewProc("GetQueuedCompletionStatus")
 	procSetFileCompletionNotificationModes                   = modkernel32.NewProc("SetFileCompletionNotificationModes")
-	proctimeBeginPeriod                                      = modwinmm.NewProc("timeBeginPeriod")
 	procConnectNamedPipe                                     = modkernel32.NewProc("ConnectNamedPipe")
 	procCreateNamedPipeW                                     = modkernel32.NewProc("CreateNamedPipeW")
 	procCreateFileW                                          = modkernel32.NewProc("CreateFileW")
@@ -119,12 +118,6 @@ func setFileCompletionNotificationModes(h syscall.Handle, flags uint8) (err erro
 			err = syscall.EINVAL
 		}
 	}
-	return
-}
-
-func timeBeginPeriod(period uint32) (n int32) {
-	r0, _, _ := syscall.Syscall(proctimeBeginPeriod.Addr(), 1, uintptr(period), 0, 0)
-	n = int32(r0)
 	return
 }
 
