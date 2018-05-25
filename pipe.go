@@ -181,9 +181,12 @@ func DialPipe(path string, timeout *time.Duration) (net.Conn, error) {
 		return nil, err
 	}
 
-	if state&cPIPE_READMODE_MESSAGE != 0 {
+	/**
+	Windows support message type pipes in message-read mode only. Removing this check to allow for windows named pipes.
+	*/
+	/*if state&cPIPE_READMODE_MESSAGE != 0 {
 		return nil, &os.PathError{Op: "open", Path: path, Err: errors.New("message readmode pipes not supported")}
-	}
+	}*/
 
 	f, err := makeWin32File(h)
 	if err != nil {
