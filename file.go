@@ -229,9 +229,6 @@ func (f *win32File) Read(b []byte) (int, error) {
 		return 0, io.EOF
 	} else if err == syscall.ERROR_BROKEN_PIPE {
 		return 0, io.EOF
-	// When there is more data in the message pipe to read, we get ERROR_MORE_DATA. We ignore that error and proceed to read more data
-	} else if err == syscall.ERROR_MORE_DATA && n != 0 && len(b) != 0 {
-		return n, nil
 	} else {
 		return n, err
 	}

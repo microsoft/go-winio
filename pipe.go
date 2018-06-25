@@ -121,6 +121,11 @@ func (f *win32MessageBytePipe) Read(b []byte) (int, error) {
 		// zero-byte message, ensure that all future Read() calls
 		// also return EOF.
 		f.readEOF = true
+	} else if err == syscall.ERROR_MORE_DATA {
+		// ERROR_MORE_DATA indicates that the pipe's read mode is message mode
+		// and the message still has more bytes. Treat this as a success, since
+		// this package presents all named pipes as byte streams.
+		err = nil
 	}
 	return n, err
 }
@@ -174,19 +179,6 @@ func DialPipe(path string, timeout *time.Duration) (net.Conn, error) {
 	if err != nil {
 		return nil, err
 	}
-
-	var state uint32
-	err = getNamedPipeHandleState(h, &state, nil, nil, nil, nil, 0)
-	if err != nil {
-		return nil, err
-	}
-
-	/**
-	Windows support message type pipes in message-read mode only. Removing this check to allow for windows named pipes.
-	*/
-	/*if state&cPIPE_READMODE_MESSAGE != 0 {
-		return nil, &os.PathError{Op: "open", Path: path, Err: errors.New("message readmode pipes not supported")}
-	}*/
 
 	f, err := makeWin32File(h)
 	if err != nil {
