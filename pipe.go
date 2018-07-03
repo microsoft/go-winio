@@ -7,6 +7,7 @@ import (
 	"io"
 	"net"
 	"os"
+	"math/rand"
 	"syscall"
 	"time"
 	"unsafe"
@@ -21,6 +22,8 @@ import (
 //sys localAlloc(uFlags uint32, length uint32) (ptr uintptr) = LocalAlloc
 
 const (
+	cERROR_FILE_NOT_FOUND = 2
+	cERROR_BAD_PATHNAME   = 161
 	cERROR_PIPE_BUSY      = syscall.Errno(231)
 	cERROR_NO_DATA        = syscall.Errno(232)
 	cERROR_PIPE_CONNECTED = syscall.Errno(535)
@@ -61,6 +64,21 @@ type win32MessageBytePipe struct {
 	writeClosed bool
 	readEOF     bool
 }
+
+
+func shouldRetry(err error) bool {
+	if errno, ok := err.(syscall.Errno); ok {
+		errorCode := int(errno)
+		if errorCode == cERROR_FILE_NOT_FOUND {
+			return true
+		}
+		if errorCode == cERROR_BAD_PATHNAME {
+			return true
+		}
+	}
+	return false
+}
+
 
 type pipeAddress string
 
@@ -150,6 +168,13 @@ func DialPipe(path string, timeout *time.Duration) (net.Conn, error) {
 	var h syscall.Handle
 	for {
 		h, err = createFile(path, syscall.GENERIC_READ|syscall.GENERIC_WRITE, 0, nil, syscall.OPEN_EXISTING, syscall.FILE_FLAG_OVERLAPPED|cSECURITY_SQOS_PRESENT|cSECURITY_ANONYMOUS, 0)
+		if err == nil {
+			break
+		}
+		if shouldRetry(err) {
+			time.Sleep(time.Duration(rand.Intn(10)) * time.Millisecond)
+			continue
+		}
 		if err != cERROR_PIPE_BUSY {
 			break
 		}
@@ -164,6 +189,10 @@ func DialPipe(path string, timeout *time.Duration) (net.Conn, error) {
 		}
 		err = waitNamedPipe(path, ms)
 		if err != nil {
+			if shouldRetry(err) {
+				time.Sleep(time.Duration(rand.Intn(10)) * time.Millisecond)
+				continue
+			}
 			if err == cERROR_SEM_TIMEOUT {
 				return nil, ErrTimeout
 			}
