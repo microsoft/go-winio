@@ -301,8 +301,8 @@ func (l *win32PipeListener) closeNextPipe() (err error) {
 
 func (l *win32PipeListener) listenerRoutine() {
 	closed := false
+	var nextErr error
 	for !closed {
-		var nextErr error
 		select {
 		case <-l.closeCh:
 			closed = true
