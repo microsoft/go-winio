@@ -45,6 +45,7 @@ var (
 	procGetQueuedCompletionStatus                            = modkernel32.NewProc("GetQueuedCompletionStatus")
 	procSetFileCompletionNotificationModes                   = modkernel32.NewProc("SetFileCompletionNotificationModes")
 	procConnectNamedPipe                                     = modkernel32.NewProc("ConnectNamedPipe")
+	procDisconnectNamedPipe                                  = modkernel32.NewProc("DisconnectNamedPipe")
 	procCreateNamedPipeW                                     = modkernel32.NewProc("CreateNamedPipeW")
 	procCreateFileW                                          = modkernel32.NewProc("CreateFileW")
 	procWaitNamedPipeW                                       = modkernel32.NewProc("WaitNamedPipeW")
@@ -122,6 +123,18 @@ func setFileCompletionNotificationModes(h syscall.Handle, flags uint8) (err erro
 
 func connectNamedPipe(pipe syscall.Handle, o *syscall.Overlapped) (err error) {
 	r1, _, e1 := syscall.Syscall(procConnectNamedPipe.Addr(), 2, uintptr(pipe), uintptr(unsafe.Pointer(o)), 0)
+	if r1 == 0 {
+		if e1 != 0 {
+			err = errnoErr(e1)
+		} else {
+			err = syscall.EINVAL
+		}
+	}
+	return
+}
+
+func disconnectNamedPipe(pipe syscall.Handle) (err error) {
+	r1, _, e1 := syscall.Syscall(procDisconnectNamedPipe.Addr(), 1, uintptr(pipe), 0, 0)
 	if r1 == 0 {
 		if e1 != 0 {
 			err = errnoErr(e1)
