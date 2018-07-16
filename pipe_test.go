@@ -30,6 +30,18 @@ func TestDialListenerTimesOut(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer l.Close()
+	// listener.Listen() always keeps a pipe instance open. Whether
+	// anyone can connect to it is a matter of whether someone has
+	// already connected to it, or if so, if the server has Accept()ed
+	// the connection and has opened a new pipe instance for future
+	// connections. So, in order to properly test timeouts, we need
+	// to establish a "blocker" connection that is not Accept()ed,
+	// blocking future connection attempts in the process.
+	blocker, err := DialPipe(testPipeName, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer blocker.Close()
 	var d = time.Duration(10 * time.Millisecond)
 	_, err = DialPipe(testPipeName, &d)
 	if err != ErrTimeout {
@@ -260,6 +272,18 @@ func TestDialTimesOutByDefault(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer l.Close()
+	// listener.Listen() always keeps a pipe instance open. Whether
+	// anyone can connect to it is a matter of whether someone has
+	// already connected to it, or if so, if the server has Accept()ed
+	// the connection and has opened a new pipe instance for future
+	// connections. So, in order to properly test timeouts, we need
+	// to establish a "blocker" connection that is not Accept()ed,
+	// blocking future connection attempts in the process.
+	blocker, err := DialPipe(testPipeName, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer blocker.Close()
 	_, err = DialPipe(testPipeName, nil)
 	if err != ErrTimeout {
 		t.Fatalf("expected ErrTimeout, got %v", err)

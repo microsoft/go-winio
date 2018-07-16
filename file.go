@@ -108,12 +108,24 @@ func makeWin32File(h syscall.Handle) (*win32File, error) {
 	return f, nil
 }
 
+// If a handle previously associated with a successfully constructed win32File
+// needs to be recycled, use _this_ constructor. It doesn't re-add the handle
+// to the ioCompletionPort.
+
+func reuseWin32File(h syscall.Handle) *win32File {
+	f := &win32File{handle: h}
+	f.readDeadline.channel = make(timeoutChan)
+	f.writeDeadline.channel = make(timeoutChan)
+	return f
+}
+
 func MakeOpenFile(h syscall.Handle) (io.ReadWriteCloser, error) {
 	return makeWin32File(h)
 }
 
 // closeHandle closes the resources associated with a Win32 handle
-func (f *win32File) closeHandle() {
+func (f *win32File) nilHandleReturning() syscall.Handle {
+	var ret syscall.Handle
 	f.wgLock.Lock()
 	// Atomically set that we are closing, releasing the resources only once.
 	if !f.closing.swap(true) {
@@ -122,16 +134,20 @@ func (f *win32File) closeHandle() {
 		cancelIoEx(f.handle, nil)
 		f.wg.Wait()
 		// at this point, no new IO can start
-		syscall.Close(f.handle)
+		ret = f.handle
 		f.handle = 0
 	} else {
 		f.wgLock.Unlock()
 	}
+	return ret
 }
 
 // Close closes a win32File.
 func (f *win32File) Close() error {
-	f.closeHandle()
+	handle := f.nilHandleReturning()
+	if handle != 0 {
+		syscall.Close(handle)
+	}
 	return nil
 }
 
