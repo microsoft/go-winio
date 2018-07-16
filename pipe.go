@@ -7,6 +7,8 @@ import (
 	"io"
 	"net"
 	"os"
+	"sync"
+	"sync/atomic"
 	"syscall"
 	"time"
 	"unsafe"
@@ -55,6 +57,12 @@ var (
 type win32Pipe struct {
 	*win32File
 	path string
+	// If this instance of a pipe was created by a listener, the Close()
+	// method may attempt to return its instance to the listener to be
+	// re-used iff the listener does not already have another instance
+	// prepared for connection, usually as the consequence of an error
+	// returned by createNamedPipe.
+	listener *win32PipeListener
 }
 
 type win32MessageBytePipe struct {
@@ -76,6 +84,44 @@ func (f *win32Pipe) RemoteAddr() net.Addr {
 func (f *win32Pipe) SetDeadline(t time.Time) error {
 	f.SetReadDeadline(t)
 	f.SetWriteDeadline(t)
+	return nil
+}
+
+// This somewhat overrides the win32File implementation, because we're
+// sometimes responsible for keeping at least one pipe instance open so
+// this process can retain its claim on the pipe name.
+
+func (f *win32Pipe) Close() error {
+	// Not all instances of win32Pipe have a listener. In particular,
+	// instances created with DialPipe definitely don't have a listener.
+	if f.listener == nil {
+		return f.win32File.Close()
+	}
+	f.listener.nextLock.Lock()
+	var (
+		listenerOpen bool
+		nextPipe     *win32File
+	)
+	select {
+	case <- f.listener.doneCh:
+		// pass, default for bool is false
+	default:
+		listenerOpen = true
+	}
+	nextPipe = (*win32File)(atomic.LoadPointer(&f.listener.nextPipe))
+	// If the nextPipe is not nil, this means the listenerRoutine managed
+	// to successfully fill it. We don't need to touch it in this case.
+	if nextPipe != nil || !listenerOpen {
+		f.listener.nextLock.Unlock()
+		return f.win32File.Close()
+	}
+	handle := f.win32File.nilHandleReturning()
+	disconnectNamedPipe(handle)
+	// Simply reconnecting the pipe will keep the instance open, meaning
+	// we keep our name in the pipe namespace.
+	nextPipe = reuseWin32File(handle)
+	atomic.StorePointer(&f.listener.nextPipe, unsafe.Pointer(nextPipe))
+	f.listener.nextLock.Unlock()
 	return nil
 }
 
@@ -203,13 +249,16 @@ type acceptResponse struct {
 }
 
 type win32PipeListener struct {
-	nextPipe           *win32File
+	// this is actually a *win32File, but because of the use of atomic
+	// we have to keep this as an unsafe.Pointer
+	nextPipe           unsafe.Pointer
 	path               string
 	securityDescriptor []byte
 	config             PipeConfig
 	acceptCh           chan (chan acceptResponse)
 	closeCh            chan int
 	doneCh             chan int
+	nextLock           sync.Mutex
 }
 
 func makeServerPipeHandle(path string, securityDescriptor []byte, c *PipeConfig, first bool) (syscall.Handle, error) {
@@ -264,39 +313,35 @@ func (l *win32PipeListener) makeServerPipe() (*win32File, error) {
 	return f, nil
 }
 
-func (l *win32PipeListener) connectServerPipe() error {
+func (l *win32PipeListener) connectServerPipe(pipe *win32File) error {
 	var err error
-	
+
 	// Wait for the client to connect.
 	ch := make(chan error)
 	go func(p *win32File) {
 		ch <- connectPipe(p)
-	}(l.nextPipe)
+	}(pipe)
 	
 	select {
 	case err = <-ch:
 		if err != nil {
-			disconnectNamedPipe(l.nextPipe.handle)
+			disconnectNamedPipe(pipe.handle)
 		}
 	case <-l.closeCh:
 		// Abort the connect request by closing the handle.
-		l.closeNextPipe()
+		pipe.Close()
+		// Note that we aren't nil-ing out l.nextPipe, it's
+		// harmless to .Close() on the file more than once.
 		err = <-ch
-		if err == nil || err == ErrFileClosed {
+		if err == nil || err == ErrFileClosed || pipeWasConnected(err) {
 			err = ErrPipeListenerClosed
 		}
 	}
 	return err
 }
 
-func (l *win32PipeListener) closeNextPipe() (err error) {
-	// This isn't thread-safe, but all the usage of nextPipe are
-	// confined to one goroutine, so this is fine.
-	if l.nextPipe != nil {
-		err = l.nextPipe.Close()
-		l.nextPipe = nil
-	}
-	return
+func pipeWasConnected(err error) bool {
+	return err == cERROR_NO_DATA || err == cERROR_PIPE_CONNECTED
 }
 
 func (l *win32PipeListener) listenerRoutine() {
@@ -307,14 +352,28 @@ func (l *win32PipeListener) listenerRoutine() {
 		case <-l.closeCh:
 			closed = true
 		case responseCh := <-l.acceptCh:
-			var err error
-			if nextErr != nil {
+			var (
+				nextPipe *win32File
+				err      error
+			)
+
+			nextPipe = (*win32File)(atomic.LoadPointer(&l.nextPipe))
+
+			if nextPipe == nil {
 				responseCh <- acceptResponse{nil, nextErr}
-				l.nextPipe, nextErr = l.makeServerPipe()
+
+				l.nextLock.Lock()
+				nextPipe = (*win32File)(atomic.LoadPointer(&l.nextPipe))
+				if nextPipe == nil {
+					nextPipe, nextErr = l.makeServerPipe()
+					atomic.StorePointer(&l.nextPipe, unsafe.Pointer(nextPipe))
+					// l.nextPipe, nextErr = l.makeServerPipe()
+				}
+				l.nextLock.Unlock()
 				continue
 			}
 			for {
-				err = l.connectServerPipe()
+				err = l.connectServerPipe(nextPipe)
 				// If the connection was immediately closed by the client, try
 				// again.
 				if err != cERROR_NO_DATA {
@@ -322,16 +381,25 @@ func (l *win32PipeListener) listenerRoutine() {
 				}
 			}
 			closed = err == ErrPipeListenerClosed
-			p := l.nextPipe
+			p := nextPipe
 			if !closed {
-				l.nextPipe, nextErr = l.makeServerPipe()
+				l.nextLock.Lock()
+				nextPipe, nextErr = l.makeServerPipe()
+				atomic.StorePointer(&l.nextPipe, unsafe.Pointer(nextPipe))
+				l.nextLock.Unlock()
 			}
 			responseCh <- acceptResponse{p, err}
 		}
 	}
-	l.closeNextPipe()
 	// Notify Close() and Accept() callers that the handle has been closed.
 	close(l.doneCh)
+	l.nextLock.Lock()
+	defer l.nextLock.Unlock()
+	if l.nextPipe != nil {
+		nextPipe := (*win32File)(atomic.LoadPointer(&l.nextPipe))
+		nextPipe.Close()
+		atomic.StorePointer(&l.nextPipe, nil)
+	}
 }
 
 // PipeConfig contain configuration for the pipe listener.
@@ -375,7 +443,7 @@ func ListenPipe(path string, c *PipeConfig) (net.Listener, error) {
 		return nil, err
 	}
 	l := &win32PipeListener{
-		nextPipe:           p,
+		nextPipe:           unsafe.Pointer(p),
 		path:               path,
 		securityDescriptor: sd,
 		config:             *c,
@@ -413,10 +481,14 @@ func (l *win32PipeListener) Accept() (net.Conn, error) {
 		}
 		if l.config.MessageMode {
 			return &win32MessageBytePipe{
-				win32Pipe: win32Pipe{win32File: response.f, path: l.path},
+				win32Pipe: win32Pipe{
+					win32File: response.f,
+					path:      l.path,
+					listener:  l,
+				},
 			}, nil
 		}
-		return &win32Pipe{win32File: response.f, path: l.path}, nil
+		return &win32Pipe{win32File: response.f, path: l.path, listener: l}, nil
 	case <-l.doneCh:
 		return nil, ErrPipeListenerClosed
 	}
