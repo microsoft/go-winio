@@ -140,7 +140,7 @@ func DialPipe(path string, timeout *time.Duration) (net.Conn, error) {
 	if timeout != nil {
 		absTimeout = time.Now().Add(*timeout)
 	} else {
-		absTimeout = time.Now().Add(time.Second * 5)
+		absTimeout = time.Now().Add(time.Second * 2)
 	}
 	var err error
 	var h syscall.Handle
@@ -200,7 +200,6 @@ type acceptResponse struct {
 
 type win32PipeListener struct {
 	firstHandle        syscall.Handle
-	clientHandle       syscall.Handle
 	path               string
 	securityDescriptor []byte
 	config             PipeConfig
@@ -303,8 +302,6 @@ func (l *win32PipeListener) listenerRoutine() {
 	}
 	syscall.Close(l.firstHandle)
 	l.firstHandle = 0
-	syscall.Close(l.clientHandle)
-	l.clientHandle = 0
 	// Notify Close() and Accept() callers that the handle has been closed.
 	close(l.doneCh)
 }
@@ -362,9 +359,13 @@ func ListenPipe(path string, c *PipeConfig) (net.Listener, error) {
 		syscall.Close(h)
 		return nil, err
 	}
+	// Close the client handle. The server side of the instance will
+	// still be busy, leading to ERROR_PIPE_BUSY instead of
+	// ERROR_NOT_FOUND, as long as we don't close the server handle,
+	// or disconnect the client with DisconnectNamedPipe.
+	syscall.Close(h2)
 	l := &win32PipeListener{
 		firstHandle:        h,
-		clientHandle:       h2,
 		path:               path,
 		securityDescriptor: sd,
 		config:             *c,
