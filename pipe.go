@@ -139,7 +139,7 @@ func (s pipeAddress) String() string {
 
 // DialPipe connects to a named pipe by path, timing out if the connection
 // takes longer than the specified duration. If timeout is nil, then we use
-// a default timeout of 5 seconds.  (We do not use WaitNamedPipe.)
+// a default timeout of 2 seconds.  (We do not use WaitNamedPipe.)
 func DialPipe(path string, timeout *time.Duration) (net.Conn, error) {
 	var absTimeout time.Time
 	if timeout != nil {
