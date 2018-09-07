@@ -40,6 +40,10 @@ const (
 	cPIPE_TYPE_MESSAGE = 4
 
 	cPIPE_READMODE_MESSAGE = 2
+
+	PipeTransmissionByteMode = 0
+
+	PipeTransmissionMessageMode = 2
 )
 
 var (
@@ -48,6 +52,8 @@ var (
 	ErrPipeListenerClosed = errors.New("use of closed network connection")
 
 	errPipeWriteClosed = errors.New("pipe has been closed for write")
+
+	ErrPipeReadMoreData = errors.New("More data is available.")
 )
 
 type win32Pipe struct {
@@ -125,6 +131,10 @@ func (f *win32MessageBytePipe) Read(b []byte) (int, error) {
 		// and the message still has more bytes. Treat this as a success, since
 		// this package presents all named pipes as byte streams.
 		err = nil
+	}
+
+	if err != nil && err.Error() == ErrPipeReadMoreData.Error() {
+		n = len(b)
 	}
 	return n, err
 }
@@ -212,6 +222,10 @@ func makeServerPipeHandle(path string, securityDescriptor []byte, c *PipeConfig,
 	var mode uint32 = cPIPE_REJECT_REMOTE_CLIENTS
 	if c.MessageMode {
 		mode |= cPIPE_TYPE_MESSAGE
+	}
+
+	if c.ReadMode == PipeTransmissionMessageMode {
+		mode |= PipeTransmissionMessageMode
 	}
 
 	sa := &syscall.SecurityAttributes{}
@@ -313,6 +327,14 @@ type PipeConfig struct {
 	// transferred to the reader (and returned as io.EOF in this implementation)
 	// when the pipe is in message mode.
 	MessageMode bool
+
+	// In byte read mode, when the data is read from the pipe as a stream of bytes,
+	// completely ignoring the implicit message boundaries;
+	// In Message mode, when data is read as a stream of messages, in the sense than
+	// any read will receive bytes relating to a single message, a special error code
+	// (More data is available.) is returned by the native API to indicate if there are
+	// further bytes to be received for that same message.
+	ReadMode int
 
 	// InputBufferSize specifies the size the input buffer, in bytes.
 	InputBufferSize int32
