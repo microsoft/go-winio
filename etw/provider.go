@@ -26,9 +26,23 @@ type Provider struct {
 
 type providerHandle windows.Handle
 
+// ProviderState informs the provider EnableCallback what action is being
+// performed.
+type ProviderState uint32
+
+const (
+	// ProviderStateDisable indicates the provider is being disabled.
+	ProviderStateDisable ProviderState = iota
+	// ProviderStateEnable indicates the provider is being enabled.
+	ProviderStateEnable
+	// ProviderStateCaptureState indicates the provider is having its current
+	// state snap-shotted.
+	ProviderStateCaptureState
+)
+
 // EnableCallback is the form of the callback function that receives provider
 // enable/disable notifications from ETW.
-type EnableCallback func(*windows.GUID, uint32, byte, uint64, uint64, uintptr)
+type EnableCallback func(*windows.GUID, ProviderState, Level, uint64, uint64, uintptr)
 
 type eventDataDescriptor struct {
 	ptr       uint64
@@ -49,9 +63,9 @@ func (descriptor *eventDataDescriptor) set(dataType eventDataDescriptorType, buf
 
 // NewProvider creates and registers a new provider.
 func NewProvider(name string, id *windows.GUID, callback EnableCallback) (*Provider, error) {
-	innerCallback := func(sourceID *windows.GUID, isEnabled uint32, level byte, matchAnyKeyword uint64, matchAllKeyword uint64, filterData uintptr, _ uintptr) uintptr {
+	innerCallback := func(sourceID *windows.GUID, state ProviderState, level Level, matchAnyKeyword uint64, matchAllKeyword uint64, filterData uintptr, _ uintptr) uintptr {
 		if callback != nil {
-			callback(sourceID, isEnabled, level, matchAnyKeyword, matchAllKeyword, filterData)
+			callback(sourceID, state, level, matchAnyKeyword, matchAllKeyword, filterData)
 		}
 		return 0
 	}

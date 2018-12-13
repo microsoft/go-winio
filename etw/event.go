@@ -5,10 +5,10 @@ package etw
 type Channel uint8
 
 const (
-	// ChannelTracelogging is the default channel for tracelogging events. It is
-	// not required to be used for tracelogging, but will prevent decoding
+	// ChannelTraceLogging is the default channel for TraceLogging events. It is
+	// not required to be used for TraceLogging, but will prevent decoding
 	// issues for these events on older operating systems.
-	ChannelTracelogging Channel = 11
+	ChannelTraceLogging Channel = 11
 )
 
 // Level represents the ETW logging level. There are several predefined levels
@@ -56,12 +56,14 @@ type EventDescriptor struct {
 }
 
 // NewEventDescriptor returns an EventDescriptor initialized for use with
-// tracelogging.
+// TraceLogging.
 func NewEventDescriptor() *EventDescriptor {
+	// Standard TraceLogging events default to the TraceLogging channel, and
+	// verbose level.
 	return &EventDescriptor{
 		id:      0,
 		version: 0,
-		Channel: ChannelTracelogging,
+		Channel: ChannelTraceLogging,
 		Level:   LevelVerbose,
 		Opcode:  0,
 		Task:    0,

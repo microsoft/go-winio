@@ -8,7 +8,7 @@ import (
 // InType indicates the type of data contained in the ETW event.
 type InType byte
 
-// Various InType definitions for tracelogging.
+// Various InType definitions for TraceLogging.
 const (
 	InTypeNull InType = iota
 	InTypeUnicodeString

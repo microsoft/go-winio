@@ -12,8 +12,8 @@ import (
 	"golang.org/x/sys/windows"
 )
 
-func callback(sourceID *windows.GUID, isEnabled uint32, level byte, matchAnyKeyword uint64, matchAllKeyword uint64, filterData uintptr) {
-	fmt.Printf("Callback: isEnabled=%d, level=%d, matchAnyKeyword=%d\n", isEnabled, level, matchAnyKeyword)
+func callback(sourceID *windows.GUID, state etw.ProviderState, level etw.Level, matchAnyKeyword uint64, matchAllKeyword uint64, filterData uintptr) {
+	fmt.Printf("Callback: isEnabled=%d, level=%d, matchAnyKeyword=%d\n", state, level, matchAnyKeyword)
 }
 
 func main() {
