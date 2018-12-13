@@ -1,10 +1,10 @@
-package hook
+package etwlogrus
 
 import (
 	"fmt"
 	"reflect"
 
-	"github.com/Microsoft/go-winio/etw"
+	"github.com/Microsoft/go-winio/pkg/etw"
 	"github.com/sirupsen/logrus"
 
 	"golang.org/x/sys/windows"
