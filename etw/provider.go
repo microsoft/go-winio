@@ -16,6 +16,9 @@ const (
 	eventDataDescriptorTypeProviderMetadata
 )
 
+// Provider represents an ETW event provider. It is identified by a provider
+// name and ID (GUID), which should always have a 1:1 mapping to each other
+// (e.g. don't use multiple provider names with the same ID, or vice versa).
 type Provider struct {
 	handle   providerHandle
 	metadata *bytes.Buffer
@@ -23,6 +26,8 @@ type Provider struct {
 
 type providerHandle windows.Handle
 
+// EnableCallback is the form of the callback function that receives provider
+// enable/disable notifications from ETW.
 type EnableCallback func(*windows.GUID, uint32, byte, uint64, uint64, uintptr)
 
 type eventDataDescriptor struct {
@@ -34,8 +39,9 @@ type eventDataDescriptor struct {
 }
 
 func (descriptor *eventDataDescriptor) set(dataType eventDataDescriptorType, buffer *bytes.Buffer) {
-	// Passing a pointer to Go-managed memory as part of a block of memory is risky since the GC doesn't know about it.
-	// If we find a better way to do this we should use it instead.
+	// Passing a pointer to Go-managed memory as part of a block of memory is
+	// risky since the GC doesn't know about it. If we find a better way to do
+	// this we should use it instead.
 	descriptor.ptr = uint64(uintptr(unsafe.Pointer(&buffer.Bytes()[0])))
 	descriptor.size = uint32(buffer.Len())
 	descriptor.dataType = dataType
@@ -56,10 +62,10 @@ func NewProvider(name string, id *windows.GUID, callback EnableCallback) (*Provi
 	}
 
 	var metadataBuffer bytes.Buffer
-	binary.Write(&metadataBuffer, binary.LittleEndian, uint16(0))
-	binary.Write(&metadataBuffer, binary.LittleEndian, []byte(name))
-	binary.Write(&metadataBuffer, binary.LittleEndian, byte(0))
-	binary.LittleEndian.PutUint16(metadataBuffer.Bytes(), uint16(metadataBuffer.Len()))
+	binary.Write(&metadataBuffer, binary.LittleEndian, uint16(0))                       // Write empty size for buffer (to update later)
+	binary.Write(&metadataBuffer, binary.LittleEndian, []byte(name))                    // Provider name
+	binary.Write(&metadataBuffer, binary.LittleEndian, byte(0))                         // Null terminator for name
+	binary.LittleEndian.PutUint16(metadataBuffer.Bytes(), uint16(metadataBuffer.Len())) // Update the size at the beginning of the buffer
 
 	return &Provider{
 		handle:   providerHandle,

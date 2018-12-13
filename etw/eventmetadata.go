@@ -5,8 +5,10 @@ import (
 	"encoding/binary"
 )
 
+// InType indicates the type of data contained in the ETW event.
 type InType byte
 
+// Various InType definitions for tracelogging.
 const (
 	InTypeNull InType = iota
 	InTypeUnicodeString
@@ -24,10 +26,14 @@ const (
 	InTypeBool32
 )
 
+// EventMetadata maintains a buffer which builds up the metadatadata for an ETW
+// event. It needs to be paired with EventData which describes the event.
 type EventMetadata struct {
 	buffer bytes.Buffer
 }
 
+// NewEventMetadata returns a new EventMetadata with event name and initial
+// metadata written to the buffer.
 func NewEventMetadata(name string) *EventMetadata {
 	em := EventMetadata{}
 	binary.Write(&em.buffer, binary.LittleEndian, uint16(0))    // Length placeholder
@@ -37,6 +43,7 @@ func NewEventMetadata(name string) *EventMetadata {
 	return &em
 }
 
+// AddField appends a single field to the end of the event metadata buffer.
 func (em *EventMetadata) AddField(name string, inType InType) {
 	binary.Write(&em.buffer, binary.LittleEndian, []byte(name)) // Field name
 	binary.Write(&em.buffer, binary.LittleEndian, byte(0))      // Null terminator for name
