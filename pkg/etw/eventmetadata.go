@@ -8,7 +8,8 @@ import (
 // InType indicates the type of data contained in the ETW event.
 type InType byte
 
-// Various InType definitions for TraceLogging.
+// Various InType definitions for TraceLogging. These must match the definitions
+// found in TraceLoggingProvider.h in the Windows SDK.
 const (
 	InTypeNull InType = iota
 	InTypeUnicodeString

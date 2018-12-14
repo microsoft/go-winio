@@ -57,10 +57,10 @@ func (h *Hook) Fire(e *logrus.Entry) error {
 	event.Data.AddString(e.Message)
 
 	for k, v := range e.Data {
-		switch reflect.TypeOf(v).Kind() {
-		case reflect.String:
+		switch v := v.(type) {
+		case string:
 			event.Metadata.AddField(k, etw.InTypeAnsiString)
-			event.Data.AddString(v.(string))
+			event.Data.AddString(v)
 		default:
 			event.Metadata.AddField(k, etw.InTypeAnsiString)
 			event.Data.AddString(fmt.Sprintf("<unknown type: %v> %v", reflect.TypeOf(v), v))
