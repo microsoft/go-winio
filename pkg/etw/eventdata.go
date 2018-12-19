@@ -2,7 +2,6 @@ package etw
 
 import (
 	"bytes"
-	"encoding/binary"
 )
 
 // EventData maintains a buffer which builds up the data for an ETW event. It
@@ -18,6 +17,6 @@ func NewEventData() *EventData {
 
 // AddString appends the data for a string to the end of the buffer.
 func (ed *EventData) AddString(data string) {
-	binary.Write(&ed.buffer, binary.LittleEndian, []byte(data))
-	binary.Write(&ed.buffer, binary.LittleEndian, byte(0))
+	ed.buffer.Write([]byte(data))
+	ed.buffer.WriteByte(0)
 }

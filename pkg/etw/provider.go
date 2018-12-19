@@ -21,7 +21,7 @@ const (
 // (e.g. don't use multiple provider names with the same ID, or vice versa).
 type Provider struct {
 	handle   providerHandle
-	metadata *bytes.Buffer
+	metadata []byte
 }
 
 type providerHandle windows.Handle
@@ -52,17 +52,19 @@ type eventDataDescriptor struct {
 	reserved2 uint16
 }
 
-func (descriptor *eventDataDescriptor) set(dataType eventDataDescriptorType, buffer *bytes.Buffer) {
+func (descriptor *eventDataDescriptor) set(dataType eventDataDescriptorType, buffer []byte) {
 	// Passing a pointer to Go-managed memory as part of a block of memory is
 	// risky since the GC doesn't know about it. If we find a better way to do
 	// this we should use it instead.
-	descriptor.ptr = uint64(uintptr(unsafe.Pointer(&buffer.Bytes()[0])))
-	descriptor.size = uint32(buffer.Len())
+	descriptor.ptr = uint64(uintptr(unsafe.Pointer(&buffer[0])))
+	descriptor.size = uint32(len(buffer))
 	descriptor.dataType = dataType
 }
 
 // NewProvider creates and registers a new provider.
 func NewProvider(name string, id *windows.GUID, callback EnableCallback) (*Provider, error) {
+	provider := &Provider{}
+
 	innerCallback := func(sourceID *windows.GUID, state ProviderState, level Level, matchAnyKeyword uint64, matchAllKeyword uint64, filterData uintptr, _ uintptr) uintptr {
 		if callback != nil {
 			callback(sourceID, state, level, matchAnyKeyword, matchAllKeyword, filterData)
@@ -70,21 +72,18 @@ func NewProvider(name string, id *windows.GUID, callback EnableCallback) (*Provi
 		return 0
 	}
 
-	var providerHandle providerHandle
-	if err := eventRegister(id, windows.NewCallback(innerCallback), 0, &providerHandle); err != nil {
+	if err := eventRegister(id, windows.NewCallback(innerCallback), 0, &provider.handle); err != nil {
 		return nil, err
 	}
 
-	var metadataBuffer bytes.Buffer
-	binary.Write(&metadataBuffer, binary.LittleEndian, uint16(0))                       // Write empty size for buffer (to update later)
-	binary.Write(&metadataBuffer, binary.LittleEndian, []byte(name))                    // Provider name
-	binary.Write(&metadataBuffer, binary.LittleEndian, byte(0))                         // Null terminator for name
-	binary.LittleEndian.PutUint16(metadataBuffer.Bytes(), uint16(metadataBuffer.Len())) // Update the size at the beginning of the buffer
+	metadata := &bytes.Buffer{}
+	binary.Write(metadata, binary.LittleEndian, uint16(0))                  // Write empty size for buffer (to update later)
+	metadata.WriteString(name)                                              // Provider name
+	metadata.WriteByte(0)                                                   // Null terminator for name
+	binary.LittleEndian.PutUint16(metadata.Bytes(), uint16(metadata.Len())) // Update the size at the beginning of the buffer
+	provider.metadata = metadata.Bytes()
 
-	return &Provider{
-		handle:   providerHandle,
-		metadata: &metadataBuffer,
-	}, nil
+	return provider, nil
 }
 
 // Close unregisters the provider.
@@ -100,8 +99,8 @@ func (provider *Provider) WriteEvent(event *Event) error {
 
 	var dataDescriptors [3]eventDataDescriptor
 	dataDescriptors[0].set(eventDataDescriptorTypeProviderMetadata, provider.metadata)
-	dataDescriptors[1].set(eventDataDescriptorTypeEventMetadata, &event.Metadata.buffer)
-	dataDescriptors[2].set(eventDataDescriptorTypeUserData, &event.Data.buffer)
+	dataDescriptors[1].set(eventDataDescriptorTypeEventMetadata, event.Metadata.buffer.Bytes())
+	dataDescriptors[2].set(eventDataDescriptorTypeUserData, event.Data.buffer.Bytes())
 
 	return eventWriteTransfer(provider.handle, event.Descriptor, nil, nil, 3, &dataDescriptors[0])
 }
