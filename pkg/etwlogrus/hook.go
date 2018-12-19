@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"reflect"
 
-	"github.com/Microsoft/go-winio/pkg/etw"
+	"github.com/Microsoft/go-winio/internal/etw"
 	"github.com/sirupsen/logrus"
 
 	"golang.org/x/sys/windows"
@@ -45,7 +45,7 @@ func (h *Hook) Levels() []logrus.Level {
 // Fire receives each Logrus entry as it is logged, and logs it to ETW.
 func (h *Hook) Fire(e *logrus.Entry) error {
 	if !h.provider.IsEnabledForLevel(etw.Level(e.Level)) {
-		return
+		return nil
 	}
 
 	descriptor := etw.NewEventDescriptor()
