@@ -44,6 +44,10 @@ func (h *Hook) Levels() []logrus.Level {
 
 // Fire receives each Logrus entry as it is logged, and logs it to ETW.
 func (h *Hook) Fire(e *logrus.Entry) error {
+	if !h.provider.IsEnabledForLevel(etw.Level(e.Level)) {
+		return
+	}
+
 	descriptor := etw.NewEventDescriptor()
 
 	// We could try to map Logrus levels to ETW levels, but we would lose some
