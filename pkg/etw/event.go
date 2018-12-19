@@ -76,7 +76,7 @@ func NewEventDescriptor() *EventDescriptor {
 // EventDescriptor, and field metadata). Only the lower 24 bits of this value
 // are relevant.
 func (ed *EventDescriptor) Identity() uint32 {
-	return (uint32(ed.version) << 16) & uint32(ed.id)
+	return (uint32(ed.version) << 16) | uint32(ed.id)
 }
 
 // SetIdentity sets the identity of the event. If the identity is not 0, it
