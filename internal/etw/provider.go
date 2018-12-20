@@ -153,8 +153,8 @@ func NewProvider(name string, id *windows.GUID, callback EnableCallback) (provid
 	}
 
 	metadata := &bytes.Buffer{}
-	binary.Write(metadata, binary.LittleEndian, uint16(0))                  // Write empty size for buffer (to update later)
-	metadata.WriteString(name)                                              // Provider name
+	binary.Write(metadata, binary.LittleEndian, uint16(0)) // Write empty size for buffer (to update later)
+	metadata.WriteString(name)
 	metadata.WriteByte(0)                                                   // Null terminator for name
 	binary.LittleEndian.PutUint16(metadata.Bytes(), uint16(metadata.Len())) // Update the size at the beginning of the buffer
 	provider.metadata = metadata.Bytes()

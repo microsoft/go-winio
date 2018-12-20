@@ -17,6 +17,6 @@ func NewEventData() *EventData {
 
 // AddString appends the data for a string to the end of the buffer.
 func (ed *EventData) AddString(data string) {
-	ed.buffer.Write([]byte(data))
+	ed.buffer.WriteString(data)
 	ed.buffer.WriteByte(0)
 }
