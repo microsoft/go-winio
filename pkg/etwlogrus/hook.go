@@ -6,8 +6,6 @@ import (
 
 	"github.com/Microsoft/go-winio/internal/etw"
 	"github.com/sirupsen/logrus"
-
-	"golang.org/x/sys/windows"
 )
 
 // Hook is a Logrus hook which logs received events to ETW.
@@ -16,10 +14,10 @@ type Hook struct {
 }
 
 // NewHook registers a new ETW provider and returns a hook to log from it.
-func NewHook(providerName string, providerID *windows.GUID) (*Hook, error) {
+func NewHook(providerName string) (*Hook, error) {
 	hook := Hook{}
 
-	provider, err := etw.NewProvider(providerName, providerID, nil)
+	provider, err := etw.NewProvider(providerName, nil)
 	if err != nil {
 		return nil, err
 	}

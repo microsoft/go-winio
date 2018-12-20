@@ -114,13 +114,24 @@ func (em *EventMetadata) writeField(f field) {
 	}
 }
 
+// writeTags writes out the tags value to the event metadata. Tags is a 28-bit
+// value, interpreted as bit flags, which are only relevant to the event
+// consumer. The event consumer may choose to attribute special meaning to tags
+// (e.g. 0x4 could mean the field contains PII). Tags are written as a series of
+// bytes, each containing 7 bits of tag value, with the high bit set if there is
+// more tag data in the following byte. This allows for a more compact
+// representation when not all of the tag bits are needed.
 func (em *EventMetadata) writeTags(tags uint32) {
+	// Only use the top 28 bits of the tags value.
 	tags &= 0xfffffff
 
 	for {
+		// Tags are written with the most significant bits (e.g. 21-27) first.
 		val := tags >> 21
 
 		if tags&0x1fffff == 0 {
+			// If there is no more data to write after this, write this value
+			// without the high bit set, and return.
 			em.buffer.WriteByte(byte(val & 0x7f))
 			return
 		}

@@ -2,7 +2,9 @@ package etw
 
 import (
 	"bytes"
+	"crypto/sha1"
 	"encoding/binary"
+	"strings"
 	"sync"
 	"unsafe"
 
@@ -21,6 +23,7 @@ const (
 // name and ID (GUID), which should always have a 1:1 mapping to each other
 // (e.g. don't use multiple provider names with the same ID, or vice versa).
 type Provider struct {
+	ID         *windows.GUID
 	handle     providerHandle
 	metadata   []byte
 	callback   EnableCallback
@@ -138,17 +141,57 @@ func providerCallbackAdapter(sourceID *windows.GUID, state uintptr, level uintpt
 	return 0
 }
 
+// providerIDFromName generates a provider ID based on the provider name. It
+// uses the same algorithm as used by .NET's EventSource class, which is based
+// on RFC 4122. More information on the algorithm can be found here:
+// https://blogs.msdn.microsoft.com/dcook/2015/09/08/etw-provider-names-and-guids/
+// The algorithm is roughly:
+// Hash = Sha1(namespace + arg.ToUpper().ToUtf16be())
+// Guid = Hash[0..15], with Hash[7] tweaked according to RFC 4122
+func providerIDFromName(name string) (*windows.GUID, error) {
+	namespace := []byte{0x48, 0x2C, 0x2D, 0xB2, 0xC3, 0x90, 0x47, 0xC8, 0x87, 0xF8, 0x1A, 0x15, 0xBF, 0xC1, 0x30, 0xFB}
+	buffer := &bytes.Buffer{}
+	buffer.Write(namespace)
+
+	nameUTF16, err := windows.UTF16FromString(strings.ToUpper(name))
+	if err != nil {
+		return nil, err
+	}
+	// nameUTF16 includes a null terminator, which we don't want included in the
+	// hash.
+	binary.Write(buffer, binary.BigEndian, nameUTF16[:len(nameUTF16)-1])
+
+	sum := sha1.Sum(buffer.Bytes())
+	sum[7] = (sum[7] & 0xf) | 0x50
+
+	return &windows.GUID{
+		Data1: (uint32(sum[3]) << 24) | (uint32(sum[2]) << 16) | (uint32(sum[1]) << 8) | uint32(sum[0]),
+		Data2: (uint16(sum[5]) << 8) | uint16(sum[4]),
+		Data3: (uint16(sum[7]) << 8) | uint16(sum[6]),
+		Data4: [8]byte{sum[8], sum[9], sum[10], sum[11], sum[12], sum[13], sum[14], sum[15]},
+	}, nil
+}
+
+func NewProvider(name string, callback EnableCallback) (provider *Provider, err error) {
+	id, err := providerIDFromName(name)
+	if err != nil {
+		return nil, err
+	}
+	return NewProviderWithID(name, id, callback)
+}
+
 // NewProvider creates and registers a new provider.
-func NewProvider(name string, id *windows.GUID, callback EnableCallback) (provider *Provider, err error) {
+func NewProviderWithID(name string, id *windows.GUID, callback EnableCallback) (provider *Provider, err error) {
 	provider = providers.newProvider()
 	defer func() {
 		if err != nil {
 			providers.removeProvider(provider)
 		}
 	}()
+	provider.ID = id
 	provider.callback = callback
 
-	if err := eventRegister(id, windows.NewCallback(providerCallbackAdapter), uintptr(provider.index), &provider.handle); err != nil {
+	if err := eventRegister(provider.ID, windows.NewCallback(providerCallbackAdapter), uintptr(provider.index), &provider.handle); err != nil {
 		return nil, err
 	}
 

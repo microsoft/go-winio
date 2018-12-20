@@ -3,10 +3,12 @@ package main
 
 import (
 	"bufio"
+	"encoding/binary"
+	"encoding/hex"
 	"fmt"
 	"os"
 
-	"github.com/Microsoft/go-winio/pkg/etw"
+	"github.com/Microsoft/go-winio/internal/etw"
 	"github.com/sirupsen/logrus"
 
 	"golang.org/x/sys/windows"
@@ -16,10 +18,25 @@ func callback(sourceID *windows.GUID, state etw.ProviderState, level etw.Level, 
 	fmt.Printf("Callback: isEnabled=%d, level=%d, matchAnyKeyword=%d\n", state, level, matchAnyKeyword)
 }
 
-func main() {
-	providerID := windows.GUID{0xdd2062c6, 0x5d1b, 0x4a0f, [8]uint8{0xbd, 0xb9, 0x22, 0x28, 0xbc, 0xb1, 0x07, 0x7c}}
+func guidToString(guid *windows.GUID) string {
+	data1 := make([]byte, 4)
+	binary.BigEndian.PutUint32(data1, guid.Data1)
+	data2 := make([]byte, 2)
+	binary.BigEndian.PutUint16(data2, guid.Data2)
+	data3 := make([]byte, 2)
+	binary.BigEndian.PutUint16(data3, guid.Data3)
+	return fmt.Sprintf(
+		"%s-%s-%s-%s-%s",
+		hex.EncodeToString(data1),
+		hex.EncodeToString(data2),
+		hex.EncodeToString(data3),
+		hex.EncodeToString(guid.Data4[:2]),
+		hex.EncodeToString(guid.Data4[2:]))
+}
 
-	provider, err := etw.NewProvider("TestProvider", &providerID, callback)
+func main() {
+	provider, err := etw.NewProvider("TestProvider", callback)
+
 	if err != nil {
 		logrus.Error(err)
 		return
@@ -30,15 +47,17 @@ func main() {
 		}
 	}()
 
+	fmt.Println("Provider ID:", guidToString(provider.ID))
+
 	reader := bufio.NewReader(os.Stdin)
 
 	fmt.Println("Press enter to log an event")
 	reader.ReadString('\n')
 
 	event := etw.NewEvent("TestEvent", etw.NewEventDescriptor())
-	event.Metadata.AddField("TestField", etw.InTypeAnsiString)
+	event.Metadata.AddField("TestField", etw.InTypeANSIString)
 	event.Data.AddString("Foo")
-	event.Metadata.AddField("TestField2", etw.InTypeAnsiString)
+	event.Metadata.AddField("TestField2", etw.InTypeANSIString)
 	event.Data.AddString("Bar")
 
 	if err := provider.WriteEvent(event); err != nil {
