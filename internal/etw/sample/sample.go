@@ -59,6 +59,13 @@ func main() {
 	event.Data.AddString("Foo")
 	event.Metadata.AddField("TestField2", etw.InTypeANSIString)
 	event.Data.AddString("Bar")
+	event.Metadata.AddField("TestArray", etw.InTypeANSIString, etw.WithArray())
+	event.Data.AddSimple(uint16(5))
+	event.Data.AddString("Item1")
+	event.Data.AddString("Item2")
+	event.Data.AddString("Item3")
+	event.Data.AddString("Item4")
+	event.Data.AddString("Item5")
 
 	if err := provider.WriteEvent(event); err != nil {
 		fmt.Println(err)

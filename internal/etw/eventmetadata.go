@@ -37,6 +37,9 @@ const (
 	InTypeCountedANSIString
 	InTypeStruct
 	InTypeCountedBinary
+
+	InTypeCountedArray InType = 32
+	InTypeArray        InType = 64
 )
 
 // OutType specifies a hint to the event decoder for how the value should be
@@ -73,7 +76,7 @@ const (
 	OutTypeDateTimeUTC       OutType = 38
 )
 
-// EventMetadata maintains a buffer which builds up the metadatadata for an ETW
+// EventMetadata maintains a buffer which builds up the metadata for an ETW
 // event. It needs to be paired with EventData which describes the event.
 type EventMetadata struct {
 	buffer bytes.Buffer
@@ -91,10 +94,11 @@ func NewEventMetadata(name string) *EventMetadata {
 }
 
 type field struct {
-	name    string
-	inType  InType
-	outType OutType
-	tags    uint32
+	name             string
+	inType           InType
+	outType          OutType
+	tags             uint32
+	countedArraySize uint16
 }
 
 func (em *EventMetadata) writeField(f field) {
@@ -111,6 +115,10 @@ func (em *EventMetadata) writeField(f field) {
 			em.buffer.WriteByte(byte(f.outType | 128))
 			em.writeTags(f.tags)
 		}
+	}
+
+	if f.countedArraySize != 0 {
+		binary.Write(&em.buffer, binary.LittleEndian, f.countedArraySize)
 	}
 }
 
@@ -160,6 +168,24 @@ func WithOutType(outType OutType) fieldOpt {
 func WithTags(tags uint32) fieldOpt {
 	return func(f *field) {
 		f.tags |= tags
+	}
+}
+
+// WithCountedArray marks the field as being an array of a fixed number of
+// elements. The number of elements is encoded directly into the field metadata.
+func WithCountedArray(count uint16) fieldOpt {
+	return func(f *field) {
+		f.inType |= InTypeCountedArray
+		f.countedArraySize = count
+	}
+}
+
+// WithArray marks the field as being an array of a dynamic number of elements.
+// The number of elements must be written as a uint16 to the data block,
+// immediately preceeding the array elements.
+func WithArray() fieldOpt {
+	return func(f *field) {
+		f.inType |= InTypeArray
 	}
 }
 
