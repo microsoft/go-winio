@@ -27,23 +27,6 @@ const (
 	LevelVerbose
 )
 
-// Event represents a single ETW event. It can have field metadata and data
-// added to it, and then be logged via a provider to actually send it to ETW.
-type Event struct {
-	Descriptor *EventDescriptor
-	Metadata   *EventMetadata
-	Data       *EventData
-}
-
-// NewEvent returns a new instance of an event object.
-func NewEvent(name string, descriptor *EventDescriptor) *Event {
-	return &Event{
-		Descriptor: descriptor,
-		Metadata:   NewEventMetadata(name),
-		Data:       &EventData{},
-	}
-}
-
 // EventDescriptor represents various metadata for an ETW event.
 type EventDescriptor struct {
 	id      uint16
@@ -61,13 +44,8 @@ func NewEventDescriptor() *EventDescriptor {
 	// Standard TraceLogging events default to the TraceLogging channel, and
 	// verbose level.
 	return &EventDescriptor{
-		id:      0,
-		version: 0,
 		Channel: ChannelTraceLogging,
 		Level:   LevelVerbose,
-		Opcode:  0,
-		Task:    0,
-		Keyword: 0,
 	}
 }
 

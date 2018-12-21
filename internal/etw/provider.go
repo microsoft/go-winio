@@ -172,6 +172,8 @@ func providerIDFromName(name string) (*windows.GUID, error) {
 	}, nil
 }
 
+// NewProvider creates and registers a new ETW provider. The provider ID is
+// generated based on the provider name.
 func NewProvider(name string, callback EnableCallback) (provider *Provider, err error) {
 	id, err := providerIDFromName(name)
 	if err != nil {
@@ -180,7 +182,10 @@ func NewProvider(name string, callback EnableCallback) (provider *Provider, err 
 	return NewProviderWithID(name, id, callback)
 }
 
-// NewProvider creates and registers a new provider.
+// NewProviderWithID creates and registers a new ETW provider, allowing the
+// provider ID to be manually specified. This is most useful when there is an
+// existing provider ID that must be used to conform to existing diagnostic
+// infrastructure.
 func NewProviderWithID(name string, id *windows.GUID, callback EnableCallback) (provider *Provider, err error) {
 	provider = providers.newProvider()
 	defer func() {
@@ -246,16 +251,56 @@ func (provider *Provider) IsEnabledForLevelAndKeywords(level Level, keywords uin
 	return true
 }
 
-// WriteEvent writes a single event to ETW, from this provider.
-func (provider *Provider) WriteEvent(event *Event) error {
-	// Finalize the event metadata buffer by filling in the buffer length at the
-	// beginning.
-	binary.LittleEndian.PutUint16(event.Metadata.buffer.Bytes(), uint16(event.Metadata.buffer.Len()))
+// WriteEvent writes a single ETW event from the provider. The event is
+// constructed based on the EventOpt and FieldOpt values that are passed as
+// opts.
+func (provider *Provider) WriteEvent(name string, opts ...interface{}) error {
+	tags := uint32(0)
+	descriptor := NewEventDescriptor()
+	em := &EventMetadata{}
+	ed := &EventData{}
 
-	var dataDescriptors [3]eventDataDescriptor
-	dataDescriptors[0].set(eventDataDescriptorTypeProviderMetadata, provider.metadata)
-	dataDescriptors[1].set(eventDataDescriptorTypeEventMetadata, event.Metadata.buffer.Bytes())
-	dataDescriptors[2].set(eventDataDescriptorTypeUserData, event.Data.buffer.Bytes())
+	// We need to evaluate the EventOpts first since they might change tags, and
+	// we write out the tags before evaluating FieldOpts.
+	for _, opt := range opts {
+		if v, ok := opt.(EventOpt); ok {
+			v(descriptor, &tags)
+		}
+	}
 
-	return eventWriteTransfer(provider.handle, event.Descriptor, nil, nil, 3, &dataDescriptors[0])
+	em.WriteEventHeader(name, tags)
+
+	for _, opt := range opts {
+		if v, ok := opt.(FieldOpt); ok {
+			v(em, ed)
+		}
+	}
+
+	return provider.WriteEventRaw(descriptor, [][]byte{em.Bytes()}, [][]byte{ed.Bytes()})
+}
+
+// WriteEventRaw writes a single ETW event from the provider. This function is
+// less abstracted than WriteEvent, and presents a fairly direct interface to
+// the event writing functionality. It expects a series of event metadata and
+// event data blobs to be passed in, which must conform to the TraceLogging
+// schema. The functions on EventMetadata and EventData can help with creating
+// these blobs. The blobs of each type are effectively concatenated together by
+// the ETW infrastructure.
+func (provider *Provider) WriteEventRaw(descriptor *EventDescriptor, metadataBlobs [][]byte, dataBlobs [][]byte) error {
+	dataDescriptorCount := uint32(1 + len(metadataBlobs) + len(dataBlobs))
+	dataDescriptors := make([]eventDataDescriptor, dataDescriptorCount)
+
+	i := 0
+	dataDescriptors[i].set(eventDataDescriptorTypeProviderMetadata, provider.metadata)
+	i++
+	for _, blob := range metadataBlobs {
+		dataDescriptors[i].set(eventDataDescriptorTypeEventMetadata, blob)
+		i++
+	}
+	for _, blob := range dataBlobs {
+		dataDescriptors[i].set(eventDataDescriptorTypeUserData, blob)
+		i++
+	}
+
+	return eventWriteTransfer(provider.handle, descriptor, nil, nil, dataDescriptorCount, &dataDescriptors[0])
 }

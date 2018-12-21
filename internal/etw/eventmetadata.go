@@ -82,15 +82,24 @@ type EventMetadata struct {
 	buffer bytes.Buffer
 }
 
-// NewEventMetadata returns a new EventMetadata with event name and initial
-// metadata written to the buffer.
-func NewEventMetadata(name string) *EventMetadata {
-	em := EventMetadata{}
+// Bytes returns the raw binary data containing the event metadata. Before being
+// returned, the current size of the buffer is written to the start of the
+// buffer. The returned value is not copied from the internal buffer, so it can
+// be mutated by the EventMetadata object after it is returned.
+func (em *EventMetadata) Bytes() []byte {
+	// Finalize the event metadata buffer by filling in the buffer length at the
+	// beginning.
+	binary.LittleEndian.PutUint16(em.buffer.Bytes(), uint16(em.buffer.Len()))
+	return em.buffer.Bytes()
+}
+
+// WriteEventHeader writes the metadata for the start of an event to the buffer.
+// This specifies the event name and tags.
+func (em *EventMetadata) WriteEventHeader(name string, tags uint32) {
 	binary.Write(&em.buffer, binary.LittleEndian, uint16(0)) // Length placeholder
-	em.writeTags(0)
+	em.writeTags(tags)
 	em.buffer.WriteString(name)
 	em.buffer.WriteByte(0) // Null terminator for name
-	return &em
 }
 
 type field struct {
@@ -150,55 +159,44 @@ func (em *EventMetadata) writeTags(tags uint32) {
 	}
 }
 
-type fieldOpt func(f *field)
-
-// WithOutType specifies the out type for the field. This value is used as a
-// hint by the event decoder for how the field value should be formatted. If no
-// out type is specified, a default formatting based on the in type will be
-// used.
-func WithOutType(outType OutType) fieldOpt {
-	return func(f *field) {
-		f.outType = outType
-	}
+// WriteField writes the metadata for a simple field to the buffer.
+func (em *EventMetadata) WriteField(name string, inType InType, outType OutType, tags uint32) {
+	em.writeField(field{
+		name:    name,
+		inType:  inType,
+		outType: outType,
+		tags:    tags,
+	})
 }
 
-// WithTags adds a tag to the field. Tags are 28-bit values that have meaning
-// only to the event consumer. The top 4 bits of the value will be ignored.
-// Multiple uses of this option will cause the tags to be OR'd together.
-func WithTags(tags uint32) fieldOpt {
-	return func(f *field) {
-		f.tags |= tags
-	}
+// WriteArray writes the metadata for an array field to the buffer. The number
+// of elements in the array must be written as a uint16 in the event data,
+// immediately preceeding the event data.
+func (em *EventMetadata) WriteArray(name string, inType InType, outType OutType, tags uint32) {
+	em.WriteField(name, inType|InTypeArray, outType, tags)
 }
 
-// WithCountedArray marks the field as being an array of a fixed number of
-// elements. The number of elements is encoded directly into the field metadata.
-func WithCountedArray(count uint16) fieldOpt {
-	return func(f *field) {
-		f.inType |= InTypeCountedArray
-		f.countedArraySize = count
-	}
+// WriteCountedArray writes the metadata for an array field to the buffer. The
+// size of a counted array is fixed, and the size is written into the metadata
+// directly.
+func (em *EventMetadata) WriteCountedArray(name string, count uint16, inType InType, outType OutType, tags uint32) {
+	em.writeField(field{
+		name:             name,
+		inType:           inType | InTypeCountedArray,
+		outType:          outType,
+		tags:             tags,
+		countedArraySize: count,
+	})
 }
 
-// WithArray marks the field as being an array of a dynamic number of elements.
-// The number of elements must be written as a uint16 to the data block,
-// immediately preceeding the array elements.
-func WithArray() fieldOpt {
-	return func(f *field) {
-		f.inType |= InTypeArray
-	}
-}
-
-// AddField appends a single field to the end of the event metadata buffer.
-func (em *EventMetadata) AddField(name string, inType InType, opts ...fieldOpt) {
-	f := field{
-		name:   name,
-		inType: inType,
-	}
-
-	for _, opt := range opts {
-		opt(&f)
-	}
-
-	em.writeField(f)
+// WriteStruct writes the metadata for a nested struct to the buffer. The struct
+// contains the next N fields in the metadata, where N is specified by the
+// fieldCount argument.
+func (em *EventMetadata) WriteStruct(name string, fieldCount uint8, tags uint32) {
+	em.writeField(field{
+		name:    name,
+		inType:  InTypeStruct,
+		outType: OutType(fieldCount),
+		tags:    tags,
+	})
 }

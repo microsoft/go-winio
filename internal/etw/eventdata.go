@@ -11,20 +11,35 @@ type EventData struct {
 	buffer bytes.Buffer
 }
 
-// NewEventData returns a new EventData with an empty buffer.
-func NewEventData() *EventData {
-	return &EventData{}
+// Bytes returns the raw binary data containing the event data. The returned
+// value is not copied from the internal buffer, so it can be mutated by the
+// EventData object after it is returned.
+func (ed *EventData) Bytes() []byte {
+	return ed.buffer.Bytes()
 }
 
-// AddString appends the data for a string to the end of the buffer.
-func (ed *EventData) AddString(data string) {
+// WriteString appends a string, including the null terminator, to the buffer.
+func (ed *EventData) WriteString(data string) {
 	ed.buffer.WriteString(data)
 	ed.buffer.WriteByte(0)
 }
 
-// This is mostly added for testing purposes, and will be removed later, as we
-// shouldn't take a dependency on binary.Write knowing how to marshal values
-// correctly for TraceLogging.
-func (ed *EventData) AddSimple(data interface{}) {
-	binary.Write(&ed.buffer, binary.LittleEndian, data)
+// WriteUint8 appends a uint8 to the buffer.
+func (ed *EventData) WriteUint8(value uint8) {
+	ed.buffer.WriteByte(value)
+}
+
+// WriteUint16 appends a uint16 to the buffer.
+func (ed *EventData) WriteUint16(value uint16) {
+	binary.Write(&ed.buffer, binary.LittleEndian, value)
+}
+
+// WriteUint32 appends a uint32 to the buffer.
+func (ed *EventData) WriteUint32(value uint32) {
+	binary.Write(&ed.buffer, binary.LittleEndian, value)
+}
+
+// WriteUint64 appends a uint64 to the buffer.
+func (ed *EventData) WriteUint64(value uint64) {
+	binary.Write(&ed.buffer, binary.LittleEndian, value)
 }

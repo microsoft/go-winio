@@ -46,30 +46,31 @@ func (h *Hook) Fire(e *logrus.Entry) error {
 		return nil
 	}
 
-	descriptor := etw.NewEventDescriptor()
+	opts := make([]interface{}, len(e.Data))
+	i := 0
 
 	// We could try to map Logrus levels to ETW levels, but we would lose some
 	// fidelity as there are fewer ETW levels. So instead we use the level
 	// directly.
-	descriptor.Level = etw.Level(e.Level)
+	opts[i] = etw.WithLevel(etw.Level(e.Level))
+	i++
 
-	event := etw.NewEvent("LogrusEntry", descriptor)
-
-	event.Metadata.AddField("Message", etw.InTypeANSIString, etw.WithOutType(etw.OutTypeUTF8))
-	event.Data.AddString(e.Message)
+	opts[i] = etw.StringField("Message", e.Message)
+	i++
 
 	for k, v := range e.Data {
 		switch v := v.(type) {
 		case string:
-			event.Metadata.AddField(k, etw.InTypeANSIString, etw.WithOutType(etw.OutTypeUTF8))
-			event.Data.AddString(v)
+			opts[i] = etw.StringField(k, v)
 		default:
-			event.Metadata.AddField(k, etw.InTypeANSIString, etw.WithOutType(etw.OutTypeUTF8))
-			event.Data.AddString(fmt.Sprintf("<unknown type: %v> %v", reflect.TypeOf(v), v))
+			opts[i] = etw.StringField(k, fmt.Sprintf("<unknown type: %v> %v", reflect.TypeOf(v), v))
 		}
+		i++
 	}
 
-	h.provider.WriteEvent(event)
+	h.provider.WriteEvent(
+		"LogrusEntry",
+		opts...)
 
 	return nil
 }

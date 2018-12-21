@@ -51,29 +51,56 @@ func main() {
 
 	reader := bufio.NewReader(os.Stdin)
 
-	fmt.Println("Press enter to log an event")
+	fmt.Println("Press enter to log events")
 	reader.ReadString('\n')
 
-	event := etw.NewEvent("TestEvent", etw.NewEventDescriptor())
-	event.Metadata.AddField("TestField", etw.InTypeANSIString)
-	event.Data.AddString("Foo")
-	event.Metadata.AddField("TestField2", etw.InTypeANSIString)
-	event.Data.AddString("Bar")
-	event.Metadata.AddField("TestArray", etw.InTypeANSIString, etw.WithArray())
-	event.Data.AddSimple(uint16(5))
-	event.Data.AddString("Item1")
-	event.Data.AddString("Item2")
-	event.Data.AddString("Item3")
-	event.Data.AddString("Item4")
-	event.Data.AddString("Item5")
-
-	if err := provider.WriteEvent(event); err != nil {
-		fmt.Println(err)
+	// Write using high-level API.
+	if err := provider.WriteEvent(
+		"TestEvent",
+		etw.WithLevel(etw.LevelInfo),
+		etw.WithKeyword(0x140),
+		etw.StringField("TestField", "Foo"),
+		etw.StringField("TestField2", "Bar"),
+		etw.Struct("TestStruct",
+			etw.StringField("Field1", "Value1"),
+			etw.StringField("Field2", "Value2")),
+		etw.StringArray("TestArray", []string{
+			"Item1",
+			"Item2",
+			"Item3",
+			"Item4",
+			"Item5",
+		}),
+	); err != nil {
+		logrus.Error(err)
 		return
 	}
 
-	fmt.Println("Event written")
-
-	fmt.Println("Press enter to exit")
-	reader.ReadString('\n')
+	// Write using low-level API.
+	descriptor := etw.NewEventDescriptor()
+	descriptor.Level = etw.LevelInfo
+	descriptor.Keyword = 0x140
+	em := &etw.EventMetadata{}
+	ed := &etw.EventData{}
+	em.WriteEventHeader("TestEvent", 0)
+	em.WriteField("TestField", etw.InTypeANSIString, etw.OutTypeUTF8, 0)
+	ed.WriteString("Foo")
+	em.WriteField("TestField2", etw.InTypeANSIString, etw.OutTypeUTF8, 0)
+	ed.WriteString("Bar")
+	em.WriteStruct("TestStruct", 2, 0)
+	em.WriteField("Field1", etw.InTypeANSIString, etw.OutTypeUTF8, 0)
+	ed.WriteString("Value1")
+	em.WriteField("Field2", etw.InTypeANSIString, etw.OutTypeUTF8, 0)
+	ed.WriteString("Value2")
+	em.WriteArray("TestArray", etw.InTypeANSIString, etw.OutTypeDefault, 0)
+	ed.WriteUint16(5)
+	ed.WriteString("Item1")
+	ed.WriteString("Item2")
+	ed.WriteString("Item3")
+	ed.WriteString("Item4")
+	ed.WriteString("Item5")
+	if err := provider.WriteEventRaw(descriptor, [][]byte{em.Bytes()}, [][]byte{ed.Bytes()}); err != nil {
+		logrus.Error(err)
+		return
+	}
 }
