@@ -5,18 +5,9 @@ import (
 	"crypto/sha1"
 	"encoding/binary"
 	"strings"
-	"sync"
-	"unsafe"
+	"unicode/utf16"
 
 	"golang.org/x/sys/windows"
-)
-
-type eventDataDescriptorType uint8
-
-const (
-	eventDataDescriptorTypeUserData eventDataDescriptorType = iota
-	eventDataDescriptorTypeEventMetadata
-	eventDataDescriptorTypeProviderMetadata
 )
 
 // Provider represents an ETW event provider. It is identified by a provider
@@ -54,66 +45,6 @@ const (
 // enable/disable notifications from ETW.
 type EnableCallback func(*windows.GUID, ProviderState, Level, uint64, uint64, uintptr)
 
-type eventDataDescriptor struct {
-	ptr       uint64
-	size      uint32
-	dataType  eventDataDescriptorType
-	reserved1 uint8
-	reserved2 uint16
-}
-
-func (descriptor *eventDataDescriptor) set(dataType eventDataDescriptorType, buffer []byte) {
-	// Passing a pointer to Go-managed memory as part of a block of memory is
-	// risky since the GC doesn't know about it. If we find a better way to do
-	// this we should use it instead.
-	descriptor.ptr = uint64(uintptr(unsafe.Pointer(&buffer[0])))
-	descriptor.size = uint32(len(buffer))
-	descriptor.dataType = dataType
-}
-
-// Because the provider callback function needs to be able to access the
-// provider data when it is invoked by ETW, we need to keep provider data stored
-// in a global map based on an index. The index is passed as the callback
-// context to ETW.
-type providerMap struct {
-	m    map[uint]*Provider
-	i    uint
-	lock sync.Mutex
-}
-
-var providers = providerMap{
-	m: make(map[uint]*Provider),
-}
-
-func (p *providerMap) newProvider() *Provider {
-	p.lock.Lock()
-	defer p.lock.Unlock()
-
-	i := p.i
-	p.i++
-
-	provider := &Provider{
-		index: i,
-	}
-
-	p.m[i] = provider
-	return provider
-}
-
-func (p *providerMap) removeProvider(provider *Provider) {
-	p.lock.Lock()
-	defer p.lock.Unlock()
-
-	delete(p.m, provider.index)
-}
-
-func (p *providerMap) getProvider(index uint) *Provider {
-	p.lock.Lock()
-	defer p.lock.Unlock()
-
-	return p.m[index]
-}
-
 func providerCallback(sourceID *windows.GUID, state ProviderState, level Level, matchAnyKeyword uint64, matchAllKeyword uint64, filterData uintptr, i uintptr) {
 	provider := providers.getProvider(uint(i))
 
@@ -148,38 +79,29 @@ func providerCallbackAdapter(sourceID *windows.GUID, state uintptr, level uintpt
 // The algorithm is roughly:
 // Hash = Sha1(namespace + arg.ToUpper().ToUtf16be())
 // Guid = Hash[0..15], with Hash[7] tweaked according to RFC 4122
-func providerIDFromName(name string) (*windows.GUID, error) {
+func providerIDFromName(name string) *windows.GUID {
+	buffer := sha1.New()
+
 	namespace := []byte{0x48, 0x2C, 0x2D, 0xB2, 0xC3, 0x90, 0x47, 0xC8, 0x87, 0xF8, 0x1A, 0x15, 0xBF, 0xC1, 0x30, 0xFB}
-	buffer := &bytes.Buffer{}
 	buffer.Write(namespace)
 
-	nameUTF16, err := windows.UTF16FromString(strings.ToUpper(name))
-	if err != nil {
-		return nil, err
-	}
-	// nameUTF16 includes a null terminator, which we don't want included in the
-	// hash.
-	binary.Write(buffer, binary.BigEndian, nameUTF16[:len(nameUTF16)-1])
+	binary.Write(buffer, binary.BigEndian, utf16.Encode([]rune(strings.ToUpper(name))))
 
-	sum := sha1.Sum(buffer.Bytes())
+	sum := buffer.Sum(nil)
 	sum[7] = (sum[7] & 0xf) | 0x50
 
 	return &windows.GUID{
-		Data1: (uint32(sum[3]) << 24) | (uint32(sum[2]) << 16) | (uint32(sum[1]) << 8) | uint32(sum[0]),
-		Data2: (uint16(sum[5]) << 8) | uint16(sum[4]),
-		Data3: (uint16(sum[7]) << 8) | uint16(sum[6]),
+		Data1: binary.LittleEndian.Uint32(sum[0:3]),
+		Data2: binary.LittleEndian.Uint16(sum[4:5]),
+		Data3: binary.LittleEndian.Uint16(sum[6:7]),
 		Data4: [8]byte{sum[8], sum[9], sum[10], sum[11], sum[12], sum[13], sum[14], sum[15]},
-	}, nil
+	}
 }
 
 // NewProvider creates and registers a new ETW provider. The provider ID is
 // generated based on the provider name.
 func NewProvider(name string, callback EnableCallback) (provider *Provider, err error) {
-	id, err := providerIDFromName(name)
-	if err != nil {
-		return nil, err
-	}
-	return NewProviderWithID(name, id, callback)
+	return NewProviderWithID(name, providerIDFromName(name), callback)
 }
 
 // NewProviderWithID creates and registers a new ETW provider, allowing the
@@ -187,6 +109,10 @@ func NewProvider(name string, callback EnableCallback) (provider *Provider, err 
 // existing provider ID that must be used to conform to existing diagnostic
 // infrastructure.
 func NewProviderWithID(name string, id *windows.GUID, callback EnableCallback) (provider *Provider, err error) {
+	providerCallbackOnce.Do(func() {
+		globalProviderCallback = windows.NewCallback(providerCallbackAdapter)
+	})
+
 	provider = providers.newProvider()
 	defer func() {
 		if err != nil {
@@ -196,7 +122,7 @@ func NewProviderWithID(name string, id *windows.GUID, callback EnableCallback) (
 	provider.ID = id
 	provider.callback = callback
 
-	if err := eventRegister(provider.ID, windows.NewCallback(providerCallbackAdapter), uintptr(provider.index), &provider.handle); err != nil {
+	if err := eventRegister(provider.ID, globalProviderCallback, uintptr(provider.index), &provider.handle); err != nil {
 		return nil, err
 	}
 
@@ -254,7 +180,7 @@ func (provider *Provider) IsEnabledForLevelAndKeywords(level Level, keywords uin
 // WriteEvent writes a single ETW event from the provider. The event is
 // constructed based on the EventOpt and FieldOpt values that are passed as
 // opts.
-func (provider *Provider) WriteEvent(name string, opts ...interface{}) error {
+func (provider *Provider) WriteEvent(name string, eventOpts []EventOpt, fieldOpts []FieldOpt) error {
 	tags := uint32(0)
 	descriptor := NewEventDescriptor()
 	em := &EventMetadata{}
@@ -262,18 +188,18 @@ func (provider *Provider) WriteEvent(name string, opts ...interface{}) error {
 
 	// We need to evaluate the EventOpts first since they might change tags, and
 	// we write out the tags before evaluating FieldOpts.
-	for _, opt := range opts {
-		if v, ok := opt.(EventOpt); ok {
-			v(descriptor, &tags)
-		}
+	for _, opt := range eventOpts {
+		opt(descriptor, &tags)
+	}
+
+	if !provider.IsEnabledForLevelAndKeywords(descriptor.Level, descriptor.Keyword) {
+		return nil
 	}
 
 	em.WriteEventHeader(name, tags)
 
-	for _, opt := range opts {
-		if v, ok := opt.(FieldOpt); ok {
-			v(em, ed)
-		}
+	for _, opt := range fieldOpts {
+		opt(em, ed)
 	}
 
 	return provider.WriteEventRaw(descriptor, [][]byte{em.Bytes()}, [][]byte{ed.Bytes()})
@@ -288,18 +214,14 @@ func (provider *Provider) WriteEvent(name string, opts ...interface{}) error {
 // the ETW infrastructure.
 func (provider *Provider) WriteEventRaw(descriptor *EventDescriptor, metadataBlobs [][]byte, dataBlobs [][]byte) error {
 	dataDescriptorCount := uint32(1 + len(metadataBlobs) + len(dataBlobs))
-	dataDescriptors := make([]eventDataDescriptor, dataDescriptorCount)
+	dataDescriptors := make([]eventDataDescriptor, 0, dataDescriptorCount)
 
-	i := 0
-	dataDescriptors[i].set(eventDataDescriptorTypeProviderMetadata, provider.metadata)
-	i++
+	dataDescriptors = append(dataDescriptors, newEventDataDescriptor(eventDataDescriptorTypeProviderMetadata, provider.metadata))
 	for _, blob := range metadataBlobs {
-		dataDescriptors[i].set(eventDataDescriptorTypeEventMetadata, blob)
-		i++
+		dataDescriptors = append(dataDescriptors, newEventDataDescriptor(eventDataDescriptorTypeEventMetadata, blob))
 	}
 	for _, blob := range dataBlobs {
-		dataDescriptors[i].set(eventDataDescriptorTypeUserData, blob)
-		i++
+		dataDescriptors = append(dataDescriptors, newEventDataDescriptor(eventDataDescriptorTypeUserData, blob))
 	}
 
 	return eventWriteTransfer(provider.handle, descriptor, nil, nil, dataDescriptorCount, &dataDescriptors[0])

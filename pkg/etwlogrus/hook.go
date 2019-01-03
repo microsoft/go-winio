@@ -42,35 +42,32 @@ func (h *Hook) Levels() []logrus.Level {
 
 // Fire receives each Logrus entry as it is logged, and logs it to ETW.
 func (h *Hook) Fire(e *logrus.Entry) error {
-	if !h.provider.IsEnabledForLevel(etw.Level(e.Level)) {
+	level := etw.Level(e.Level)
+	if !h.provider.IsEnabledForLevel(level) {
 		return nil
 	}
 
-	opts := make([]interface{}, len(e.Data))
-	i := 0
+	// Reserve extra space for the message field.
+	fields := make([]etw.FieldOpt, 0, len(e.Data)+1)
 
-	// We could try to map Logrus levels to ETW levels, but we would lose some
-	// fidelity as there are fewer ETW levels. So instead we use the level
-	// directly.
-	opts[i] = etw.WithLevel(etw.Level(e.Level))
-	i++
-
-	opts[i] = etw.StringField("Message", e.Message)
-	i++
+	fields = append(fields, etw.StringField("Message", e.Message))
 
 	for k, v := range e.Data {
 		switch v := v.(type) {
 		case string:
-			opts[i] = etw.StringField(k, v)
+			fields = append(fields, etw.StringField(k, v))
 		default:
-			opts[i] = etw.StringField(k, fmt.Sprintf("<unknown type: %v> %v", reflect.TypeOf(v), v))
+			fields = append(fields, etw.StringField(k, fmt.Sprintf("<unknown type: %v> %v", reflect.TypeOf(v), v)))
 		}
-		i++
 	}
 
+	// We could try to map Logrus levels to ETW levels, but we would lose some
+	// fidelity as there are fewer ETW levels. So instead we use the level
+	// directly.
 	h.provider.WriteEvent(
 		"LogrusEntry",
-		opts...)
+		etw.WithEventOpts(etw.WithLevel(level)),
+		fields)
 
 	return nil
 }

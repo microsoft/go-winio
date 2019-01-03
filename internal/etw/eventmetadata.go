@@ -37,7 +37,6 @@ const (
 	InTypeCountedANSIString
 	InTypeStruct
 	InTypeCountedBinary
-
 	InTypeCountedArray InType = 32
 	InTypeArray        InType = 64
 )
@@ -49,7 +48,7 @@ type OutType byte
 // Various OutType definitions for TraceLogging. These must match the
 // definitions found in TraceLoggingProvider.h in the Windows SDK.
 const (
-	// OutTypeDefault indicates that the default formatting for the in type will
+	// OutTypeDefault indicates that the default formatting for the InType will
 	// be used by the event decoder.
 	OutTypeDefault OutType = iota
 	OutTypeNoPrint
@@ -102,32 +101,24 @@ func (em *EventMetadata) WriteEventHeader(name string, tags uint32) {
 	em.buffer.WriteByte(0) // Null terminator for name
 }
 
-type field struct {
-	name             string
-	inType           InType
-	outType          OutType
-	tags             uint32
-	countedArraySize uint16
-}
-
-func (em *EventMetadata) writeField(f field) {
-	em.buffer.WriteString(f.name)
+func (em *EventMetadata) writeField(name string, inType InType, outType OutType, tags uint32, arrSize uint16) {
+	em.buffer.WriteString(name)
 	em.buffer.WriteByte(0) // Null terminator for name
 
-	if f.outType == OutTypeDefault && f.tags == 0 {
-		em.buffer.WriteByte(byte(f.inType))
+	if outType == OutTypeDefault && tags == 0 {
+		em.buffer.WriteByte(byte(inType))
 	} else {
-		em.buffer.WriteByte(byte(f.inType | 128))
-		if f.tags == 0 {
-			em.buffer.WriteByte(byte(f.outType))
+		em.buffer.WriteByte(byte(inType | 128))
+		if tags == 0 {
+			em.buffer.WriteByte(byte(outType))
 		} else {
-			em.buffer.WriteByte(byte(f.outType | 128))
-			em.writeTags(f.tags)
+			em.buffer.WriteByte(byte(outType | 128))
+			em.writeTags(tags)
 		}
 	}
 
-	if f.countedArraySize != 0 {
-		binary.Write(&em.buffer, binary.LittleEndian, f.countedArraySize)
+	if arrSize != 0 {
+		binary.Write(&em.buffer, binary.LittleEndian, arrSize)
 	}
 }
 
@@ -161,42 +152,26 @@ func (em *EventMetadata) writeTags(tags uint32) {
 
 // WriteField writes the metadata for a simple field to the buffer.
 func (em *EventMetadata) WriteField(name string, inType InType, outType OutType, tags uint32) {
-	em.writeField(field{
-		name:    name,
-		inType:  inType,
-		outType: outType,
-		tags:    tags,
-	})
+	em.writeField(name, inType, outType, tags, 0)
 }
 
 // WriteArray writes the metadata for an array field to the buffer. The number
 // of elements in the array must be written as a uint16 in the event data,
 // immediately preceeding the event data.
 func (em *EventMetadata) WriteArray(name string, inType InType, outType OutType, tags uint32) {
-	em.WriteField(name, inType|InTypeArray, outType, tags)
+	em.writeField(name, inType|InTypeArray, outType, tags, 0)
 }
 
 // WriteCountedArray writes the metadata for an array field to the buffer. The
 // size of a counted array is fixed, and the size is written into the metadata
 // directly.
 func (em *EventMetadata) WriteCountedArray(name string, count uint16, inType InType, outType OutType, tags uint32) {
-	em.writeField(field{
-		name:             name,
-		inType:           inType | InTypeCountedArray,
-		outType:          outType,
-		tags:             tags,
-		countedArraySize: count,
-	})
+	em.writeField(name, inType|InTypeCountedArray, outType, tags, count)
 }
 
 // WriteStruct writes the metadata for a nested struct to the buffer. The struct
 // contains the next N fields in the metadata, where N is specified by the
 // fieldCount argument.
 func (em *EventMetadata) WriteStruct(name string, fieldCount uint8, tags uint32) {
-	em.writeField(field{
-		name:    name,
-		inType:  InTypeStruct,
-		outType: OutType(fieldCount),
-		tags:    tags,
-	})
+	em.writeField(name, InTypeStruct, OutType(fieldCount), tags, 0)
 }

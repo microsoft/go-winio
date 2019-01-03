@@ -57,20 +57,23 @@ func main() {
 	// Write using high-level API.
 	if err := provider.WriteEvent(
 		"TestEvent",
-		etw.WithLevel(etw.LevelInfo),
-		etw.WithKeyword(0x140),
-		etw.StringField("TestField", "Foo"),
-		etw.StringField("TestField2", "Bar"),
-		etw.Struct("TestStruct",
-			etw.StringField("Field1", "Value1"),
-			etw.StringField("Field2", "Value2")),
-		etw.StringArray("TestArray", []string{
-			"Item1",
-			"Item2",
-			"Item3",
-			"Item4",
-			"Item5",
-		}),
+		etw.WithEventOpts(
+			etw.WithLevel(etw.LevelInfo),
+			etw.WithKeyword(0x140),
+		),
+		etw.WithFields(
+			etw.StringField("TestField", "Foo"),
+			etw.StringField("TestField2", "Bar"),
+			etw.Struct("TestStruct",
+				etw.StringField("Field1", "Value1"),
+				etw.StringField("Field2", "Value2")),
+			etw.StringArray("TestArray", []string{
+				"Item1",
+				"Item2",
+				"Item3",
+				"Item4",
+				"Item5",
+			})),
 	); err != nil {
 		logrus.Error(err)
 		return

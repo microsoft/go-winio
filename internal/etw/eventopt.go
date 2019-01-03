@@ -5,6 +5,11 @@ package etw
 // keyword.
 type EventOpt func(*EventDescriptor, *uint32)
 
+// WithEventOpts returns the variadic arguments as a single slice.
+func WithEventOpts(opts ...EventOpt) []EventOpt {
+	return opts
+}
+
 // WithLevel specifies the level of the event to be written.
 func WithLevel(level Level) EventOpt {
 	return func(descriptor *EventDescriptor, tags *uint32) {

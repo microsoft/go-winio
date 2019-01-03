@@ -4,6 +4,11 @@ package etw
 // Provider.WriteEvent to add fields to the event.
 type FieldOpt func(em *EventMetadata, ed *EventData)
 
+// WithFields returns the variadic arguments as a single slice.
+func WithFields(opts ...FieldOpt) []FieldOpt {
+	return opts
+}
+
 // StringField adds a single string field to the event.
 func StringField(name string, value string) FieldOpt {
 	return func(em *EventMetadata, ed *EventData) {
