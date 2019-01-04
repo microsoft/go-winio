@@ -64,12 +64,10 @@ func (h *Hook) Fire(e *logrus.Entry) error {
 	// We could try to map Logrus levels to ETW levels, but we would lose some
 	// fidelity as there are fewer ETW levels. So instead we use the level
 	// directly.
-	h.provider.WriteEvent(
+	return h.provider.WriteEvent(
 		"LogrusEntry",
 		etw.WithEventOpts(etw.WithLevel(level)),
 		fields)
-
-	return nil
 }
 
 // Close cleans up the hook and closes the ETW provider.
