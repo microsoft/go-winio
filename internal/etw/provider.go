@@ -202,7 +202,15 @@ func (provider *Provider) WriteEvent(name string, eventOpts []EventOpt, fieldOpt
 		opt(em, ed)
 	}
 
-	return provider.WriteEventRaw(descriptor, [][]byte{em.Bytes()}, [][]byte{ed.Bytes()})
+	// Don't pass a data blob if there is no event data. There will always be
+	// event metadata (e.g. for the name) so we don't need to do this check for
+	// the metadata.
+	dataBlobs := [][]byte{}
+	if len(ed.Bytes()) > 0 {
+		dataBlobs = [][]byte{ed.Bytes()}
+	}
+
+	return provider.WriteEventRaw(descriptor, [][]byte{em.Bytes()}, dataBlobs)
 }
 
 // WriteEventRaw writes a single ETW event from the provider. This function is
