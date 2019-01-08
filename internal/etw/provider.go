@@ -181,28 +181,27 @@ func (provider *Provider) IsEnabledForLevelAndKeywords(level Level, keywords uin
 // constructed based on the EventOpt and FieldOpt values that are passed as
 // opts.
 func (provider *Provider) WriteEvent(name string, eventOpts []EventOpt, fieldOpts []FieldOpt) error {
-	tags := uint32(0)
-	descriptor := NewEventDescriptor()
+	options := eventOptions{descriptor: NewEventDescriptor()}
 	em := &EventMetadata{}
 	ed := &EventData{}
 
 	// We need to evaluate the EventOpts first since they might change tags, and
 	// we write out the tags before evaluating FieldOpts.
 	for _, opt := range eventOpts {
-		opt(descriptor, &tags)
+		opt(&options)
 	}
 
-	if !provider.IsEnabledForLevelAndKeywords(descriptor.Level, descriptor.Keyword) {
+	if !provider.IsEnabledForLevelAndKeywords(options.descriptor.Level, options.descriptor.Keyword) {
 		return nil
 	}
 
-	em.WriteEventHeader(name, tags)
+	em.WriteEventHeader(name, options.tags)
 
 	for _, opt := range fieldOpts {
 		opt(em, ed)
 	}
 
-	return provider.WriteEventRaw(descriptor, [][]byte{em.Bytes()}, [][]byte{ed.Bytes()})
+	return provider.WriteEventRaw(options.descriptor, nil, nil, [][]byte{em.Bytes()}, [][]byte{ed.Bytes()})
 }
 
 // WriteEventRaw writes a single ETW event from the provider. This function is
@@ -212,7 +211,13 @@ func (provider *Provider) WriteEvent(name string, eventOpts []EventOpt, fieldOpt
 // schema. The functions on EventMetadata and EventData can help with creating
 // these blobs. The blobs of each type are effectively concatenated together by
 // the ETW infrastructure.
-func (provider *Provider) WriteEventRaw(descriptor *EventDescriptor, metadataBlobs [][]byte, dataBlobs [][]byte) error {
+func (provider *Provider) WriteEventRaw(
+	descriptor *EventDescriptor,
+	activityID *windows.GUID,
+	relatedActivityID *windows.GUID,
+	metadataBlobs [][]byte,
+	dataBlobs [][]byte) error {
+
 	dataDescriptorCount := uint32(1 + len(metadataBlobs) + len(dataBlobs))
 	dataDescriptors := make([]eventDataDescriptor, 0, dataDescriptorCount)
 
@@ -224,5 +229,5 @@ func (provider *Provider) WriteEventRaw(descriptor *EventDescriptor, metadataBlo
 		dataDescriptors = append(dataDescriptors, newEventDataDescriptor(eventDataDescriptorTypeUserData, blob))
 	}
 
-	return eventWriteTransfer(provider.handle, descriptor, nil, nil, dataDescriptorCount, &dataDescriptors[0])
+	return eventWriteTransfer(provider.handle, descriptor, activityID, relatedActivityID, dataDescriptorCount, &dataDescriptors[0])
 }
