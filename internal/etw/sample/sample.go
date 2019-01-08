@@ -102,7 +102,7 @@ func main() {
 	ed.WriteString("Item3")
 	ed.WriteString("Item4")
 	ed.WriteString("Item5")
-	if err := provider.WriteEventRaw(descriptor, [][]byte{em.Bytes()}, [][]byte{ed.Bytes()}); err != nil {
+	if err := provider.WriteEventRaw(descriptor, nil, nil, [][]byte{em.Bytes()}, [][]byte{ed.Bytes()}); err != nil {
 		logrus.Error(err)
 		return
 	}
