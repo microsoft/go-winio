@@ -24,6 +24,26 @@ func (ed *EventData) WriteString(data string) {
 	ed.buffer.WriteByte(0)
 }
 
+// WriteInt8 appends a int8 to the buffer.
+func (ed *EventData) WriteInt8(value int8) {
+	ed.buffer.WriteByte(uint8(value))
+}
+
+// WriteInt16 appends a int16 to the buffer.
+func (ed *EventData) WriteInt16(value int16) {
+	binary.Write(&ed.buffer, binary.LittleEndian, value)
+}
+
+// WriteInt32 appends a int32 to the buffer.
+func (ed *EventData) WriteInt32(value int32) {
+	binary.Write(&ed.buffer, binary.LittleEndian, value)
+}
+
+// WriteInt64 appends a int64 to the buffer.
+func (ed *EventData) WriteInt64(value int64) {
+	binary.Write(&ed.buffer, binary.LittleEndian, value)
+}
+
 // WriteUint8 appends a uint8 to the buffer.
 func (ed *EventData) WriteUint8(value uint8) {
 	ed.buffer.WriteByte(value)
