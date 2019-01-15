@@ -3,8 +3,6 @@ package main
 
 import (
 	"bufio"
-	"encoding/binary"
-	"encoding/hex"
 	"fmt"
 	"os"
 
@@ -16,22 +14,6 @@ import (
 
 func callback(sourceID *windows.GUID, state etw.ProviderState, level etw.Level, matchAnyKeyword uint64, matchAllKeyword uint64, filterData uintptr) {
 	fmt.Printf("Callback: isEnabled=%d, level=%d, matchAnyKeyword=%d\n", state, level, matchAnyKeyword)
-}
-
-func guidToString(guid *windows.GUID) string {
-	data1 := make([]byte, 4)
-	binary.BigEndian.PutUint32(data1, guid.Data1)
-	data2 := make([]byte, 2)
-	binary.BigEndian.PutUint16(data2, guid.Data2)
-	data3 := make([]byte, 2)
-	binary.BigEndian.PutUint16(data3, guid.Data3)
-	return fmt.Sprintf(
-		"%s-%s-%s-%s-%s",
-		hex.EncodeToString(data1),
-		hex.EncodeToString(data2),
-		hex.EncodeToString(data3),
-		hex.EncodeToString(guid.Data4[:2]),
-		hex.EncodeToString(guid.Data4[2:]))
 }
 
 func main() {
@@ -47,7 +29,7 @@ func main() {
 		}
 	}()
 
-	fmt.Println("Provider ID:", guidToString(provider.ID))
+	fmt.Printf("Provider ID: %s\n", provider)
 
 	reader := bufio.NewReader(os.Stdin)
 

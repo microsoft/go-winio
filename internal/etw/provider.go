@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"crypto/sha1"
 	"encoding/binary"
+	"encoding/hex"
+	"fmt"
 	"strings"
 	"unicode/utf16"
 
@@ -23,6 +25,23 @@ type Provider struct {
 	level      Level
 	keywordAny uint64
 	keywordAll uint64
+}
+
+// String returns the `provider`.ID as a string
+func (provider *Provider) String() string {
+	data1 := make([]byte, 4)
+	binary.BigEndian.PutUint32(data1, provider.ID.Data1)
+	data2 := make([]byte, 2)
+	binary.BigEndian.PutUint16(data2, provider.ID.Data2)
+	data3 := make([]byte, 2)
+	binary.BigEndian.PutUint16(data3, provider.ID.Data3)
+	return fmt.Sprintf(
+		"%s-%s-%s-%s-%s",
+		hex.EncodeToString(data1),
+		hex.EncodeToString(data2),
+		hex.EncodeToString(data3),
+		hex.EncodeToString(provider.ID.Data4[:2]),
+		hex.EncodeToString(provider.ID.Data4[2:]))
 }
 
 type providerHandle windows.Handle
