@@ -39,9 +39,10 @@ func errnoErr(e syscall.Errno) error {
 var (
 	modadvapi32 = windows.NewLazySystemDLL("advapi32.dll")
 
-	procEventRegister      = modadvapi32.NewProc("EventRegister")
-	procEventUnregister    = modadvapi32.NewProc("EventUnregister")
-	procEventWriteTransfer = modadvapi32.NewProc("EventWriteTransfer")
+	procEventRegister       = modadvapi32.NewProc("EventRegister")
+	procEventUnregister     = modadvapi32.NewProc("EventUnregister")
+	procEventWriteTransfer  = modadvapi32.NewProc("EventWriteTransfer")
+	procEventSetInformation = modadvapi32.NewProc("EventSetInformation")
 )
 
 func eventRegister(providerId *windows.GUID, callback uintptr, callbackContext uintptr, providerHandle *providerHandle) (win32err error) {
@@ -62,6 +63,14 @@ func eventUnregister(providerHandle providerHandle) (win32err error) {
 
 func eventWriteTransfer(providerHandle providerHandle, descriptor *EventDescriptor, activityID *windows.GUID, relatedActivityID *windows.GUID, dataDescriptorCount uint32, dataDescriptors *eventDataDescriptor) (win32err error) {
 	r0, _, _ := syscall.Syscall6(procEventWriteTransfer.Addr(), 6, uintptr(providerHandle), uintptr(unsafe.Pointer(descriptor)), uintptr(unsafe.Pointer(activityID)), uintptr(unsafe.Pointer(relatedActivityID)), uintptr(dataDescriptorCount), uintptr(unsafe.Pointer(dataDescriptors)))
+	if r0 != 0 {
+		win32err = syscall.Errno(r0)
+	}
+	return
+}
+
+func eventSetInformation(providerHandle providerHandle, class eventInfoClass, information uintptr, length uint32) (win32err error) {
+	r0, _, _ := syscall.Syscall6(procEventSetInformation.Addr(), 4, uintptr(providerHandle), uintptr(class), uintptr(information), uintptr(length), 0, 0)
 	if r0 != 0 {
 		win32err = syscall.Errno(r0)
 	}
