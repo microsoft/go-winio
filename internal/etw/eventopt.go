@@ -36,6 +36,12 @@ func WithKeyword(keyword uint64) EventOpt {
 	}
 }
 
+func WithChannel(channel Channel) EventOpt {
+	return func(options *eventOptions) {
+		options.descriptor.Channel = channel
+	}
+}
+
 // WithTags specifies the tags of the event to be written. Tags is a 28-bit
 // value (top 4 bits are ignored) which are interpreted by the event consumer.
 func WithTags(newTags uint32) EventOpt {

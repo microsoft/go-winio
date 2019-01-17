@@ -6,6 +6,7 @@ import (
 	"encoding/binary"
 	"strings"
 	"unicode/utf16"
+	"unsafe"
 
 	"golang.org/x/sys/windows"
 )
@@ -39,6 +40,15 @@ const (
 	// ProviderStateCaptureState indicates the provider is having its current
 	// state snap-shotted.
 	ProviderStateCaptureState
+)
+
+type eventInfoClass uint32
+
+const (
+	eventInfoClassProviderBinaryTrackInfo eventInfoClass = iota
+	eventInfoClassProviderSetReserved1
+	eventInfoClassProviderSetTraits
+	eventInfoClassProviderUseDescriptorType
 )
 
 // EnableCallback is the form of the callback function that receives provider
@@ -132,6 +142,15 @@ func NewProviderWithID(name string, id *windows.GUID, callback EnableCallback) (
 	metadata.WriteByte(0)                                                   // Null terminator for name
 	binary.LittleEndian.PutUint16(metadata.Bytes(), uint16(metadata.Len())) // Update the size at the beginning of the buffer
 	provider.metadata = metadata.Bytes()
+
+	if err := eventSetInformation(
+		provider.handle,
+		eventInfoClassProviderSetTraits,
+		uintptr(unsafe.Pointer(&provider.metadata[0])),
+		uint32(len(provider.metadata))); err != nil {
+
+		return nil, err
+	}
 
 	return provider, nil
 }
