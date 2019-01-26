@@ -229,7 +229,7 @@ func (tw *Writer) writeHeader(hdr *Header, allowPax bool) error {
 
 	formatString(s.next(100), hdr.Linkname, paxLinkpath)
 
-	copy(s.next(8), []byte("ustar\x0000"))          // 257:265
+	copy(s.next(8), "ustar\x0000")                  // 257:265
 	formatString(s.next(32), hdr.Uname, paxUname)   // 265:297
 	formatString(s.next(32), hdr.Gname, paxGname)   // 297:329
 	formatNumeric(s.next(8), hdr.Devmajor, paxNone) // 329:337
@@ -241,7 +241,7 @@ func (tw *Writer) writeHeader(hdr *Header, allowPax bool) error {
 
 	// Use the GNU magic instead of POSIX magic if we used any GNU extensions.
 	if tw.usedBinary {
-		copy(header[257:265], []byte("ustar  \x00"))
+		copy(header[257:265], "ustar  \x00")
 	}
 
 	_, paxPathUsed := paxHeaders[paxPath]
