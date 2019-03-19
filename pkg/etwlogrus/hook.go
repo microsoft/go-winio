@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"reflect"
 
-	"github.com/Microsoft/go-winio/internal/etw"
+	"github.com/Microsoft/go-winio/pkg/etw"
 	"github.com/sirupsen/logrus"
 )
 
