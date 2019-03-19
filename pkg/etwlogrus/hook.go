@@ -10,20 +10,25 @@ import (
 
 // Hook is a Logrus hook which logs received events to ETW.
 type Hook struct {
-	provider *etw.Provider
+	provider      *etw.Provider
+	closeProvider bool
 }
 
-// NewHook registers a new ETW provider and returns a hook to log from it.
+// NewHook registers a new ETW provider and returns a hook to log from it. The
+// provider will be closed when the hook is closed.
 func NewHook(providerName string) (*Hook, error) {
-	hook := Hook{}
-
 	provider, err := etw.NewProvider(providerName, nil)
 	if err != nil {
 		return nil, err
 	}
-	hook.provider = provider
 
-	return &hook, nil
+	return &Hook{provider, true}, nil
+}
+
+// NewHookFromProvider creates a new hook based on an existing ETW provider. The
+// provider will not be closed when the hook is closed.
+func NewHookFromProvider(provider *etw.Provider) (*Hook, error) {
+	return &Hook{provider, false}, nil
 }
 
 // Levels returns the set of levels that this hook wants to receive log entries
@@ -186,7 +191,12 @@ func getFieldOpt(k string, v interface{}) etw.FieldOpt {
 	return etw.StringField(k, fmt.Sprintf("(Unsupported: %T) %v", v, v))
 }
 
-// Close cleans up the hook and closes the ETW provider.
+// Close cleans up the hook and closes the ETW provider. If the provder was
+// registered by etwlogrus, it will be closed as part of `Close`. If the
+// provider was passed in, it will not be closed.
 func (h *Hook) Close() error {
-	return h.provider.Close()
+	if h.closeProvider {
+		return h.provider.Close()
+	}
+	return nil
 }
