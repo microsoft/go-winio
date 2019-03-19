@@ -40,9 +40,22 @@ func (h *Hook) Levels() []logrus.Level {
 	}
 }
 
+var logrusToETWLevelMap = map[logrus.Level]etw.Level{
+	logrus.PanicLevel: etw.LevelAlways,
+	logrus.FatalLevel: etw.LevelCritical,
+	logrus.ErrorLevel: etw.LevelError,
+	logrus.WarnLevel:  etw.LevelWarning,
+	logrus.InfoLevel:  etw.LevelInfo,
+	logrus.DebugLevel: etw.LevelVerbose,
+	logrus.TraceLevel: etw.LevelVerbose,
+}
+
 // Fire receives each Logrus entry as it is logged, and logs it to ETW.
 func (h *Hook) Fire(e *logrus.Entry) error {
-	level := etw.Level(e.Level)
+	// Logrus defines more levels than ETW typically uses, but analysis is
+	// easiest when using a consistent set of levels across ETW providers, so we
+	// map the Logrus levels to ETW levels.
+	level := logrusToETWLevelMap[e.Level]
 	if !h.provider.IsEnabledForLevel(level) {
 		return nil
 	}
@@ -56,9 +69,6 @@ func (h *Hook) Fire(e *logrus.Entry) error {
 		fields = append(fields, getFieldOpt(k, v))
 	}
 
-	// We could try to map Logrus levels to ETW levels, but we would lose some
-	// fidelity as there are fewer ETW levels. So instead we use the level
-	// directly.
 	return h.provider.WriteEvent(
 		"LogrusEntry",
 		etw.WithEventOpts(etw.WithLevel(level)),
