@@ -5,107 +5,107 @@ import (
 	"encoding/binary"
 )
 
-// InType indicates the type of data contained in the ETW event.
-type InType byte
+// inType indicates the type of data contained in the ETW event.
+type inType byte
 
-// Various InType definitions for TraceLogging. These must match the definitions
+// Various inType definitions for TraceLogging. These must match the definitions
 // found in TraceLoggingProvider.h in the Windows SDK.
 const (
-	InTypeNull InType = iota
-	InTypeUnicodeString
-	InTypeANSIString
-	InTypeInt8
-	InTypeUint8
-	InTypeInt16
-	InTypeUint16
-	InTypeInt32
-	InTypeUint32
-	InTypeInt64
-	InTypeUint64
-	InTypeFloat
-	InTypeDouble
-	InTypeBool32
-	InTypeBinary
-	InTypeGUID
-	InTypePointerUnsupported
-	InTypeFileTime
-	InTypeSystemTime
-	InTypeSID
-	InTypeHexInt32
-	InTypeHexInt64
-	InTypeCountedString
-	InTypeCountedANSIString
-	InTypeStruct
-	InTypeCountedBinary
-	InTypeCountedArray InType = 32
-	InTypeArray        InType = 64
+	inTypeNull inType = iota
+	inTypeUnicodeString
+	inTypeANSIString
+	inTypeInt8
+	inTypeUint8
+	inTypeInt16
+	inTypeUint16
+	inTypeInt32
+	inTypeUint32
+	inTypeInt64
+	inTypeUint64
+	inTypeFloat
+	inTypeDouble
+	inTypeBool32
+	inTypeBinary
+	inTypeGUID
+	inTypePointerUnsupported
+	inTypeFileTime
+	inTypeSystemTime
+	inTypeSID
+	inTypeHexInt32
+	inTypeHexInt64
+	inTypeCountedString
+	inTypeCountedANSIString
+	inTypeStruct
+	inTypeCountedBinary
+	inTypeCountedArray inType = 32
+	inTypeArray        inType = 64
 )
 
-// OutType specifies a hint to the event decoder for how the value should be
+// outType specifies a hint to the event decoder for how the value should be
 // formatted.
-type OutType byte
+type outType byte
 
-// Various OutType definitions for TraceLogging. These must match the
+// Various outType definitions for TraceLogging. These must match the
 // definitions found in TraceLoggingProvider.h in the Windows SDK.
 const (
-	// OutTypeDefault indicates that the default formatting for the InType will
+	// outTypeDefault indicates that the default formatting for the inType will
 	// be used by the event decoder.
-	OutTypeDefault OutType = iota
-	OutTypeNoPrint
-	OutTypeString
-	OutTypeBoolean
-	OutTypeHex
-	OutTypePID
-	OutTypeTID
-	OutTypePort
-	OutTypeIPv4
-	OutTypeIPv6
-	OutTypeSocketAddress
-	OutTypeXML
-	OutTypeJSON
-	OutTypeWin32Error
-	OutTypeNTStatus
-	OutTypeHResult
-	OutTypeFileTime
-	OutTypeSigned
-	OutTypeUnsigned
-	OutTypeUTF8              OutType = 35
-	OutTypePKCS7WithTypeInfo OutType = 36
-	OutTypeCodePointer       OutType = 37
-	OutTypeDateTimeUTC       OutType = 38
+	outTypeDefault outType = iota
+	outTypeNoPrint
+	outTypeString
+	outTypeBoolean
+	outTypeHex
+	outTypePID
+	outTypeTID
+	outTypePort
+	outTypeIPv4
+	outTypeIPv6
+	outTypeSocketAddress
+	outTypeXML
+	outTypeJSON
+	outTypeWin32Error
+	outTypeNTStatus
+	outTypeHResult
+	outTypeFileTime
+	outTypeSigned
+	outTypeUnsigned
+	outTypeUTF8              outType = 35
+	outTypePKCS7WithTypeInfo outType = 36
+	outTypeCodePointer       outType = 37
+	outTypeDateTimeUTC       outType = 38
 )
 
-// EventMetadata maintains a buffer which builds up the metadata for an ETW
+// eventMetadata maintains a buffer which builds up the metadata for an ETW
 // event. It needs to be paired with EventData which describes the event.
-type EventMetadata struct {
+type eventMetadata struct {
 	buffer bytes.Buffer
 }
 
-// Bytes returns the raw binary data containing the event metadata. Before being
+// bytes returns the raw binary data containing the event metadata. Before being
 // returned, the current size of the buffer is written to the start of the
 // buffer. The returned value is not copied from the internal buffer, so it can
-// be mutated by the EventMetadata object after it is returned.
-func (em *EventMetadata) Bytes() []byte {
+// be mutated by the eventMetadata object after it is returned.
+func (em *eventMetadata) bytes() []byte {
 	// Finalize the event metadata buffer by filling in the buffer length at the
 	// beginning.
 	binary.LittleEndian.PutUint16(em.buffer.Bytes(), uint16(em.buffer.Len()))
 	return em.buffer.Bytes()
 }
 
-// WriteEventHeader writes the metadata for the start of an event to the buffer.
+// writeEventHeader writes the metadata for the start of an event to the buffer.
 // This specifies the event name and tags.
-func (em *EventMetadata) WriteEventHeader(name string, tags uint32) {
+func (em *eventMetadata) writeEventHeader(name string, tags uint32) {
 	binary.Write(&em.buffer, binary.LittleEndian, uint16(0)) // Length placeholder
 	em.writeTags(tags)
 	em.buffer.WriteString(name)
 	em.buffer.WriteByte(0) // Null terminator for name
 }
 
-func (em *EventMetadata) writeField(name string, inType InType, outType OutType, tags uint32, arrSize uint16) {
+func (em *eventMetadata) writeFieldInner(name string, inType inType, outType outType, tags uint32, arrSize uint16) {
 	em.buffer.WriteString(name)
 	em.buffer.WriteByte(0) // Null terminator for name
 
-	if outType == OutTypeDefault && tags == 0 {
+	if outType == outTypeDefault && tags == 0 {
 		em.buffer.WriteByte(byte(inType))
 	} else {
 		em.buffer.WriteByte(byte(inType | 128))
@@ -129,7 +129,7 @@ func (em *EventMetadata) writeField(name string, inType InType, outType OutType,
 // bytes, each containing 7 bits of tag value, with the high bit set if there is
 // more tag data in the following byte. This allows for a more compact
 // representation when not all of the tag bits are needed.
-func (em *EventMetadata) writeTags(tags uint32) {
+func (em *eventMetadata) writeTags(tags uint32) {
 	// Only use the top 28 bits of the tags value.
 	tags &= 0xfffffff
 
@@ -150,28 +150,28 @@ func (em *EventMetadata) writeTags(tags uint32) {
 	}
 }
 
-// WriteField writes the metadata for a simple field to the buffer.
-func (em *EventMetadata) WriteField(name string, inType InType, outType OutType, tags uint32) {
-	em.writeField(name, inType, outType, tags, 0)
+// writeField writes the metadata for a simple field to the buffer.
+func (em *eventMetadata) writeField(name string, inType inType, outType outType, tags uint32) {
+	em.writeFieldInner(name, inType, outType, tags, 0)
 }
 
-// WriteArray writes the metadata for an array field to the buffer. The number
+// writeArray writes the metadata for an array field to the buffer. The number
 // of elements in the array must be written as a uint16 in the event data,
 // immediately preceeding the event data.
-func (em *EventMetadata) WriteArray(name string, inType InType, outType OutType, tags uint32) {
-	em.writeField(name, inType|InTypeArray, outType, tags, 0)
+func (em *eventMetadata) writeArray(name string, inType inType, outType outType, tags uint32) {
+	em.writeFieldInner(name, inType|inTypeArray, outType, tags, 0)
 }
 
-// WriteCountedArray writes the metadata for an array field to the buffer. The
+// writeCountedArray writes the metadata for an array field to the buffer. The
 // size of a counted array is fixed, and the size is written into the metadata
 // directly.
-func (em *EventMetadata) WriteCountedArray(name string, count uint16, inType InType, outType OutType, tags uint32) {
-	em.writeField(name, inType|InTypeCountedArray, outType, tags, count)
+func (em *eventMetadata) writeCountedArray(name string, count uint16, inType inType, outType outType, tags uint32) {
+	em.writeFieldInner(name, inType|inTypeCountedArray, outType, tags, count)
 }
 
-// WriteStruct writes the metadata for a nested struct to the buffer. The struct
+// writeStruct writes the metadata for a nested struct to the buffer. The struct
 // contains the next N fields in the metadata, where N is specified by the
 // fieldCount argument.
-func (em *EventMetadata) WriteStruct(name string, fieldCount uint8, tags uint32) {
-	em.writeField(name, InTypeStruct, OutType(fieldCount), tags, 0)
+func (em *eventMetadata) writeStruct(name string, fieldCount uint8, tags uint32) {
+	em.writeFieldInner(name, inTypeStruct, outType(fieldCount), tags, 0)
 }
