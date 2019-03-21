@@ -58,25 +58,32 @@ func TestGrantVmGroupAccess(t *testing.T) {
 
 	verifyicacls(t,
 		f.Name(),
-		"S-1-15-3-1024-2268835264-3721307629-241982045-173645152-1490879176-104643441-2915960892-1612460704:(R,W)",
-		"S-1-5-83-1-3166535780-1122986932-343720105-43916321:(R,W)",
+		[]string{`NT VIRTUAL MACHINE\\Virtual Machines:(R)`},
 	)
 
+	// Two items here:
+	//  - One explicit read only.
+	//  - Other applies to this folder, subfolders and files
+	//      (OI): object inherit
+	//      (CI): container inherit
+	//      (IO): inherit only
+	//      (GR): generic read
+	//
+	// In properties for the directory, advanced security settings, this will
+	// show as a single line "Allow/Virtual Machines/Read/Inherited from none/This folder, subfolder and files
 	verifyicacls(t,
 		d,
-		"S-1-15-3-1024-2268835264-3721307629-241982045-173645152-1490879176-104643441-2915960892-1612460704:(OI)(CI)(R,W)",
-		"S-1-5-83-1-3166535780-1122986932-343720105-43916321:(OI)(CI)(R,W)",
+		[]string{`NT VIRTUAL MACHINE\\Virtual Machines:(R)`, `NT VIRTUAL MACHINE\\Virtual Machines:(OI)(CI)(IO)(GR)`},
 	)
 
 	verifyicacls(t,
 		find.Name(),
-		"S-1-15-3-1024-2268835264-3721307629-241982045-173645152-1490879176-104643441-2915960892-1612460704:(I)(R,W)",
-		"S-1-5-83-1-3166535780-1122986932-343720105-43916321:(I)(R,W)",
+		[]string{`NT VIRTUAL MACHINE\\Virtual Machines:(I)(R)`},
 	)
 
 }
 
-func verifyicacls(t *testing.T, name string, ace1 string, ace2 string) {
+func verifyicacls(t *testing.T, name string, aces []string) {
 	cmd := exec.Command("icacls", name)
 	outb, err := cmd.CombinedOutput()
 	if err != nil {
@@ -84,21 +91,15 @@ func verifyicacls(t *testing.T, name string, ace1 string, ace2 string) {
 	}
 	out := string(outb)
 
-	// Avoid () being part of match groups
-	ace1 = strings.Replace(ace1, "(", "\\(", -1)
-	ace1 = strings.Replace(ace1, ")", "\\)", -1)
-	ace2 = strings.Replace(ace2, "(", "\\(", -1)
-	ace2 = strings.Replace(ace2, ")", "\\)", -1)
+	for _, ace := range aces {
+		// Avoid '(' and ')' being part of match groups
+		ace = strings.Replace(ace, "(", "\\(", -1)
+		ace = strings.Replace(ace, ")", "\\)", -1)
 
-	rx1 := regexp.MustCompile(ace1)
-	matches1 := rx1.FindAllStringIndex(out, -1)
-	if len(matches1) != 1 {
-		t.Fatalf("expected one match for %s got %d", ace1, len(matches1))
-	}
-
-	rx2 := regexp.MustCompile(ace1)
-	matches2 := rx2.FindAllStringIndex(out, -1)
-	if len(matches2) != 1 {
-		t.Fatalf("expected one match for %s got %d", ace2, len(matches2))
+		rx := regexp.MustCompile(ace)
+		matches := rx.FindAllStringIndex(out, -1)
+		if len(matches) != 1 {
+			t.Fatalf("expected one match for %s got %d\n%s", ace, len(matches), out)
+		}
 	}
 }
