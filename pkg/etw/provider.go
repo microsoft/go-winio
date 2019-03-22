@@ -247,7 +247,7 @@ func (provider *Provider) WriteEvent(name string, eventOpts []EventOpt, fieldOpt
 		dataBlobs = [][]byte{ed.bytes()}
 	}
 
-	return provider.writeEventRaw(options.descriptor, nil, nil, [][]byte{em.bytes()}, dataBlobs)
+	return provider.writeEventRaw(options.descriptor, options.activityID, options.relatedActivityID, [][]byte{em.bytes()}, dataBlobs)
 }
 
 // writeEventRaw writes a single ETW event from the provider. This function is
