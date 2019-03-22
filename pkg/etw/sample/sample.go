@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/Microsoft/go-winio/internal/etw"
+	"github.com/Microsoft/go-winio/pkg/etw"
 	"github.com/sirupsen/logrus"
 
 	"golang.org/x/sys/windows"
