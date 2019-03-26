@@ -3,6 +3,7 @@
 package winio
 
 import (
+	"context"
 	"errors"
 	"io"
 	"net"
@@ -137,9 +138,30 @@ func (s pipeAddress) String() string {
 	return string(s)
 }
 
+func tryDialPipe(ctx context.Context, path *string) (syscall.Handle, error) {
+	for {
+		select {
+		case <-ctx.Done():
+			err := ctx.Err()
+			if err == context.DeadlineExceeded {
+				err = ErrTimeout
+			} else {
+				err = &os.PathError{Op: "open", Path: *path, Err: err}
+			}
+			return syscall.Handle(0), err
+		default:
+			h, err := createFile(*path, syscall.GENERIC_READ|syscall.GENERIC_WRITE, 0, nil, syscall.OPEN_EXISTING, syscall.FILE_FLAG_OVERLAPPED|cSECURITY_SQOS_PRESENT|cSECURITY_ANONYMOUS, 0)
+			if err != cERROR_PIPE_BUSY {
+				return h, &os.PathError{Op: "open", Path: *path, Err: err}
+			}
+			time.Sleep(time.Millisecond * 10)
+		}
+	}
+}
+
 // DialPipe connects to a named pipe by path, timing out if the connection
 // takes longer than the specified duration. If timeout is nil, then we use
-// a default timeout of 5 seconds.  (We do not use WaitNamedPipe.)
+// a default timeout of 2 seconds.  (We do not use WaitNamedPipe.)
 func DialPipe(path string, timeout *time.Duration) (net.Conn, error) {
 	var absTimeout time.Time
 	if timeout != nil {
@@ -147,23 +169,19 @@ func DialPipe(path string, timeout *time.Duration) (net.Conn, error) {
 	} else {
 		absTimeout = time.Now().Add(time.Second * 2)
 	}
+	ctx, _ := context.WithDeadline(context.Background(), absTimeout)
+	conn, err := DialPipeContext(ctx, path)
+	return conn, err
+}
+
+//DialPipeContext connects to a named pipe. ctx can be used to cancel or
+//expire the pending connection ( We do not use WaitNamedPipe.)
+func DialPipeContext(ctx context.Context, path string) (net.Conn, error) {
 	var err error
 	var h syscall.Handle
-	for {
-		h, err = createFile(path, syscall.GENERIC_READ|syscall.GENERIC_WRITE, 0, nil, syscall.OPEN_EXISTING, syscall.FILE_FLAG_OVERLAPPED|cSECURITY_SQOS_PRESENT|cSECURITY_ANONYMOUS, 0)
-		if err != cERROR_PIPE_BUSY {
-			break
-		}
-		if time.Now().After(absTimeout) {
-			return nil, ErrTimeout
-		}
-
-		// Wait 10 msec and try again. This is a rather simplistic
-		// view, as we always try each 10 milliseconds.
-		time.Sleep(time.Millisecond * 10)
-	}
+	h, err = tryDialPipe(ctx, &path)
 	if err != nil {
-		return nil, &os.PathError{Op: "open", Path: path, Err: err}
+		return nil, err
 	}
 
 	var flags uint32

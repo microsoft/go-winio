@@ -3,6 +3,7 @@ package winio
 import (
 	"bufio"
 	"bytes"
+	"context"
 	"io"
 	"net"
 	"os"
@@ -33,6 +34,26 @@ func TestDialListenerTimesOut(t *testing.T) {
 	var d = time.Duration(10 * time.Millisecond)
 	_, err = DialPipe(testPipeName, &d)
 	if err != ErrTimeout {
+		t.Fatalf("expected ErrTimeout, got %v", err)
+	}
+}
+
+func TestDialListenerGetsCancelled(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	l, err := ListenPipe(testPipeName, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ch := make(chan error)
+	defer l.Close()
+	go func(ctx context.Context, ch chan error) {
+		_, err := DialPipeContext(ctx, testPipeName)
+		ch <- err
+	}(ctx, ch)
+	time.Sleep(time.Millisecond * 30)
+	cancel()
+	err = <-ch
+	if err == nil {
 		t.Fatalf("expected ErrTimeout, got %v", err)
 	}
 }
