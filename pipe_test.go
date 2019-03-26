@@ -38,6 +38,20 @@ func TestDialListenerTimesOut(t *testing.T) {
 	}
 }
 
+func TestDialContextListenerTimesOut(t *testing.T) {
+	l, err := ListenPipe(testPipeName, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer l.Close()
+	var d = time.Duration(10 * time.Millisecond)
+	ctx, _ := context.WithTimeout(context.Background(), d)
+	_, err = DialPipeContext(ctx, testPipeName)
+	if err != context.DeadlineExceeded {
+		t.Fatalf("expected context.DeadlineExceeded, got %v", err)
+	}
+}
+
 func TestDialListenerGetsCancelled(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	l, err := ListenPipe(testPipeName, nil)
