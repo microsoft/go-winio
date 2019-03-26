@@ -177,13 +177,6 @@ func DialPipe(path string, timeout *time.Duration) (net.Conn, error) {
 	return conn, err
 }
 
-func newOpenError(path *string, err error) error {
-	if err != nil {
-		return &os.PathError{Err: err, Op: "open", Path: *path}
-	}
-	return nil
-}
-
 // DialPipeContext attempts to connect to a named pipe by `path` until `ctx`
 // cancellation or timeout.
 func DialPipeContext(ctx context.Context, path string) (net.Conn, error) {
