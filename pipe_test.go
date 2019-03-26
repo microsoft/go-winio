@@ -53,8 +53,8 @@ func TestDialListenerGetsCancelled(t *testing.T) {
 	time.Sleep(time.Millisecond * 30)
 	cancel()
 	err = <-ch
-	if err == nil {
-		t.Fatalf("expected ErrTimeout, got %v", err)
+	if err != context.Canceled {
+		t.Fatalf("expected context.Canceled, got %v", err)
 	}
 }
 
