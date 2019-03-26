@@ -138,7 +138,7 @@ func (s pipeAddress) String() string {
 	return string(s)
 }
 
-//helper function used to try to open the pipe multiple times.
+// tryDialPipe attempts to dial the pipe at `path` until `ctx` cancellation or timeout.
 func tryDialPipe(ctx context.Context, path *string) (syscall.Handle, error) {
 	for {
 		select {
@@ -150,7 +150,7 @@ func tryDialPipe(ctx context.Context, path *string) (syscall.Handle, error) {
 				return h, nil
 			}
 			if err != cERROR_PIPE_BUSY {
-				return h, newOpenError(path, err)
+				return h, &os.PathError{Err: err, Op: "open", Path: *path}
 			}
 			// Wait 10 msec and try again. This is a rather simplistic
 			// view, as we always try each 10 milliseconds.
@@ -184,8 +184,8 @@ func newOpenError(path *string, err error) error {
 	return nil
 }
 
-//DialPipeContext connects to a named pipe. ctx can be used to cancel or
-//expire the pending connection ( We do not use WaitNamedPipe.)
+// DialPipeContext attempts to connect to a named pipe by `path` until `ctx`
+// cancellation or timeout.
 func DialPipeContext(ctx context.Context, path string) (net.Conn, error) {
 	var err error
 	var h syscall.Handle
