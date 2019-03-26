@@ -138,22 +138,22 @@ func (s pipeAddress) String() string {
 	return string(s)
 }
 
+//helper function used to try to open the pipe multiple times.
 func tryDialPipe(ctx context.Context, path *string) (syscall.Handle, error) {
 	for {
 		select {
 		case <-ctx.Done():
-			err := ctx.Err()
-			if err == context.DeadlineExceeded {
-				err = ErrTimeout
-			} else {
-				err = &os.PathError{Op: "open", Path: *path, Err: err}
-			}
-			return syscall.Handle(0), err
+			return syscall.Handle(0), ctx.Err()
 		default:
 			h, err := createFile(*path, syscall.GENERIC_READ|syscall.GENERIC_WRITE, 0, nil, syscall.OPEN_EXISTING, syscall.FILE_FLAG_OVERLAPPED|cSECURITY_SQOS_PRESENT|cSECURITY_ANONYMOUS, 0)
-			if err != cERROR_PIPE_BUSY {
-				return h, &os.PathError{Op: "open", Path: *path, Err: err}
+			if err == nil {
+				return h, nil
 			}
+			if err != cERROR_PIPE_BUSY {
+				return h, newOpenError(path, err)
+			}
+			// Wait 10 msec and try again. This is a rather simplistic
+			// view, as we always try each 10 milliseconds.
 			time.Sleep(time.Millisecond * 10)
 		}
 	}
@@ -171,7 +171,17 @@ func DialPipe(path string, timeout *time.Duration) (net.Conn, error) {
 	}
 	ctx, _ := context.WithDeadline(context.Background(), absTimeout)
 	conn, err := DialPipeContext(ctx, path)
+	if err == context.DeadlineExceeded {
+		return nil, ErrTimeout
+	}
 	return conn, err
+}
+
+func newOpenError(path *string, err error) error {
+	if err != nil {
+		return &os.PathError{Err: err, Op: "open", Path: *path}
+	}
+	return nil
 }
 
 //DialPipeContext connects to a named pipe. ctx can be used to cancel or
