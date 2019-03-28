@@ -36,9 +36,17 @@ func WithKeyword(keyword uint64) EventOpt {
 	}
 }
 
+// WithChannel specifies the channel of the event to be written.
 func WithChannel(channel Channel) EventOpt {
 	return func(options *eventOptions) {
 		options.descriptor.channel = channel
+	}
+}
+
+// WithOpcode specifies the opcode of the event to be written.
+func WithOpcode(opcode Opcode) EventOpt {
+	return func(options *eventOptions) {
+		options.descriptor.opcode = opcode
 	}
 }
 
@@ -50,12 +58,14 @@ func WithTags(newTags uint32) EventOpt {
 	}
 }
 
+// WithActivityID specifies the activity ID of the event to be written.
 func WithActivityID(activityID *windows.GUID) EventOpt {
 	return func(options *eventOptions) {
 		options.activityID = activityID
 	}
 }
 
+// WithRelatedActivityID specifies the parent activity ID of the event to be written.
 func WithRelatedActivityID(activityID *windows.GUID) EventOpt {
 	return func(options *eventOptions) {
 		options.relatedActivityID = activityID
