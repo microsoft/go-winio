@@ -1,13 +1,13 @@
 package etw
 
 import (
-	"golang.org/x/sys/windows"
+	"github.com/Microsoft/go-winio/pkg/guid"
 )
 
 type eventOptions struct {
 	descriptor        *eventDescriptor
-	activityID        *windows.GUID
-	relatedActivityID *windows.GUID
+	activityID        *guid.GUID
+	relatedActivityID *guid.GUID
 	tags              uint32
 }
 
@@ -59,14 +59,14 @@ func WithTags(newTags uint32) EventOpt {
 }
 
 // WithActivityID specifies the activity ID of the event to be written.
-func WithActivityID(activityID *windows.GUID) EventOpt {
+func WithActivityID(activityID *guid.GUID) EventOpt {
 	return func(options *eventOptions) {
 		options.activityID = activityID
 	}
 }
 
 // WithRelatedActivityID specifies the parent activity ID of the event to be written.
-func WithRelatedActivityID(activityID *windows.GUID) EventOpt {
+func WithRelatedActivityID(activityID *guid.GUID) EventOpt {
 	return func(options *eventOptions) {
 		options.relatedActivityID = activityID
 	}

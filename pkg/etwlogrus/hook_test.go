@@ -1,8 +1,9 @@
 package etwlogrus
 
 import (
-	"github.com/Microsoft/go-winio/pkg/etw"
 	"testing"
+
+	"github.com/Microsoft/go-winio/pkg/etw"
 )
 
 func fireEvent(t *testing.T, p *etw.Provider, name string, value interface{}) {

@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/Microsoft/go-winio/internal/etw"
+	"github.com/Microsoft/go-winio/pkg/etw"
 )
 
 func main() {
