@@ -31,6 +31,7 @@ const (
 	cSECURITY_SQOS_PRESENT         = 0x100000
 	cSECURITY_ANONYMOUS            = 0
 
+	cPIPE_ACCEPT_REMOTE_CLIENTS = 0x0
 	cPIPE_REJECT_REMOTE_CLIENTS = 0x8
 
 	cPIPE_UNLIMITED_INSTANCES = 255
@@ -231,6 +232,9 @@ func makeServerPipeHandle(path string, securityDescriptor []byte, c *PipeConfig,
 	}
 
 	var mode uint32 = cPIPE_REJECT_REMOTE_CLIENTS
+	if c.RemoteClientMode {
+		mode = cPIPE_ACCEPT_REMOTE_CLIENTS
+	}
 	if c.MessageMode {
 		mode |= cPIPE_TYPE_MESSAGE
 	}
@@ -334,6 +338,9 @@ type PipeConfig struct {
 	// transferred to the reader (and returned as io.EOF in this implementation)
 	// when the pipe is in message mode.
 	MessageMode bool
+
+	// RemoteClientMode determines whether the pipe can be accessed remotely.
+	RemoteClientMode bool
 
 	// InputBufferSize specifies the size the input buffer, in bytes.
 	InputBufferSize int32
