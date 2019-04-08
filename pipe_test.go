@@ -514,3 +514,24 @@ func TestMessageReadMode(t *testing.T) {
 		t.Fatalf("expected %s: %s", msg, vmsg)
 	}
 }
+
+func TestListenConnectRace(t *testing.T) {
+	for i := 0; i < 50 && !t.Failed(); i++ {
+		var wg sync.WaitGroup
+		wg.Add(1)
+		go func() {
+			c, err := DialPipe(testPipeName, nil)
+			if err == nil {
+				c.Close()
+			}
+			wg.Done()
+		}()
+		s, err := ListenPipe(testPipeName, nil)
+		if err != nil {
+			t.Error(i, err)
+		} else {
+			s.Close()
+		}
+		wg.Wait()
+	}
+}
