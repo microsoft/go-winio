@@ -130,11 +130,11 @@ func NewProviderWithID(name string, id *guid.GUID, callback EnableCallback) (pro
 	})
 
 	provider = providers.newProvider()
-	defer func() {
+	defer func(provider *Provider) {
 		if err != nil {
 			providers.removeProvider(provider)
 		}
-	}()
+	}(provider)
 	provider.ID = id
 	provider.callback = callback
 
