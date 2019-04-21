@@ -1,12 +1,10 @@
 package etw
 
 import (
-	"bytes"
 	"crypto/sha1"
 	"encoding/binary"
 	"strings"
 	"unicode/utf16"
-	"unsafe"
 
 	"github.com/Microsoft/go-winio/pkg/guid"
 	"golang.org/x/sys/windows"
@@ -29,6 +27,10 @@ type Provider struct {
 
 // String returns the `provider`.ID as a string
 func (provider *Provider) String() string {
+	if provider == nil {
+		return "<nil>"
+	}
+
 	return provider.ID.String()
 }
 
@@ -120,49 +122,12 @@ func NewProvider(name string, callback EnableCallback) (provider *Provider, err 
 	return NewProviderWithID(name, providerIDFromName(name), callback)
 }
 
-// NewProviderWithID creates and registers a new ETW provider, allowing the
-// provider ID to be manually specified. This is most useful when there is an
-// existing provider ID that must be used to conform to existing diagnostic
-// infrastructure.
-func NewProviderWithID(name string, id *guid.GUID, callback EnableCallback) (provider *Provider, err error) {
-	providerCallbackOnce.Do(func() {
-		globalProviderCallback = windows.NewCallback(providerCallbackAdapter)
-	})
-
-	provider = providers.newProvider()
-	defer func() {
-		if err != nil {
-			providers.removeProvider(provider)
-		}
-	}()
-	provider.ID = id
-	provider.callback = callback
-
-	if err := eventRegister((*windows.GUID)(provider.ID), globalProviderCallback, uintptr(provider.index), &provider.handle); err != nil {
-		return nil, err
-	}
-
-	metadata := &bytes.Buffer{}
-	binary.Write(metadata, binary.LittleEndian, uint16(0)) // Write empty size for buffer (to update later)
-	metadata.WriteString(name)
-	metadata.WriteByte(0)                                                   // Null terminator for name
-	binary.LittleEndian.PutUint16(metadata.Bytes(), uint16(metadata.Len())) // Update the size at the beginning of the buffer
-	provider.metadata = metadata.Bytes()
-
-	if err := eventSetInformation(
-		provider.handle,
-		eventInfoClassProviderSetTraits,
-		uintptr(unsafe.Pointer(&provider.metadata[0])),
-		uint32(len(provider.metadata))); err != nil {
-
-		return nil, err
-	}
-
-	return provider, nil
-}
-
 // Close unregisters the provider.
 func (provider *Provider) Close() error {
+	if provider == nil {
+		return nil
+	}
+
 	providers.removeProvider(provider)
 	return eventUnregister(provider.handle)
 }
@@ -185,6 +150,10 @@ func (provider *Provider) IsEnabledForLevel(level Level) bool {
 // infrastructure, it can be useful to check if an event will actually be
 // consumed before doing expensive work to build the event data.
 func (provider *Provider) IsEnabledForLevelAndKeywords(level Level, keywords uint64) bool {
+	if provider == nil {
+		return false
+	}
+
 	if !provider.enabled {
 		return false
 	}
@@ -206,6 +175,10 @@ func (provider *Provider) IsEnabledForLevelAndKeywords(level Level, keywords uin
 // constructed based on the EventOpt and FieldOpt values that are passed as
 // opts.
 func (provider *Provider) WriteEvent(name string, eventOpts []EventOpt, fieldOpts []FieldOpt) error {
+	if provider == nil {
+		return nil
+	}
+
 	options := eventOptions{descriptor: newEventDescriptor()}
 	em := &eventMetadata{}
 	ed := &eventData{}
