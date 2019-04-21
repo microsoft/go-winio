@@ -603,6 +603,19 @@ type Source struct {
 	ExternalImports []string
 }
 
+func (src *Source) FuncImports() []*Fn {
+	uniq := make(map[string]bool)
+	r := make([]*Fn, 0)
+	for _, f := range src.Funcs {
+		name := f.DLLFuncName()
+		if _, found := uniq[name]; !found {
+			uniq[name] = true
+			r = append(r, f)
+		}
+	}
+	return r
+}
+
 func (src *Source) Import(pkg string) {
 	src.StdLibImports = append(src.StdLibImports, pkg)
 	sort.Strings(src.StdLibImports)
@@ -865,7 +878,7 @@ var (
 {{define "dlls"}}{{range .DLLs}}	mod{{.}} = {{newlazydll .}}
 {{end}}{{end}}
 
-{{define "funcnames"}}{{range .Funcs}}	proc{{.DLLFuncName}} = mod{{.DLLName}}.NewProc("{{.DLLFuncName}}")
+{{define "funcnames"}}{{range .FuncImports}}	proc{{.DLLFuncName}} = mod{{.DLLName}}.NewProc("{{.DLLFuncName}}")
 {{end}}{{end}}
 
 {{define "helperbody"}}
