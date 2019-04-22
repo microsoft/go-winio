@@ -34,7 +34,7 @@ func (provider *Provider) String() string {
 	return provider.ID.String()
 }
 
-type providerHandle windows.Handle
+type providerHandle uint64
 
 // ProviderState informs the provider EnableCallback what action is being
 // performed.

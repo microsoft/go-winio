@@ -1,4 +1,4 @@
-// +build arm 386
+// +build arm
 
 package etw
 
