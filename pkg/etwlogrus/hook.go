@@ -1,6 +1,8 @@
 package etwlogrus
 
 import (
+	"sort"
+
 	"github.com/Microsoft/go-winio/pkg/etw"
 	"github.com/sirupsen/logrus"
 )
@@ -62,13 +64,29 @@ func (h *Hook) Fire(e *logrus.Entry) error {
 		return nil
 	}
 
+	// Sort the fields by name so they are consistent in each instance
+	// of an event. Otherwise, the fields don't line up in WPA.
+	names := make([]string, 0, len(e.Data))
+	hasError := false
+	for k := range e.Data {
+		names := make([]string, 0, len(e.Data))
+		if k == logrus.ErrorKey {
+			// Always put the error last because it is optional in some events.
+			hasError = true
+		} else {
+			names = append(names, k)
+		}
+	}
+	sort.Strings(names)
+
 	// Reserve extra space for the message field.
 	fields := make([]etw.FieldOpt, 0, len(e.Data)+1)
-
 	fields = append(fields, etw.StringField("Message", e.Message))
-
-	for k, v := range e.Data {
-		fields = append(fields, etw.SmartField(k, v))
+	for _, k := range names {
+		fields = append(fields, etw.SmartField(k, e.Data[k]))
+	}
+	if hasError {
+		fields = append(fields, etw.SmartField(logrus.ErrorKey, e.Data[logrus.ErrorKey]))
 	}
 
 	return h.provider.WriteEvent(
