@@ -10,7 +10,7 @@ func fireEvent(t *testing.T, p *etw.Provider, name string, value interface{}) {
 	if err := p.WriteEvent(
 		name,
 		nil,
-		etw.WithFields(getFieldOpt("Field", value))); err != nil {
+		etw.WithFields(etw.SmartField("Field", value))); err != nil {
 
 		t.Fatal(err)
 	}
