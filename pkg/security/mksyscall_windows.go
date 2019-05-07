@@ -777,7 +777,7 @@ func (src *Source) Generate(w io.Writer) error {
 		}
 	}
 	if *winio {
-		src.ExternalImport("github.com/Microsoft/go-winio")
+		src.ExternalImport("github.com/microsoft/go-winio")
 	}
 	if packageName != "syscall" {
 		src.Import("syscall")

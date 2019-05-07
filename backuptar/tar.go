@@ -14,8 +14,8 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/Microsoft/go-winio"
-	"github.com/Microsoft/go-winio/archive/tar" // until archive/tar supports pax extensions in its interface
+	"github.com/microsoft/go-winio"
+	"github.com/microsoft/go-winio/archive/tar" // until archive/tar supports pax extensions in its interface
 )
 
 const (
