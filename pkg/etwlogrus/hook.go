@@ -69,7 +69,6 @@ func (h *Hook) Fire(e *logrus.Entry) error {
 	names := make([]string, 0, len(e.Data))
 	hasError := false
 	for k := range e.Data {
-		names := make([]string, 0, len(e.Data))
 		if k == logrus.ErrorKey {
 			// Always put the error last because it is optional in some events.
 			hasError = true
