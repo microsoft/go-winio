@@ -15,7 +15,7 @@ func Test_New(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if *g == *g2 {
+	if g == g2 {
 		t.Fatalf("GUIDs are equal: %s, %s", g, g2)
 	}
 }
@@ -49,7 +49,7 @@ func Test_MarshalJSON(t *testing.T) {
 
 func Test_MarshalJSON_Nested(t *testing.T) {
 	type test struct {
-		G *GUID
+		G GUID
 	}
 	g, err := NewV4()
 	if err != nil {
@@ -79,14 +79,14 @@ func Test_UnmarshalJSON(t *testing.T) {
 	if err := json.Unmarshal(j, &g2); err != nil {
 		t.Fatal(err)
 	}
-	if *g != g2 {
-		t.Fatalf("GUIDs not equal: %s, %s", g, &g2)
+	if g != g2 {
+		t.Fatalf("GUIDs not equal: %s, %s", g, g2)
 	}
 }
 
 func Test_UnmarshalJSON_Nested(t *testing.T) {
 	type test struct {
-		G *GUID
+		G GUID
 	}
 	g, err := NewV4()
 	if err != nil {
@@ -101,7 +101,7 @@ func Test_UnmarshalJSON_Nested(t *testing.T) {
 	if err := json.Unmarshal(j, &t2); err != nil {
 		t.Fatal(err)
 	}
-	if *t1.G != *t2.G {
+	if t1.G != t2.G {
 		t.Fatalf("GUIDs not equal: %v, %v", t1.G, t2.G)
 	}
 }
