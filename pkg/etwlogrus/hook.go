@@ -88,10 +88,17 @@ func (h *Hook) Fire(e *logrus.Entry) error {
 		fields = append(fields, etw.SmartField(logrus.ErrorKey, e.Data[logrus.ErrorKey]))
 	}
 
-	return h.provider.WriteEvent(
+	// Firing an ETW event is essentially best effort, as the event write can
+	// fail for reasons completely out of the control of the event writer (such
+	// as a session listening for the event having no available space in its
+	// buffers). Therefore, we don't return the error from WriteEvent, as it is
+	// just noise in many cases.
+	h.provider.WriteEvent(
 		"LogrusEntry",
 		etw.WithEventOpts(etw.WithLevel(level)),
 		fields)
+
+	return nil
 }
 
 // Close cleans up the hook and closes the ETW provider. If the provder was
