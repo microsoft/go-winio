@@ -2,7 +2,7 @@
 //
 // WIM files are used to distribute Windows file system and container images.
 // They are documented at https://msdn.microsoft.com/en-us/library/windows/desktop/dd861280.aspx.
-package wim
+package wim // import "github.com/Microsoft/go-winio/wim"
 
 import (
 	"bytes"

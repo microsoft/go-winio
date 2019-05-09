@@ -1,4 +1,4 @@
-package backuptar
+package backuptar // import "github.com/Microsoft/go-winio/backuptar"
 
 import (
 	"bytes"

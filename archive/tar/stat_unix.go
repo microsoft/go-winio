@@ -4,7 +4,7 @@
 
 // +build linux darwin dragonfly freebsd openbsd netbsd solaris
 
-package tar
+package tar // import "github.com/Microsoft/go-winio/archive/tar"
 
 import (
 	"os"

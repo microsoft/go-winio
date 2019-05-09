@@ -1,4 +1,4 @@
-package etw
+package etw // import "github.com/Microsoft/go-winio/pkg/etw"
 
 // Channel represents the ETW logging channel that is used. It can be used by
 // event consumers to give an event special treatment.

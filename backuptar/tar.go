@@ -1,6 +1,6 @@
 // +build windows
 
-package backuptar
+package backuptar // import "github.com/Microsoft/go-winio/backuptar"
 
 import (
 	"encoding/base64"

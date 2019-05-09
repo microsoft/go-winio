@@ -3,7 +3,7 @@
 //
 // The LZX algorithm is an earlier variant of LZX DELTA, which is documented
 // at https://msdn.microsoft.com/en-us/library/cc483133(v=exchg.80).aspx.
-package lzx
+package lzx // import "github.com/Microsoft/go-winio/wim/lzx"
 
 import (
 	"bytes"

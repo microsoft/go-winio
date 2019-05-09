@@ -1,6 +1,6 @@
 // +build windows
 
-package vhd
+package vhd // import "github.com/Microsoft/go-winio/vhd"
 
 import "syscall"
 

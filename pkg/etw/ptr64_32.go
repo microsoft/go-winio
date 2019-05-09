@@ -1,6 +1,6 @@
 // +build 386 arm
 
-package etw
+package etw // import "github.com/Microsoft/go-winio/pkg/etw"
 
 import (
 	"unsafe"

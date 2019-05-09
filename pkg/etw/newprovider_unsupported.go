@@ -1,6 +1,6 @@
 // +build arm
 
-package etw
+package etw // import "github.com/Microsoft/go-winio/pkg/etw"
 
 import (
 	"github.com/Microsoft/go-winio/pkg/guid"

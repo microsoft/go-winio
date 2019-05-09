@@ -5,7 +5,7 @@
 // implementation here is based on the information found in
 // TraceLoggingProvider.h in the Windows SDK, which implements TraceLogging as a
 // set of C macros.
-package etw
+package etw // import "github.com/Microsoft/go-winio/pkg/etw"
 
 //go:generate go run mksyscall_windows.go -output zsyscall_windows.go etw.go
 

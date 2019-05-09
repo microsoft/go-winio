@@ -1,6 +1,6 @@
 // +build amd64 arm64
 
-package etw
+package etw // import "github.com/Microsoft/go-winio/pkg/etw"
 
 import (
 	"golang.org/x/sys/windows"

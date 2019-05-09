@@ -1,6 +1,6 @@
 // +build windows
 
-package winio
+package winio // import "github.com/Microsoft/go-winio"
 
 import (
 	"context"

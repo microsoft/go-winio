@@ -4,7 +4,7 @@
 
 // +build linux dragonfly openbsd solaris
 
-package tar
+package tar // import "github.com/Microsoft/go-winio/archive/tar"
 
 import (
 	"syscall"

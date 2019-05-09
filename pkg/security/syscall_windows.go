@@ -1,4 +1,4 @@
-package security
+package security // import "github.com/Microsoft/go-winio/pkg/security"
 
 //go:generate go run mksyscall_windows.go -output zsyscall_windows.go syscall_windows.go
 

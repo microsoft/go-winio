@@ -1,4 +1,4 @@
-package guid
+package guid // import "github.com/Microsoft/go-winio/pkg/guid"
 
 import (
 	"encoding/json"

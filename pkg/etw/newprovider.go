@@ -1,6 +1,6 @@
 // +build amd64 arm64 386
 
-package etw
+package etw // import "github.com/Microsoft/go-winio/pkg/etw"
 
 import (
 	"bytes"

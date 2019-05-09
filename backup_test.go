@@ -1,4 +1,4 @@
-package winio
+package winio // import "github.com/Microsoft/go-winio"
 
 import (
 	"io"

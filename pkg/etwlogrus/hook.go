@@ -1,4 +1,4 @@
-package etwlogrus
+package etwlogrus // import "github.com/Microsoft/go-winio/pkg/etwlogrus"
 
 import (
 	"sort"

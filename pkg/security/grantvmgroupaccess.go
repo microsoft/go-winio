@@ -1,4 +1,4 @@
-package security
+package security // import "github.com/Microsoft/go-winio/pkg/security"
 
 import (
 	"os"

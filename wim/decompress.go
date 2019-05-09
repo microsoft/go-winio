@@ -1,4 +1,4 @@
-package wim
+package wim // import "github.com/Microsoft/go-winio/wim"
 
 import (
 	"encoding/binary"
