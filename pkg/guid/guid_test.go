@@ -20,6 +20,19 @@ func Test_New(t *testing.T) {
 	}
 }
 
+func Test_V4HasCorrectVersionAndVariant(t *testing.T) {
+	g, err := NewV4()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if g.Version() != 4 {
+		t.Fatalf("Version is not 4: %s", g)
+	}
+	if g.Variant() != VariantRFC4122 {
+		t.Fatalf("Variant is not RFC4122: %s", g)
+	}
+}
+
 func Test_FromString(t *testing.T) {
 	orig := "8e35239e-2084-490e-a3db-ab18ee0744cb"
 	g, err := FromString(orig)

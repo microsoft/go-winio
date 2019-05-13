@@ -12,6 +12,26 @@ import (
 	"golang.org/x/sys/windows"
 )
 
+// Variant specifies which GUID variant (or "type") of the GUID. It determines
+// how the entirety of the rest of the GUID is interpreted.
+type Variant uint8
+
+// The variants specified by RFC 4122.
+const (
+	// VariantUnknown specifies a GUID variant which does not conform to one of
+	// the variant encodings specified in RFC 4122.
+	VariantUnknown Variant = iota
+	VariantNCS
+	VariantRFC4122
+	VariantMicrosoft
+	VariantFuture
+)
+
+// Version specifies how the bits in the GUID were generated. For instance, a
+// version 4 GUID is randomly generated, and a version 5 is generated from the
+// hash of an input string.
+type Version uint8
+
 var _ = (json.Marshaler)(GUID{})
 var _ = (json.Unmarshaler)(&GUID{})
 
@@ -90,6 +110,26 @@ func FromString(s string) (GUID, error) {
 	}
 
 	return g, nil
+}
+
+// Variant returns the GUID variant, as defined in RFC 4122.
+func (g GUID) Variant() Variant {
+	b := g.Data4[0]
+	if b&0x80 == 0 {
+		return VariantNCS
+	} else if b&0xc0 == 0x80 {
+		return VariantRFC4122
+	} else if b&0xe0 == 0xc0 {
+		return VariantMicrosoft
+	} else if b&0xe0 == 0xe0 {
+		return VariantFuture
+	}
+	return VariantUnknown
+}
+
+// Version returns the GUID version, as defined in RFC 4122.
+func (g GUID) Version() Version {
+	return Version((g.Data3 & 0xF000) >> 12)
 }
 
 // MarshalJSON marshals the GUID to JSON representation and returns it as a
