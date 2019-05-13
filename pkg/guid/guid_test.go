@@ -6,25 +6,32 @@ import (
 	"testing"
 )
 
-func Test_New(t *testing.T) {
+func mustNewV4(t *testing.T) GUID {
 	g, err := NewV4()
 	if err != nil {
 		t.Fatal(err)
 	}
-	g2, err := NewV4()
+	return g
+}
+
+func mustFromString(t *testing.T, s string) GUID {
+	g, err := FromString(s)
 	if err != nil {
 		t.Fatal(err)
 	}
+	return g
+}
+
+func Test_NewV4IsUnique(t *testing.T) {
+	g := mustNewV4(t)
+	g2 := mustNewV4(t)
 	if g == g2 {
 		t.Fatalf("GUIDs are equal: %s, %s", g, g2)
 	}
 }
 
 func Test_V4HasCorrectVersionAndVariant(t *testing.T) {
-	g, err := NewV4()
-	if err != nil {
-		t.Fatal(err)
-	}
+	g := mustNewV4(t)
 	if g.Version() != 4 {
 		t.Fatalf("Version is not 4: %s", g)
 	}
@@ -35,10 +42,7 @@ func Test_V4HasCorrectVersionAndVariant(t *testing.T) {
 
 func Test_FromString(t *testing.T) {
 	orig := "8e35239e-2084-490e-a3db-ab18ee0744cb"
-	g, err := FromString(orig)
-	if err != nil {
-		t.Fatal(err)
-	}
+	g := mustFromString(t, orig)
 	s := g.String()
 	if orig != s {
 		t.Fatalf("GUIDs not equal: %s, %s", orig, s)
@@ -46,10 +50,7 @@ func Test_FromString(t *testing.T) {
 }
 
 func Test_MarshalJSON(t *testing.T) {
-	g, err := NewV4()
-	if err != nil {
-		t.Fatal(err)
-	}
+	g := mustNewV4(t)
 	j, err := json.Marshal(g)
 	if err != nil {
 		t.Fatal(err)
@@ -64,10 +65,7 @@ func Test_MarshalJSON_Nested(t *testing.T) {
 	type test struct {
 		G GUID
 	}
-	g, err := NewV4()
-	if err != nil {
-		t.Fatal(err)
-	}
+	g := mustNewV4(t)
 	t1 := test{g}
 	j, err := json.Marshal(t1)
 	if err != nil {
@@ -80,10 +78,7 @@ func Test_MarshalJSON_Nested(t *testing.T) {
 }
 
 func Test_UnmarshalJSON(t *testing.T) {
-	g, err := NewV4()
-	if err != nil {
-		t.Fatal(err)
-	}
+	g := mustNewV4(t)
 	j, err := json.Marshal(g)
 	if err != nil {
 		t.Fatal(err)
@@ -101,10 +96,7 @@ func Test_UnmarshalJSON_Nested(t *testing.T) {
 	type test struct {
 		G GUID
 	}
-	g, err := NewV4()
-	if err != nil {
-		t.Fatal(err)
-	}
+	g := mustNewV4(t)
 	t1 := test{g}
 	j, err := json.Marshal(t1)
 	if err != nil {
