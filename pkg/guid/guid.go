@@ -7,11 +7,10 @@ package guid
 
 import (
 	"crypto/rand"
+	"encoding"
 	"encoding/binary"
-	"encoding/json"
 	"fmt"
 	"strconv"
-	"strings"
 
 	"golang.org/x/sys/windows"
 )
@@ -36,8 +35,8 @@ const (
 // hash of an input string.
 type Version uint8
 
-var _ = (json.Marshaler)(GUID{})
-var _ = (json.Unmarshaler)(&GUID{})
+var _ = (encoding.TextMarshaler)(GUID{})
+var _ = (encoding.TextUnmarshaler)(&GUID{})
 
 // GUID represents a GUID/UUID. It has the same structure as
 // golang.org/x/sys/windows.GUID so that it can be used with functions expecting
@@ -171,16 +170,15 @@ func (g GUID) Version() Version {
 	return Version((g.Data3 & 0xF000) >> 12)
 }
 
-// MarshalJSON marshals the GUID to JSON representation and returns it as a
-// slice of bytes.
-func (g GUID) MarshalJSON() ([]byte, error) {
-	return json.Marshal(g.String())
+// MarshalText returns the textual representation of the GUID.
+func (g GUID) MarshalText() ([]byte, error) {
+	return []byte(g.String()), nil
 }
 
-// UnmarshalJSON unmarshals a GUID from JSON representation and sets itself to
-// the unmarshaled GUID.
-func (g *GUID) UnmarshalJSON(data []byte) error {
-	g2, err := FromString(strings.Trim(string(data), "\""))
+// UnmarshalText takes the textual representation of a GUID, and unmarhals it
+// into this GUID.
+func (g *GUID) UnmarshalText(text []byte) error {
+	g2, err := FromString(string(text))
 	if err != nil {
 		return err
 	}
