@@ -1,3 +1,8 @@
+// Package guid provides a GUID type. The backing structure for a GUID is
+// identical to that used by the golang.org/x/sys/windows GUID type.
+// There are two main binary encodings used for a GUID, the big-endian encoding,
+// and the Windows (mixed-endian) encoding. See here for details:
+// https://en.wikipedia.org/wiki/Universally_unique_identifier#Encoding
 package guid
 
 import (
@@ -49,15 +54,50 @@ func NewV4() (GUID, error) {
 		return GUID{}, err
 	}
 
-	var g GUID
-	g.Data1 = binary.LittleEndian.Uint32(b[0:4])
-	g.Data2 = binary.LittleEndian.Uint16(b[4:6])
-	g.Data3 = binary.LittleEndian.Uint16(b[6:8])
-	copy(g.Data4[:], b[8:16])
+	b[6] = (b[6] & 0x0f) | 0x40 // Version 4 (randomly generated)
+	b[8] = (b[8] & 0x3f) | 0x80 // RFC4122 variant
 
-	g.Data3 = (g.Data3 & 0x0fff) | 0x4000   // Version 4 (randomly generated)
-	g.Data4[0] = (g.Data4[0] & 0x3f) | 0x80 // RFC4122 variant
-	return g, nil
+	return FromArray(b), nil
+}
+
+func fromArray(b [16]byte, order binary.ByteOrder) GUID {
+	var g GUID
+	g.Data1 = order.Uint32(b[0:4])
+	g.Data2 = order.Uint16(b[4:6])
+	g.Data3 = order.Uint16(b[6:8])
+	copy(g.Data4[:], b[8:16])
+	return g
+}
+
+func (g GUID) toArray(order binary.ByteOrder) [16]byte {
+	b := [16]byte{}
+	order.PutUint32(b[0:4], g.Data1)
+	order.PutUint16(b[4:6], g.Data2)
+	order.PutUint16(b[6:8], g.Data3)
+	copy(b[8:16], g.Data4[:])
+	return b
+}
+
+// FromArray constructs a GUID from a big-endian encoding array of 16 bytes.
+func FromArray(b [16]byte) GUID {
+	return fromArray(b, binary.BigEndian)
+}
+
+// ToArray returns an array of 16 bytes representing the GUID in big-endian
+// encoding.
+func (g GUID) ToArray() [16]byte {
+	return g.toArray(binary.BigEndian)
+}
+
+// FromWindowsArray constructs a GUID from a Windows encoding array of bytes.
+func FromWindowsArray(b [16]byte) GUID {
+	return fromArray(b, binary.LittleEndian)
+}
+
+// ToWindowsArray returns an array of 16 bytes representing the GUID in Windows
+// encoding.
+func (g GUID) ToWindowsArray() [16]byte {
+	return g.toArray(binary.LittleEndian)
 }
 
 func (g GUID) String() string {
