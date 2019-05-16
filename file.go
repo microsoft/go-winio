@@ -271,6 +271,10 @@ func (f *win32File) Flush() error {
 	return syscall.FlushFileBuffers(f.handle)
 }
 
+func (f *win32File) Fd() uintptr {
+	return uintptr(f.handle)
+}
+
 func (d *deadlineHandler) set(deadline time.Time) error {
 	d.setLock.Lock()
 	defer d.setLock.Unlock()
