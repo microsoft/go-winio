@@ -33,15 +33,7 @@ func NewHookFromProvider(provider *etw.Provider) (*Hook, error) {
 // Levels returns the set of levels that this hook wants to receive log entries
 // for.
 func (h *Hook) Levels() []logrus.Level {
-	return []logrus.Level{
-		logrus.TraceLevel,
-		logrus.DebugLevel,
-		logrus.InfoLevel,
-		logrus.WarnLevel,
-		logrus.ErrorLevel,
-		logrus.FatalLevel,
-		logrus.PanicLevel,
-	}
+	return logrus.AllLevels
 }
 
 var logrusToETWLevelMap = map[logrus.Level]etw.Level{
