@@ -7,6 +7,7 @@ package guid
 
 import (
 	"crypto/rand"
+	"crypto/sha1"
 	"encoding"
 	"encoding/binary"
 	"fmt"
@@ -54,6 +55,29 @@ func NewV4() (GUID, error) {
 
 	g := FromArray(b)
 	g.setVersion(4) // Version 4 means randomly generated.
+	g.setVariant(VariantRFC4122)
+
+	return g, nil
+}
+
+// NewV5 returns a new version 5 (generated from a string via SHA-1 hashing)
+// GUID, as defined by RFC 4122. The RFC is unclear on the encoding of the name,
+// and the sample code treats it as a series of bytes, so we do the same here.
+//
+// Some implementations, such as those found on Windows, treat the name as a
+// big-endian UTF16 stream of bytes. If that is desired, the string can be
+// encoded as such before being passed to this function.
+func NewV5(namespace GUID, name []byte) (GUID, error) {
+	b := sha1.New()
+	namespaceBytes := namespace.ToArray()
+	b.Write(namespaceBytes[:])
+	b.Write(name)
+
+	a := [16]byte{}
+	copy(a[:], b.Sum(nil))
+
+	g := FromArray(a)
+	g.setVersion(5) // Version 5 means generated from a string.
 	g.setVariant(VariantRFC4122)
 
 	return g, nil
