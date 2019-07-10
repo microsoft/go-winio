@@ -22,6 +22,78 @@ func mustFromString(t *testing.T, s string) GUID {
 	return g
 }
 
+func Test_Variant(t *testing.T) {
+	type testCase struct {
+		g GUID
+		v Variant
+	}
+	testCases := []testCase{
+		{mustFromString(t, "f5cbc1a9-4cba-45a0-0fdd-b6761fc7dcc0"), VariantNCS},
+		{mustFromString(t, "f5cbc1a9-4cba-45a0-7fdd-b6761fc7dcc0"), VariantNCS},
+		{mustFromString(t, "f5cbc1a9-4cba-45a0-bfdd-b6761fc7dcc0"), VariantRFC4122},
+		{mustFromString(t, "f5cbc1a9-4cba-45a0-9fdd-b6761fc7dcc0"), VariantRFC4122},
+		{mustFromString(t, "f5cbc1a9-4cba-45a0-cfdd-b6761fc7dcc0"), VariantMicrosoft},
+		{mustFromString(t, "f5cbc1a9-4cba-45a0-dfdd-b6761fc7dcc0"), VariantMicrosoft},
+		{mustFromString(t, "f5cbc1a9-4cba-45a0-efdd-b6761fc7dcc0"), VariantFuture},
+		{mustFromString(t, "f5cbc1a9-4cba-45a0-ffdd-b6761fc7dcc0"), VariantFuture},
+	}
+	for _, tc := range testCases {
+		actualVariant := tc.g.Variant()
+		if actualVariant != tc.v {
+			t.Fatalf("Variant is not correct.\nExpected: %d\nActual: %d\nGUID: %s", tc.v, actualVariant, tc.g)
+		}
+	}
+}
+
+func Test_SetVariant(t *testing.T) {
+	testCases := []Variant{
+		VariantNCS,
+		VariantRFC4122,
+		VariantMicrosoft,
+		VariantFuture,
+	}
+	g := mustFromString(t, "f5cbc1a9-4cba-45a0-bfdd-b6761fc7dcc0")
+	for _, tc := range testCases {
+		t.Logf("Test case: %d", tc)
+		g.setVariant(tc)
+		if g.Variant() != tc {
+			t.Fatalf("Variant is incorrect.\nExpected: %d\nActual: %d", tc, g.Variant())
+		}
+	}
+}
+
+func Test_Version(t *testing.T) {
+	type testCase struct {
+		g GUID
+		v Version
+	}
+	testCases := []testCase{
+		{mustFromString(t, "f5cbc1a9-4cba-15a0-0fdd-b6761fc7dcc0"), 1},
+		{mustFromString(t, "f5cbc1a9-4cba-25a0-0fdd-b6761fc7dcc0"), 2},
+		{mustFromString(t, "f5cbc1a9-4cba-35a0-0fdd-b6761fc7dcc0"), 3},
+		{mustFromString(t, "f5cbc1a9-4cba-45a0-0fdd-b6761fc7dcc0"), 4},
+		{mustFromString(t, "f5cbc1a9-4cba-55a0-0fdd-b6761fc7dcc0"), 5},
+	}
+	for _, tc := range testCases {
+		actualVersion := tc.g.Version()
+		if actualVersion != tc.v {
+			t.Fatalf("Version is not correct.\nExpected: %d\nActual: %d\nGUID: %s", tc.v, actualVersion, tc.g)
+		}
+	}
+}
+
+func Test_SetVersion(t *testing.T) {
+	g := mustFromString(t, "f5cbc1a9-4cba-45a0-bfdd-b6761fc7dcc0")
+	for tc := 0; tc < 16; tc++ {
+		t.Logf("Test case: %d", tc)
+		v := Version(tc)
+		g.setVersion(v)
+		if g.Version() != v {
+			t.Fatalf("Version is incorrect.\nExpected: %d\nActual: %d", v, g.Version())
+		}
+	}
+}
+
 func Test_NewV4IsUnique(t *testing.T) {
 	g := mustNewV4(t)
 	g2 := mustNewV4(t)
