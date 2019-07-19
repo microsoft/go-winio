@@ -14,12 +14,92 @@ func mustNewV4(t *testing.T) GUID {
 	return g
 }
 
+func mustNewV5(t *testing.T, namespace GUID, name []byte) GUID {
+	g, err := NewV5(namespace, name)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return g
+}
+
 func mustFromString(t *testing.T, s string) GUID {
 	g, err := FromString(s)
 	if err != nil {
 		t.Fatal(err)
 	}
 	return g
+}
+
+func Test_Variant(t *testing.T) {
+	type testCase struct {
+		g GUID
+		v Variant
+	}
+	testCases := []testCase{
+		{mustFromString(t, "f5cbc1a9-4cba-45a0-0fdd-b6761fc7dcc0"), VariantNCS},
+		{mustFromString(t, "f5cbc1a9-4cba-45a0-7fdd-b6761fc7dcc0"), VariantNCS},
+		{mustFromString(t, "f5cbc1a9-4cba-45a0-bfdd-b6761fc7dcc0"), VariantRFC4122},
+		{mustFromString(t, "f5cbc1a9-4cba-45a0-9fdd-b6761fc7dcc0"), VariantRFC4122},
+		{mustFromString(t, "f5cbc1a9-4cba-45a0-cfdd-b6761fc7dcc0"), VariantMicrosoft},
+		{mustFromString(t, "f5cbc1a9-4cba-45a0-dfdd-b6761fc7dcc0"), VariantMicrosoft},
+		{mustFromString(t, "f5cbc1a9-4cba-45a0-efdd-b6761fc7dcc0"), VariantFuture},
+		{mustFromString(t, "f5cbc1a9-4cba-45a0-ffdd-b6761fc7dcc0"), VariantFuture},
+	}
+	for _, tc := range testCases {
+		actualVariant := tc.g.Variant()
+		if actualVariant != tc.v {
+			t.Fatalf("Variant is not correct.\nExpected: %d\nActual: %d\nGUID: %s", tc.v, actualVariant, tc.g)
+		}
+	}
+}
+
+func Test_SetVariant(t *testing.T) {
+	testCases := []Variant{
+		VariantNCS,
+		VariantRFC4122,
+		VariantMicrosoft,
+		VariantFuture,
+	}
+	g := mustFromString(t, "f5cbc1a9-4cba-45a0-bfdd-b6761fc7dcc0")
+	for _, tc := range testCases {
+		t.Logf("Test case: %d", tc)
+		g.setVariant(tc)
+		if g.Variant() != tc {
+			t.Fatalf("Variant is incorrect.\nExpected: %d\nActual: %d", tc, g.Variant())
+		}
+	}
+}
+
+func Test_Version(t *testing.T) {
+	type testCase struct {
+		g GUID
+		v Version
+	}
+	testCases := []testCase{
+		{mustFromString(t, "f5cbc1a9-4cba-15a0-0fdd-b6761fc7dcc0"), 1},
+		{mustFromString(t, "f5cbc1a9-4cba-25a0-0fdd-b6761fc7dcc0"), 2},
+		{mustFromString(t, "f5cbc1a9-4cba-35a0-0fdd-b6761fc7dcc0"), 3},
+		{mustFromString(t, "f5cbc1a9-4cba-45a0-0fdd-b6761fc7dcc0"), 4},
+		{mustFromString(t, "f5cbc1a9-4cba-55a0-0fdd-b6761fc7dcc0"), 5},
+	}
+	for _, tc := range testCases {
+		actualVersion := tc.g.Version()
+		if actualVersion != tc.v {
+			t.Fatalf("Version is not correct.\nExpected: %d\nActual: %d\nGUID: %s", tc.v, actualVersion, tc.g)
+		}
+	}
+}
+
+func Test_SetVersion(t *testing.T) {
+	g := mustFromString(t, "f5cbc1a9-4cba-45a0-bfdd-b6761fc7dcc0")
+	for tc := 0; tc < 16; tc++ {
+		t.Logf("Test case: %d", tc)
+		v := Version(tc)
+		g.setVersion(v)
+		if g.Version() != v {
+			t.Fatalf("Version is incorrect.\nExpected: %d\nActual: %d", v, g.Version())
+		}
+	}
 }
 
 func Test_NewV4IsUnique(t *testing.T) {
@@ -37,6 +117,53 @@ func Test_V4HasCorrectVersionAndVariant(t *testing.T) {
 	}
 	if g.Variant() != VariantRFC4122 {
 		t.Fatalf("Variant is not RFC4122: %s", g)
+	}
+}
+
+func Test_V5HasCorrectVersionAndVariant(t *testing.T) {
+	namespace := mustFromString(t, "f5cbc1a9-4cba-45a0-bfdd-b6761fc7dcc0")
+	g := mustNewV5(t, namespace, []byte("Foo"))
+	if g.Version() != 5 {
+		t.Fatalf("Version is not 5: %s", g)
+	}
+	if g.Variant() != VariantRFC4122 {
+		t.Fatalf("Variant is not RFC4122: %s", g)
+	}
+}
+
+func Test_V5KnownValues(t *testing.T) {
+	type testCase struct {
+		ns   GUID
+		name string
+		g    GUID
+	}
+	testCases := []testCase{
+		{
+			mustFromString(t, "6ba7b810-9dad-11d1-80b4-00c04fd430c8"),
+			"www.sample.com",
+			mustFromString(t, "4e4463eb-b0e8-54fa-8c28-12d1ab1d45b3"),
+		},
+		{
+			mustFromString(t, "6ba7b811-9dad-11d1-80b4-00c04fd430c8"),
+			"https://www.sample.com/test",
+			mustFromString(t, "9e44625a-0d85-5e0a-99bc-8e8a77df5ea2"),
+		},
+		{
+			mustFromString(t, "6ba7b812-9dad-11d1-80b4-00c04fd430c8"),
+			"1.3.6.1.4.1.343",
+			mustFromString(t, "6aab0456-7392-582a-b92a-ba5a7096945d"),
+		},
+		{
+			mustFromString(t, "6ba7b814-9dad-11d1-80b4-00c04fd430c8"),
+			"CN=John Smith, ou=People, o=FakeCorp, L=Seattle, S=Washington, C=US",
+			mustFromString(t, "badff8dd-c869-5b64-a260-00092e66be00"),
+		},
+	}
+	for _, tc := range testCases {
+		g := mustNewV5(t, tc.ns, []byte(tc.name))
+		if g != tc.g {
+			t.Fatalf("GUIDs are not equal.\nExpected: %s\nActual: %s", tc.g, g)
+		}
 	}
 }
 
