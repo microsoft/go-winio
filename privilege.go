@@ -126,7 +126,7 @@ func enableDisableProcessPrivilege(names []string, action uint32) error {
 		return err
 	}
 
-	p, _ := windows.GetCurrentProcess()
+	p := windows.GetCurrentProcess()
 	var token windows.Token
 	err = windows.OpenProcessToken(p, windows.TOKEN_ADJUST_PRIVILEGES|windows.TOKEN_QUERY, &token)
 	if err != nil {
