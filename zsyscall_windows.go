@@ -42,40 +42,34 @@ var (
 	modntdll    = windows.NewLazySystemDLL("ntdll.dll")
 	modadvapi32 = windows.NewLazySystemDLL("advapi32.dll")
 
-	procCancelIoEx                                           = modkernel32.NewProc("CancelIoEx")
-	procCreateIoCompletionPort                               = modkernel32.NewProc("CreateIoCompletionPort")
-	procGetQueuedCompletionStatus                            = modkernel32.NewProc("GetQueuedCompletionStatus")
-	procSetFileCompletionNotificationModes                   = modkernel32.NewProc("SetFileCompletionNotificationModes")
-	procWSAGetOverlappedResult                               = modws2_32.NewProc("WSAGetOverlappedResult")
-	procConnectNamedPipe                                     = modkernel32.NewProc("ConnectNamedPipe")
-	procCreateNamedPipeW                                     = modkernel32.NewProc("CreateNamedPipeW")
-	procCreateFileW                                          = modkernel32.NewProc("CreateFileW")
-	procGetNamedPipeInfo                                     = modkernel32.NewProc("GetNamedPipeInfo")
-	procGetNamedPipeHandleStateW                             = modkernel32.NewProc("GetNamedPipeHandleStateW")
-	procLocalAlloc                                           = modkernel32.NewProc("LocalAlloc")
-	procNtCreateNamedPipeFile                                = modntdll.NewProc("NtCreateNamedPipeFile")
-	procRtlNtStatusToDosErrorNoTeb                           = modntdll.NewProc("RtlNtStatusToDosErrorNoTeb")
-	procRtlDosPathNameToNtPathName_U                         = modntdll.NewProc("RtlDosPathNameToNtPathName_U")
-	procRtlDefaultNpAcl                                      = modntdll.NewProc("RtlDefaultNpAcl")
-	procLookupAccountNameW                                   = modadvapi32.NewProc("LookupAccountNameW")
-	procConvertSidToStringSidW                               = modadvapi32.NewProc("ConvertSidToStringSidW")
-	procConvertStringSecurityDescriptorToSecurityDescriptorW = modadvapi32.NewProc("ConvertStringSecurityDescriptorToSecurityDescriptorW")
-	procConvertSecurityDescriptorToStringSecurityDescriptorW = modadvapi32.NewProc("ConvertSecurityDescriptorToStringSecurityDescriptorW")
-	procLocalFree                                            = modkernel32.NewProc("LocalFree")
-	procGetSecurityDescriptorLength                          = modadvapi32.NewProc("GetSecurityDescriptorLength")
-	procGetFileInformationByHandleEx                         = modkernel32.NewProc("GetFileInformationByHandleEx")
-	procSetFileInformationByHandle                           = modkernel32.NewProc("SetFileInformationByHandle")
-	procAdjustTokenPrivileges                                = modadvapi32.NewProc("AdjustTokenPrivileges")
-	procImpersonateSelf                                      = modadvapi32.NewProc("ImpersonateSelf")
-	procRevertToSelf                                         = modadvapi32.NewProc("RevertToSelf")
-	procOpenThreadToken                                      = modadvapi32.NewProc("OpenThreadToken")
-	procGetCurrentThread                                     = modkernel32.NewProc("GetCurrentThread")
-	procLookupPrivilegeValueW                                = modadvapi32.NewProc("LookupPrivilegeValueW")
-	procLookupPrivilegeNameW                                 = modadvapi32.NewProc("LookupPrivilegeNameW")
-	procLookupPrivilegeDisplayNameW                          = modadvapi32.NewProc("LookupPrivilegeDisplayNameW")
-	procBackupRead                                           = modkernel32.NewProc("BackupRead")
-	procBackupWrite                                          = modkernel32.NewProc("BackupWrite")
-	procbind                                                 = modws2_32.NewProc("bind")
+	procCancelIoEx                         = modkernel32.NewProc("CancelIoEx")
+	procCreateIoCompletionPort             = modkernel32.NewProc("CreateIoCompletionPort")
+	procGetQueuedCompletionStatus          = modkernel32.NewProc("GetQueuedCompletionStatus")
+	procSetFileCompletionNotificationModes = modkernel32.NewProc("SetFileCompletionNotificationModes")
+	procWSAGetOverlappedResult             = modws2_32.NewProc("WSAGetOverlappedResult")
+	procConnectNamedPipe                   = modkernel32.NewProc("ConnectNamedPipe")
+	procCreateNamedPipeW                   = modkernel32.NewProc("CreateNamedPipeW")
+	procCreateFileW                        = modkernel32.NewProc("CreateFileW")
+	procGetNamedPipeInfo                   = modkernel32.NewProc("GetNamedPipeInfo")
+	procGetNamedPipeHandleStateW           = modkernel32.NewProc("GetNamedPipeHandleStateW")
+	procLocalAlloc                         = modkernel32.NewProc("LocalAlloc")
+	procNtCreateNamedPipeFile              = modntdll.NewProc("NtCreateNamedPipeFile")
+	procRtlNtStatusToDosErrorNoTeb         = modntdll.NewProc("RtlNtStatusToDosErrorNoTeb")
+	procRtlDosPathNameToNtPathName_U       = modntdll.NewProc("RtlDosPathNameToNtPathName_U")
+	procRtlDefaultNpAcl                    = modntdll.NewProc("RtlDefaultNpAcl")
+	procGetFileInformationByHandleEx       = modkernel32.NewProc("GetFileInformationByHandleEx")
+	procSetFileInformationByHandle         = modkernel32.NewProc("SetFileInformationByHandle")
+	procAdjustTokenPrivileges              = modadvapi32.NewProc("AdjustTokenPrivileges")
+	procImpersonateSelf                    = modadvapi32.NewProc("ImpersonateSelf")
+	procRevertToSelf                       = modadvapi32.NewProc("RevertToSelf")
+	procOpenThreadToken                    = modadvapi32.NewProc("OpenThreadToken")
+	procGetCurrentThread                   = modkernel32.NewProc("GetCurrentThread")
+	procLookupPrivilegeValueW              = modadvapi32.NewProc("LookupPrivilegeValueW")
+	procLookupPrivilegeNameW               = modadvapi32.NewProc("LookupPrivilegeNameW")
+	procLookupPrivilegeDisplayNameW        = modadvapi32.NewProc("LookupPrivilegeDisplayNameW")
+	procBackupRead                         = modkernel32.NewProc("BackupRead")
+	procBackupWrite                        = modkernel32.NewProc("BackupWrite")
+	procbind                               = modws2_32.NewProc("bind")
 )
 
 func cancelIoEx(file syscall.Handle, o *syscall.Overlapped) (err error) {
@@ -254,83 +248,6 @@ func rtlDosPathNameToNtPathName(name *uint16, ntName *unicodeString, filePart ui
 func rtlDefaultNpAcl(dacl *uintptr) (status ntstatus) {
 	r0, _, _ := syscall.Syscall(procRtlDefaultNpAcl.Addr(), 1, uintptr(unsafe.Pointer(dacl)), 0, 0)
 	status = ntstatus(r0)
-	return
-}
-
-func lookupAccountName(systemName *uint16, accountName string, sid *byte, sidSize *uint32, refDomain *uint16, refDomainSize *uint32, sidNameUse *uint32) (err error) {
-	var _p0 *uint16
-	_p0, err = syscall.UTF16PtrFromString(accountName)
-	if err != nil {
-		return
-	}
-	return _lookupAccountName(systemName, _p0, sid, sidSize, refDomain, refDomainSize, sidNameUse)
-}
-
-func _lookupAccountName(systemName *uint16, accountName *uint16, sid *byte, sidSize *uint32, refDomain *uint16, refDomainSize *uint32, sidNameUse *uint32) (err error) {
-	r1, _, e1 := syscall.Syscall9(procLookupAccountNameW.Addr(), 7, uintptr(unsafe.Pointer(systemName)), uintptr(unsafe.Pointer(accountName)), uintptr(unsafe.Pointer(sid)), uintptr(unsafe.Pointer(sidSize)), uintptr(unsafe.Pointer(refDomain)), uintptr(unsafe.Pointer(refDomainSize)), uintptr(unsafe.Pointer(sidNameUse)), 0, 0)
-	if r1 == 0 {
-		if e1 != 0 {
-			err = errnoErr(e1)
-		} else {
-			err = syscall.EINVAL
-		}
-	}
-	return
-}
-
-func convertSidToStringSid(sid *byte, str **uint16) (err error) {
-	r1, _, e1 := syscall.Syscall(procConvertSidToStringSidW.Addr(), 2, uintptr(unsafe.Pointer(sid)), uintptr(unsafe.Pointer(str)), 0)
-	if r1 == 0 {
-		if e1 != 0 {
-			err = errnoErr(e1)
-		} else {
-			err = syscall.EINVAL
-		}
-	}
-	return
-}
-
-func convertStringSecurityDescriptorToSecurityDescriptor(str string, revision uint32, sd *uintptr, size *uint32) (err error) {
-	var _p0 *uint16
-	_p0, err = syscall.UTF16PtrFromString(str)
-	if err != nil {
-		return
-	}
-	return _convertStringSecurityDescriptorToSecurityDescriptor(_p0, revision, sd, size)
-}
-
-func _convertStringSecurityDescriptorToSecurityDescriptor(str *uint16, revision uint32, sd *uintptr, size *uint32) (err error) {
-	r1, _, e1 := syscall.Syscall6(procConvertStringSecurityDescriptorToSecurityDescriptorW.Addr(), 4, uintptr(unsafe.Pointer(str)), uintptr(revision), uintptr(unsafe.Pointer(sd)), uintptr(unsafe.Pointer(size)), 0, 0)
-	if r1 == 0 {
-		if e1 != 0 {
-			err = errnoErr(e1)
-		} else {
-			err = syscall.EINVAL
-		}
-	}
-	return
-}
-
-func convertSecurityDescriptorToStringSecurityDescriptor(sd *byte, revision uint32, secInfo uint32, sddl **uint16, sddlSize *uint32) (err error) {
-	r1, _, e1 := syscall.Syscall6(procConvertSecurityDescriptorToStringSecurityDescriptorW.Addr(), 5, uintptr(unsafe.Pointer(sd)), uintptr(revision), uintptr(secInfo), uintptr(unsafe.Pointer(sddl)), uintptr(unsafe.Pointer(sddlSize)), 0)
-	if r1 == 0 {
-		if e1 != 0 {
-			err = errnoErr(e1)
-		} else {
-			err = syscall.EINVAL
-		}
-	}
-	return
-}
-
-func localFree(mem uintptr) {
-	syscall.Syscall(procLocalFree.Addr(), 1, uintptr(mem), 0, 0)
-	return
-}
-
-func getSecurityDescriptorLength(sd uintptr) (len uint32) {
-	r0, _, _ := syscall.Syscall(procGetSecurityDescriptorLength.Addr(), 1, uintptr(sd), 0, 0)
-	len = uint32(r0)
 	return
 }
 
