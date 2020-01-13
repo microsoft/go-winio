@@ -198,7 +198,7 @@ func tryDialPipe(ctx context.Context, path *string, access uint32) (syscall.Hand
 			}
 			// Wait 10 msec and try again. This is a rather simplistic
 			// view, as we always try each 10 milliseconds.
-			time.Sleep(time.Millisecond * 10)
+			time.Sleep(10 * time.Millisecond)
 		}
 	}
 }
@@ -211,7 +211,7 @@ func DialPipe(path string, timeout *time.Duration) (net.Conn, error) {
 	if timeout != nil {
 		absTimeout = time.Now().Add(*timeout)
 	} else {
-		absTimeout = time.Now().Add(time.Second * 2)
+		absTimeout = time.Now().Add(2 * time.Second)
 	}
 	ctx, _ := context.WithDeadline(context.Background(), absTimeout)
 	conn, err := DialPipeContext(ctx, path)
