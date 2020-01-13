@@ -13,6 +13,8 @@ import (
 	"syscall"
 	"time"
 	"unsafe"
+
+	"golang.org/x/sys/windows"
 )
 
 //sys connectNamedPipe(pipe syscall.Handle, o *syscall.Overlapped) (err error) = ConnectNamedPipe
@@ -273,7 +275,7 @@ type win32PipeListener struct {
 	doneCh      chan int
 }
 
-func makeServerPipeHandle(path string, sd []byte, c *PipeConfig, first bool) (syscall.Handle, error) {
+func makeServerPipeHandle(path string, sd *windows.SECURITY_DESCRIPTOR, c *PipeConfig, first bool) (syscall.Handle, error) {
 	path16, err := syscall.UTF16FromString(path)
 	if err != nil {
 		return 0, &os.PathError{Op: "open", Path: path, Err: err}
@@ -286,16 +288,16 @@ func makeServerPipeHandle(path string, sd []byte, c *PipeConfig, first bool) (sy
 	if err := rtlDosPathNameToNtPathName(&path16[0], &ntPath, 0, 0).Err(); err != nil {
 		return 0, &os.PathError{Op: "open", Path: path, Err: err}
 	}
-	defer localFree(ntPath.Buffer)
+	defer windows.LocalFree(windows.Handle(ntPath.Buffer))
 	oa.ObjectName = &ntPath
 
 	// The security descriptor is only needed for the first pipe.
 	if first {
 		if sd != nil {
-			len := uint32(len(sd))
+			len := sd.Length()
 			sdb := localAlloc(0, len)
-			defer localFree(sdb)
-			copy((*[0xffff]byte)(unsafe.Pointer(sdb))[:], sd)
+			defer windows.LocalFree(windows.Handle(sdb))
+			copy((*[0xffff]byte)(unsafe.Pointer(sdb))[:len], (*[0xffff]byte)(unsafe.Pointer(sd))[:len])
 			oa.SecurityDescriptor = (*securityDescriptor)(unsafe.Pointer(sdb))
 		} else {
 			// Construct the default named pipe security descriptor.
@@ -303,7 +305,7 @@ func makeServerPipeHandle(path string, sd []byte, c *PipeConfig, first bool) (sy
 			if err := rtlDefaultNpAcl(&dacl).Err(); err != nil {
 				return 0, fmt.Errorf("getting default named pipe ACL: %s", err)
 			}
-			defer localFree(dacl)
+			defer windows.LocalFree(windows.Handle(dacl))
 
 			sdb := &securityDescriptor{
 				Revision: 1,
@@ -440,14 +442,14 @@ type PipeConfig struct {
 // The pipe must not already exist.
 func ListenPipe(path string, c *PipeConfig) (net.Listener, error) {
 	var (
-		sd  []byte
+		sd *windows.SECURITY_DESCRIPTOR
 		err error
 	)
 	if c == nil {
 		c = &PipeConfig{}
 	}
 	if c.SecurityDescriptor != "" {
-		sd, err = SddlToSecurityDescriptor(c.SecurityDescriptor)
+		sd, err = windows.SecurityDescriptorFromString(c.SecurityDescriptor)
 		if err != nil {
 			return nil, err
 		}

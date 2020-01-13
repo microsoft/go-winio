@@ -13,9 +13,11 @@ import (
 	"strings"
 	"syscall"
 	"time"
+	"unsafe"
 
 	"github.com/Microsoft/go-winio"
 	"github.com/Microsoft/go-winio/archive/tar" // until archive/tar supports pax extensions in its interface
+	"golang.org/x/sys/windows"
 )
 
 const (
@@ -317,32 +319,34 @@ func FileInfoFromHeader(hdr *tar.Header) (name string, size int64, fileInfo *win
 // tar file that was not processed, or io.EOF is there are no more.
 func WriteBackupStreamFromTarFile(w io.Writer, t *tar.Reader, hdr *tar.Header) (*tar.Header, error) {
 	bw := winio.NewBackupStreamWriter(w)
-	var sd []byte
+	var sd *windows.SECURITY_DESCRIPTOR
 	var err error
 	// Maintaining old SDDL-based behavior for backward compatibility.  All new tar headers written
 	// by this library will have raw binary for the security descriptor.
 	if sddl, ok := hdr.Winheaders[hdrSecurityDescriptor]; ok {
-		sd, err = winio.SddlToSecurityDescriptor(sddl)
+		sd, err = windows.SecurityDescriptorFromString(sddl)
 		if err != nil {
 			return nil, err
 		}
 	}
 	if sdraw, ok := hdr.Winheaders[hdrRawSecurityDescriptor]; ok {
-		sd, err = base64.StdEncoding.DecodeString(sdraw)
+		sdbytes, err := base64.StdEncoding.DecodeString(sdraw)
+		sd = (*windows.SECURITY_DESCRIPTOR)(unsafe.Pointer(&sdbytes[0]))
 		if err != nil {
 			return nil, err
 		}
 	}
-	if len(sd) != 0 {
+	sdLen := sd.Length()
+	if sdLen != 0 {
 		bhdr := winio.BackupHeader{
 			Id:   winio.BackupSecurity,
-			Size: int64(len(sd)),
+			Size: int64(sdLen),
 		}
 		err := bw.WriteHeader(&bhdr)
 		if err != nil {
 			return nil, err
 		}
-		_, err = bw.Write(sd)
+		_, err = bw.Write((*[0xffff]byte)(unsafe.Pointer(sd))[:sdLen])
 		if err != nil {
 			return nil, err
 		}
