@@ -11,6 +11,7 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"unsafe"
 
 	"github.com/Microsoft/go-winio"
 	"golang.org/x/sys/windows"
@@ -420,16 +421,17 @@ func WriteBackupStreamFromTarFile(w io.Writer, t *tar.Reader, hdr *tar.Header) (
 	if err != nil {
 		return nil, err
 	}
-	if len(sd) != 0 {
+	sdLen := sd.Length()
+	if sdLen != 0 {
 		bhdr := winio.BackupHeader{
 			Id:   winio.BackupSecurity,
-			Size: int64(len(sd)),
+			Size: int64(sdLen),
 		}
 		err := bw.WriteHeader(&bhdr)
 		if err != nil {
 			return nil, err
 		}
-		_, err = bw.Write(sd)
+		_, err = bw.Write((*[(1 << 31) - 1]byte)(unsafe.Pointer(sd))[:sdLen])
 		if err != nil {
 			return nil, err
 		}

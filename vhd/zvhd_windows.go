@@ -48,7 +48,7 @@ var (
 	procSetVirtualDiskInformation  = modvirtdisk.NewProc("SetVirtualDiskInformation")
 )
 
-func attachVirtualDisk(handle syscall.Handle, securityDescriptor *uintptr, attachVirtualDiskFlag uint32, providerSpecificFlags uint32, parameters *AttachVirtualDiskParameters, overlapped *syscall.Overlapped) (win32err error) {
+func attachVirtualDisk(handle syscall.Handle, securityDescriptor *windows.SECURITY_DESCRIPTOR, attachVirtualDiskFlag uint32, providerSpecificFlags uint32, parameters *AttachVirtualDiskParameters, overlapped *syscall.Overlapped) (win32err error) {
 	r0, _, _ := syscall.SyscallN(procAttachVirtualDisk.Addr(), uintptr(handle), uintptr(unsafe.Pointer(securityDescriptor)), uintptr(attachVirtualDiskFlag), uintptr(providerSpecificFlags), uintptr(unsafe.Pointer(parameters)), uintptr(unsafe.Pointer(overlapped)))
 	if r0 != 0 {
 		win32err = syscall.Errno(r0)
@@ -56,7 +56,7 @@ func attachVirtualDisk(handle syscall.Handle, securityDescriptor *uintptr, attac
 	return
 }
 
-func createVirtualDisk(virtualStorageType *VirtualStorageType, path string, virtualDiskAccessMask uint32, securityDescriptor *uintptr, createVirtualDiskFlags uint32, providerSpecificFlags uint32, parameters *CreateVirtualDiskParameters, overlapped *syscall.Overlapped, handle *syscall.Handle) (win32err error) {
+func createVirtualDisk(virtualStorageType *VirtualStorageType, path string, virtualDiskAccessMask uint32, securityDescriptor *windows.SECURITY_DESCRIPTOR, createVirtualDiskFlags uint32, providerSpecificFlags uint32, parameters *CreateVirtualDiskParameters, overlapped *syscall.Overlapped, handle *syscall.Handle) (win32err error) {
 	var _p0 *uint16
 	_p0, win32err = syscall.UTF16PtrFromString(path)
 	if win32err != nil {
@@ -65,7 +65,7 @@ func createVirtualDisk(virtualStorageType *VirtualStorageType, path string, virt
 	return _createVirtualDisk(virtualStorageType, _p0, virtualDiskAccessMask, securityDescriptor, createVirtualDiskFlags, providerSpecificFlags, parameters, overlapped, handle)
 }
 
-func _createVirtualDisk(virtualStorageType *VirtualStorageType, path *uint16, virtualDiskAccessMask uint32, securityDescriptor *uintptr, createVirtualDiskFlags uint32, providerSpecificFlags uint32, parameters *CreateVirtualDiskParameters, overlapped *syscall.Overlapped, handle *syscall.Handle) (win32err error) {
+func _createVirtualDisk(virtualStorageType *VirtualStorageType, path *uint16, virtualDiskAccessMask uint32, securityDescriptor *windows.SECURITY_DESCRIPTOR, createVirtualDiskFlags uint32, providerSpecificFlags uint32, parameters *CreateVirtualDiskParameters, overlapped *syscall.Overlapped, handle *syscall.Handle) (win32err error) {
 	r0, _, _ := syscall.SyscallN(procCreateVirtualDisk.Addr(), uintptr(unsafe.Pointer(virtualStorageType)), uintptr(unsafe.Pointer(path)), uintptr(virtualDiskAccessMask), uintptr(unsafe.Pointer(securityDescriptor)), uintptr(createVirtualDiskFlags), uintptr(providerSpecificFlags), uintptr(unsafe.Pointer(parameters)), uintptr(unsafe.Pointer(overlapped)), uintptr(unsafe.Pointer(handle)))
 	if r0 != 0 {
 		win32err = syscall.Errno(r0)
