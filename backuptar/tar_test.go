@@ -1,6 +1,7 @@
 package backuptar
 
 import (
+	"archive/tar"
 	"bytes"
 	"io/ioutil"
 	"os"
@@ -9,7 +10,6 @@ import (
 	"testing"
 
 	"github.com/Microsoft/go-winio"
-	"github.com/Microsoft/go-winio/archive/tar"
 )
 
 func ensurePresent(t *testing.T, m map[string]string, keys ...string) {
@@ -76,9 +76,9 @@ func TestRoundTrip(t *testing.T) {
 		t.Errorf("got size %d, expected %d", size, fi.Size())
 	}
 
-	if !reflect.DeepEqual(*bi, *bi2) {
-		t.Errorf("got %#v, expected %#v", *bi, *bi2)
+	if !reflect.DeepEqual(*bi2, *bi) {
+		t.Errorf("got %#v, expected %#v", *bi2, *bi)
 	}
 
-	ensurePresent(t, hdr.Winheaders, "fileattr", "rawsd")
+	ensurePresent(t, hdr.PAXRecords, "MSWINDOWS.fileattr", "MSWINDOWS.rawsd")
 }
