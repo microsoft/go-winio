@@ -36,6 +36,25 @@ func SetFileBasicInfo(f *os.File, bi *FileBasicInfo) error {
 	return nil
 }
 
+// FileStandardInfo contains extended information for the file.
+// FILE_STANDARD_INFO in WinBase.h
+// https://docs.microsoft.com/en-us/windows/win32/api/winbase/ns-winbase-file_standard_info
+type FileStandardInfo struct {
+	AllocationSize, EndOfFile int64
+	NumberOfLinks             uint32
+	DeletePending, Directory  bool
+}
+
+// GetFileStandardInfo retrieves ended information for the file.
+func GetFileStandardInfo(f *os.File) (*FileStandardInfo, error) {
+	si := &FileStandardInfo{}
+	if err := windows.GetFileInformationByHandleEx(windows.Handle(f.Fd()), windows.FileStandardInfo, (*byte)(unsafe.Pointer(si)), uint32(unsafe.Sizeof(*si))); err != nil {
+		return nil, &os.PathError{Op: "GetFileInformationByHandleEx", Path: f.Name(), Err: err}
+	}
+	runtime.KeepAlive(f)
+	return si, nil
+}
+
 // FileIDInfo contains the volume serial number and file ID for a file. This pair should be
 // unique on a system.
 type FileIDInfo struct {
