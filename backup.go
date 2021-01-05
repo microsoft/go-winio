@@ -12,6 +12,8 @@ import (
 	"runtime"
 	"syscall"
 	"unicode/utf16"
+
+	"golang.org/x/sys/windows"
 )
 
 //sys backupRead(h syscall.Handle, b []byte, bytesRead *uint32, abort bool, processSecurity bool, context *uintptr) (err error) = BackupRead
@@ -35,9 +37,9 @@ const (
 )
 
 const (
-	WRITE_DAC              = 0x40000
-	WRITE_OWNER            = 0x80000
-	ACCESS_SYSTEM_SECURITY = 0x1000000
+	WRITE_DAC              = windows.WRITE_DAC
+	WRITE_OWNER            = windows.WRITE_OWNER
+	ACCESS_SYSTEM_SECURITY = windows.ACCESS_SYSTEM_SECURITY
 )
 
 // BackupHeader represents a backup stream of a file.
@@ -271,7 +273,7 @@ func OpenForBackup(path string, access uint32, share uint32, createmode uint32) 
 	if err != nil {
 		return nil, err
 	}
-	h, err := syscall.CreateFile(&winPath[0], access, share, nil, createmode, syscall.FILE_FLAG_BACKUP_SEMANTICS|syscall.FILE_FLAG_OPEN_REPARSE_POINT, 0)
+	h, err := syscall.CreateFile(&winPath[0], access, share, nil, createmode, windows.FILE_FLAG_BACKUP_SEMANTICS|windows.FILE_FLAG_OPEN_REPARSE_POINT, 0)
 	if err != nil {
 		err = &os.PathError{Op: "open", Path: path, Err: err}
 		return nil, err

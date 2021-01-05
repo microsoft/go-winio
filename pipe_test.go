@@ -14,6 +14,8 @@ import (
 	"testing"
 	"time"
 	"unsafe"
+
+	"golang.org/x/sys/windows"
 )
 
 var testPipeName = `\\.\pipe\winiotestpipe`
@@ -22,7 +24,7 @@ var aLongTimeAgo = time.Unix(1, 0)
 
 func TestDialUnknownFailsImmediately(t *testing.T) {
 	_, err := DialPipe(testPipeName, nil)
-	if err.(*os.PathError).Err != syscall.ENOENT {
+	if err.(*os.PathError).Err != windows.ERROR_FILE_NOT_FOUND {
 		t.Fatalf("expected ENOENT got %v", err)
 	}
 }
@@ -84,7 +86,7 @@ func TestDialAccessDeniedWithRestrictedSD(t *testing.T) {
 	}
 	defer l.Close()
 	_, err = DialPipe(testPipeName, nil)
-	if err.(*os.PathError).Err != syscall.ERROR_ACCESS_DENIED {
+	if err.(*os.PathError).Err != windows.ERROR_ACCESS_DENIED {
 		t.Fatalf("expected ERROR_ACCESS_DENIED, got %v", err)
 	}
 }

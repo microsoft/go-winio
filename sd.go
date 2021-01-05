@@ -5,6 +5,8 @@ package winio
 import (
 	"syscall"
 	"unsafe"
+
+	"golang.org/x/sys/windows"
 )
 
 //sys lookupAccountName(systemName *uint16, accountName string, sid *byte, sidSize *uint32, refDomain *uint16, refDomainSize *uint32, sidNameUse *uint32) (err error) = advapi32.LookupAccountNameW
@@ -15,7 +17,7 @@ import (
 //sys getSecurityDescriptorLength(sd uintptr) (len uint32) = advapi32.GetSecurityDescriptorLength
 
 const (
-	cERROR_NONE_MAPPED = syscall.Errno(1332)
+	cERROR_NONE_MAPPED = windows.ERROR_NONE_MAPPED
 )
 
 type AccountLookupError struct {
@@ -54,7 +56,7 @@ func LookupSidByName(name string) (sid string, err error) {
 
 	var sidSize, sidNameUse, refDomainSize uint32
 	err = lookupAccountName(nil, name, nil, &sidSize, nil, &refDomainSize, &sidNameUse)
-	if err != nil && err != syscall.ERROR_INSUFFICIENT_BUFFER {
+	if err != nil && err != windows.ERROR_INSUFFICIENT_BUFFER {
 		return "", &AccountLookupError{name, err}
 	}
 	sidBuffer := make([]byte, sidSize)

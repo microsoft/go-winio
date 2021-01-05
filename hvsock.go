@@ -12,6 +12,7 @@ import (
 	"unsafe"
 
 	"github.com/Microsoft/go-winio/pkg/guid"
+	"golang.org/x/sys/windows"
 )
 
 //sys bind(s syscall.Handle, name unsafe.Pointer, namelen int32) (err error) [failretval==socketError] = ws2_32.bind
@@ -77,7 +78,7 @@ type HvsockConn struct {
 }
 
 func newHvSocket() (*win32File, error) {
-	fd, err := syscall.Socket(afHvSock, syscall.SOCK_STREAM, 1)
+	fd, err := syscall.Socket(afHvSock, windows.SOCK_STREAM, 1)
 	if err != nil {
 		return nil, os.NewSyscallError("socket", err)
 	}
@@ -253,7 +254,7 @@ func (conn *HvsockConn) Close() error {
 }
 
 func (conn *HvsockConn) shutdown(how int) error {
-	err := syscall.Shutdown(conn.sock.handle, syscall.SHUT_RD)
+	err := syscall.Shutdown(conn.sock.handle, windows.SHUT_RD)
 	if err != nil {
 		return os.NewSyscallError("shutdown", err)
 	}
@@ -262,7 +263,7 @@ func (conn *HvsockConn) shutdown(how int) error {
 
 // CloseRead shuts down the read end of the socket.
 func (conn *HvsockConn) CloseRead() error {
-	err := conn.shutdown(syscall.SHUT_RD)
+	err := conn.shutdown(windows.SHUT_RD)
 	if err != nil {
 		return conn.opErr("close", err)
 	}
@@ -272,7 +273,7 @@ func (conn *HvsockConn) CloseRead() error {
 // CloseWrite shuts down the write end of the socket, notifying the other endpoint that
 // no more data will be written.
 func (conn *HvsockConn) CloseWrite() error {
-	err := conn.shutdown(syscall.SHUT_WR)
+	err := conn.shutdown(windows.SHUT_WR)
 	if err != nil {
 		return conn.opErr("close", err)
 	}
