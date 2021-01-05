@@ -4,7 +4,6 @@ package vhd
 
 import (
 	"fmt"
-	"syscall"
 
 	"github.com/Microsoft/go-winio/pkg/guid"
 	"github.com/pkg/errors"
@@ -13,11 +12,11 @@ import (
 
 //go:generate go run mksyscall_windows.go -output zvhd_windows.go vhd.go
 
-//sys createVirtualDisk(virtualStorageType *VirtualStorageType, path string, virtualDiskAccessMask uint32, securityDescriptor *uintptr, createVirtualDiskFlags uint32, providerSpecificFlags uint32, parameters *CreateVirtualDiskParameters, overlapped *syscall.Overlapped, handle *syscall.Handle) (err error) [failretval != 0] = virtdisk.CreateVirtualDisk
-//sys openVirtualDisk(virtualStorageType *VirtualStorageType, path string, virtualDiskAccessMask uint32, openVirtualDiskFlags uint32, parameters *OpenVirtualDiskParameters, handle *syscall.Handle) (err error) [failretval != 0] = virtdisk.OpenVirtualDisk
-//sys attachVirtualDisk(handle syscall.Handle, securityDescriptor *uintptr, attachVirtualDiskFlag uint32, providerSpecificFlags uint32, parameters *AttachVirtualDiskParameters, overlapped *syscall.Overlapped) (err error) [failretval != 0] = virtdisk.AttachVirtualDisk
-//sys detachVirtualDisk(handle syscall.Handle, detachVirtualDiskFlags uint32, providerSpecificFlags uint32) (err error) [failretval != 0] = virtdisk.DetachVirtualDisk
-//sys getVirtualDiskPhysicalPath(handle syscall.Handle, diskPathSizeInBytes *uint32, buffer *uint16) (err error) [failretval != 0] = virtdisk.GetVirtualDiskPhysicalPath
+//sys createVirtualDisk(virtualStorageType *VirtualStorageType, path string, virtualDiskAccessMask uint32, securityDescriptor *uintptr, createVirtualDiskFlags uint32, providerSpecificFlags uint32, parameters *CreateVirtualDiskParameters, overlapped *windows.Overlapped, handle *windows.Handle) (err error) [failretval != 0] = virtdisk.CreateVirtualDisk
+//sys openVirtualDisk(virtualStorageType *VirtualStorageType, path string, virtualDiskAccessMask uint32, openVirtualDiskFlags uint32, parameters *OpenVirtualDiskParameters, handle *windows.Handle) (err error) [failretval != 0] = virtdisk.OpenVirtualDisk
+//sys attachVirtualDisk(handle windows.Handle, securityDescriptor *uintptr, attachVirtualDiskFlag uint32, providerSpecificFlags uint32, parameters *AttachVirtualDiskParameters, overlapped *windows.Overlapped) (err error) [failretval != 0] = virtdisk.AttachVirtualDisk
+//sys detachVirtualDisk(handle windows.Handle, detachVirtualDiskFlags uint32, providerSpecificFlags uint32) (err error) [failretval != 0] = virtdisk.DetachVirtualDisk
+//sys getVirtualDiskPhysicalPath(handle windows.Handle, diskPathSizeInBytes *uint32, buffer *uint16) (err error) [failretval != 0] = virtdisk.GetVirtualDiskPhysicalPath
 
 type (
 	CreateVirtualDiskFlag uint32
@@ -146,14 +145,14 @@ func CreateVhdx(path string, maxSizeInGb, blockSizeInMb uint32) error {
 		return err
 	}
 
-	if err := syscall.CloseHandle(handle); err != nil {
+	if err := windows.CloseHandle(handle); err != nil {
 		return err
 	}
 	return nil
 }
 
 // DetachVirtualDisk detaches a virtual hard disk by handle.
-func DetachVirtualDisk(handle syscall.Handle) (err error) {
+func DetachVirtualDisk(handle windows.Handle) (err error) {
 	if err := detachVirtualDisk(handle, 0, 0); err != nil {
 		return errors.Wrap(err, "failed to detach virtual disk")
 	}
@@ -170,12 +169,12 @@ func DetachVhd(path string) error {
 	if err != nil {
 		return err
 	}
-	defer syscall.CloseHandle(handle)
+	defer windows.CloseHandle(handle)
 	return DetachVirtualDisk(handle)
 }
 
 // AttachVirtualDisk attaches a virtual hard disk for use.
-func AttachVirtualDisk(handle syscall.Handle, attachVirtualDiskFlag AttachVirtualDiskFlag, parameters *AttachVirtualDiskParameters) (err error) {
+func AttachVirtualDisk(handle windows.Handle, attachVirtualDiskFlag AttachVirtualDiskFlag, parameters *AttachVirtualDiskParameters) (err error) {
 	// Supports both version 1 and 2 of the attach parameters as version 2 wasn't present in RS5.
 	if err := attachVirtualDisk(
 		handle,
@@ -202,7 +201,7 @@ func AttachVhd(path string) (err error) {
 		return err
 	}
 
-	defer syscall.CloseHandle(handle)
+	defer windows.CloseHandle(handle)
 	params := AttachVirtualDiskParameters{Version: 2}
 	if err := AttachVirtualDisk(
 		handle,
@@ -215,7 +214,7 @@ func AttachVhd(path string) (err error) {
 }
 
 // OpenVirtualDisk obtains a handle to a VHD opened with supplied access mask and flags.
-func OpenVirtualDisk(vhdPath string, virtualDiskAccessMask VirtualDiskAccessMask, openVirtualDiskFlags VirtualDiskFlag) (syscall.Handle, error) {
+func OpenVirtualDisk(vhdPath string, virtualDiskAccessMask VirtualDiskAccessMask, openVirtualDiskFlags VirtualDiskFlag) (windows.Handle, error) {
 	parameters := OpenVirtualDiskParameters{Version: 2}
 	handle, err := OpenVirtualDiskWithParameters(
 		vhdPath,
@@ -230,9 +229,9 @@ func OpenVirtualDisk(vhdPath string, virtualDiskAccessMask VirtualDiskAccessMask
 }
 
 // OpenVirtualDiskWithParameters obtains a handle to a VHD opened with supplied access mask, flags and parameters.
-func OpenVirtualDiskWithParameters(vhdPath string, virtualDiskAccessMask VirtualDiskAccessMask, openVirtualDiskFlags VirtualDiskFlag, parameters *OpenVirtualDiskParameters) (syscall.Handle, error) {
+func OpenVirtualDiskWithParameters(vhdPath string, virtualDiskAccessMask VirtualDiskAccessMask, openVirtualDiskFlags VirtualDiskFlag, parameters *OpenVirtualDiskParameters) (windows.Handle, error) {
 	var (
-		handle      syscall.Handle
+		handle      windows.Handle
 		defaultType VirtualStorageType
 	)
 	if parameters.Version != 2 {
@@ -252,9 +251,9 @@ func OpenVirtualDiskWithParameters(vhdPath string, virtualDiskAccessMask Virtual
 }
 
 // CreateVirtualDisk creates a virtual harddisk and returns a handle to the disk.
-func CreateVirtualDisk(path string, virtualDiskAccessMask VirtualDiskAccessMask, createVirtualDiskFlags CreateVirtualDiskFlag, parameters *CreateVirtualDiskParameters) (syscall.Handle, error) {
+func CreateVirtualDisk(path string, virtualDiskAccessMask VirtualDiskAccessMask, createVirtualDiskFlags CreateVirtualDiskFlag, parameters *CreateVirtualDiskParameters) (windows.Handle, error) {
 	var (
-		handle      syscall.Handle
+		handle      windows.Handle
 		defaultType VirtualStorageType
 	)
 	if parameters.Version != 2 {
@@ -280,7 +279,7 @@ func CreateVirtualDisk(path string, virtualDiskAccessMask VirtualDiskAccessMask,
 // GetVirtualDiskPhysicalPath takes a handle to a virtual hard disk and returns the physical
 // path of the disk on the machine. This path is in the form \\.\PhysicalDriveX where X is an integer
 // that represents the particular enumeration of the physical disk on the caller's system.
-func GetVirtualDiskPhysicalPath(handle syscall.Handle) (_ string, err error) {
+func GetVirtualDiskPhysicalPath(handle windows.Handle) (_ string, err error) {
 	var (
 		diskPathSizeInBytes uint32 = 256 * 2 // max path length 256 wide chars
 		diskPhysicalPathBuf [256]uint16
@@ -316,7 +315,7 @@ func CreateDiffVhd(diffVhdPath, baseVhdPath string, blockSizeInMB uint32) error 
 	if err != nil {
 		return fmt.Errorf("failed to create differencing vhd: %s", err)
 	}
-	if err := syscall.CloseHandle(vhdHandle); err != nil {
+	if err := windows.CloseHandle(vhdHandle); err != nil {
 		return fmt.Errorf("failed to close differencing vhd handle: %s", err)
 	}
 	return nil
