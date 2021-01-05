@@ -10,7 +10,6 @@ import (
 	"net"
 	"os"
 	"sync"
-	"syscall"
 	"testing"
 	"time"
 	"unsafe"
@@ -526,7 +525,7 @@ func TestMessageReadMode(t *testing.T) {
 	}
 	defer c.Close()
 
-	setNamedPipeHandleState := syscall.NewLazyDLL("kernel32.dll").NewProc("SetNamedPipeHandleState")
+	setNamedPipeHandleState := windows.NewLazyDLL("kernel32.dll").NewProc("SetNamedPipeHandleState")
 
 	p := c.(*win32MessageBytePipe)
 	mode := uint32(cPIPE_READMODE_MESSAGE)
