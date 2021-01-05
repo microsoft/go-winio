@@ -2,6 +2,8 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
+// Hard-coding unicode mode for VHD library.
+
 // +build ignore
 
 /*
@@ -72,7 +74,6 @@ var (
 	filename       = flag.String("output", "", "output file name (standard output if omitted)")
 	printTraceFlag = flag.Bool("trace", false, "generate print statement after every syscall")
 	systemDLL      = flag.Bool("systemdll", true, "whether all DLLs should be loaded from the Windows system directory")
-	winio          = flag.Bool("winio", false, "import go-winio")
 )
 
 func trim(s string) string {
@@ -321,12 +322,6 @@ func (r *Rets) SetErrorCode() string {
 	const code = `if r0 != 0 {
 		%s = %sErrno(r0)
 	}`
-	const hrCode = `if int32(r0) < 0 {
-		if r0&0x1fff0000 == 0x00070000 {
-			r0 &= 0xffff
-		}
-		%s = %sErrno(r0)
-	}`
 	if r.Name == "" && !r.ReturnsError {
 		return ""
 	}
@@ -334,11 +329,7 @@ func (r *Rets) SetErrorCode() string {
 		return r.useLongHandleErrorCode("r1")
 	}
 	if r.Type == "error" {
-		if r.Name == "hr" {
-			return fmt.Sprintf(hrCode, r.Name, syscalldot())
-		} else {
-			return fmt.Sprintf(code, r.Name, syscalldot())
-		}
+		return fmt.Sprintf(code, r.Name, syscalldot())
 	}
 	s := ""
 	switch {
@@ -639,18 +630,6 @@ func (f *Fn) HasStringParam() bool {
 	return false
 }
 
-var uniqDllFuncName = make(map[string]bool)
-
-// IsNotDuplicate is true if f is not a duplicated function
-func (f *Fn) IsNotDuplicate() bool {
-	funcName := f.DLLFuncName()
-	if uniqDllFuncName[funcName] == false {
-		uniqDllFuncName[funcName] = true
-		return true
-	}
-	return false
-}
-
 // HelperName returns name of function f helper.
 func (f *Fn) HelperName() string {
 	if !f.HasStringParam() {
@@ -817,9 +796,6 @@ func (src *Source) Generate(w io.Writer) error {
 			src.ExternalImport("golang.org/x/sys/windows")
 		}
 	}
-	if *winio {
-		src.ExternalImport("github.com/Microsoft/go-winio")
-	}
 	if packageName != "syscall" {
 		src.Import("syscall")
 	}
@@ -830,9 +806,6 @@ func (src *Source) Generate(w io.Writer) error {
 			arg := "\"" + dll + ".dll\""
 			if !*systemDLL {
 				return syscalldot() + "NewLazyDLL(" + arg + ")"
-			}
-			if strings.HasPrefix(dll, "api_") || strings.HasPrefix(dll, "ext_") {
-				arg = strings.Replace(arg, "_", "-", -1)
 			}
 			switch pkgtype {
 			case pkgStd:
@@ -944,7 +917,7 @@ var (
 {{define "dlls"}}{{range .DLLs}}	mod{{.}} = {{newlazydll .}}
 {{end}}{{end}}
 
-{{define "funcnames"}}{{range .Funcs}}{{if .IsNotDuplicate}}	proc{{.DLLFuncName}} = mod{{.DLLName}}.NewProc("{{.DLLFuncName}}"){{end}}
+{{define "funcnames"}}{{range .Funcs}}	proc{{.DLLFuncName}} = mod{{.DLLName}}.NewProc("{{.DLLFuncName}}")
 {{end}}{{end}}
 
 {{define "helperbody"}}

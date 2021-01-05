@@ -599,7 +599,7 @@ func (p *Fn) MaybeAbsent() string {
 
 // IsUTF16 is true, if f is W (utf16) function. It is false
 // for all A (ascii) functions.
-func (f *Fn) IsUTF16() bool {
+func (_ *Fn) IsUTF16() bool {
 	return true
 }
 
