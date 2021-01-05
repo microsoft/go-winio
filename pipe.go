@@ -13,6 +13,8 @@ import (
 	"syscall"
 	"time"
 	"unsafe"
+
+	"golang.org/x/sys/windows"
 )
 
 //sys connectNamedPipe(pipe syscall.Handle, o *syscall.Overlapped) (err error) = ConnectNamedPipe
@@ -65,10 +67,10 @@ func (status ntstatus) Err() error {
 }
 
 const (
-	cERROR_PIPE_BUSY      = syscall.Errno(231)
-	cERROR_NO_DATA        = syscall.Errno(232)
-	cERROR_PIPE_CONNECTED = syscall.Errno(535)
-	cERROR_SEM_TIMEOUT    = syscall.Errno(121)
+	cERROR_PIPE_BUSY      = windows.ERROR_PIPE_BUSY
+	cERROR_NO_DATA        = windows.ERROR_NO_DATA
+	cERROR_PIPE_CONNECTED = windows.ERROR_PIPE_CONNECTED
+	cERROR_SEM_TIMEOUT    = windows.ERROR_SEM_TIMEOUT
 
 	cSECURITY_SQOS_PRESENT = 0x100000
 	cSECURITY_ANONYMOUS    = 0
@@ -164,7 +166,7 @@ func (f *win32MessageBytePipe) Read(b []byte) (int, error) {
 		// zero-byte message, ensure that all future Read() calls
 		// also return EOF.
 		f.readEOF = true
-	} else if err == syscall.ERROR_MORE_DATA {
+	} else if err == windows.ERROR_MORE_DATA {
 		// ERROR_MORE_DATA indicates that the pipe's read mode is message mode
 		// and the message still has more bytes. Treat this as a success, since
 		// this package presents all named pipes as byte streams.
@@ -189,7 +191,7 @@ func tryDialPipe(ctx context.Context, path *string, access uint32) (syscall.Hand
 		case <-ctx.Done():
 			return syscall.Handle(0), ctx.Err()
 		default:
-			h, err := createFile(*path, access, 0, nil, syscall.OPEN_EXISTING, syscall.FILE_FLAG_OVERLAPPED|cSECURITY_SQOS_PRESENT|cSECURITY_ANONYMOUS, 0)
+			h, err := createFile(*path, access, 0, nil, windows.OPEN_EXISTING, windows.FILE_FLAG_OVERLAPPED|cSECURITY_SQOS_PRESENT|cSECURITY_ANONYMOUS, 0)
 			if err == nil {
 				return h, nil
 			}
@@ -224,7 +226,7 @@ func DialPipe(path string, timeout *time.Duration) (net.Conn, error) {
 // DialPipeContext attempts to connect to a named pipe by `path` until `ctx`
 // cancellation or timeout.
 func DialPipeContext(ctx context.Context, path string) (net.Conn, error) {
-	return DialPipeAccess(ctx, path, syscall.GENERIC_READ|syscall.GENERIC_WRITE)
+	return DialPipeAccess(ctx, path, windows.GENERIC_READ|windows.GENERIC_WRITE)
 }
 
 // DialPipeAccess attempts to connect to a named pipe by `path` with `access` until `ctx`
@@ -320,13 +322,13 @@ func makeServerPipeHandle(path string, sd []byte, c *PipeConfig, first bool) (sy
 	}
 
 	disposition := uint32(cFILE_OPEN)
-	access := uint32(syscall.GENERIC_READ | syscall.GENERIC_WRITE | syscall.SYNCHRONIZE)
+	access := uint32(windows.GENERIC_READ | windows.GENERIC_WRITE | windows.SYNCHRONIZE)
 	if first {
 		disposition = cFILE_CREATE
 		// By not asking for read or write access, the named pipe file system
 		// will put this pipe into an initially disconnected state, blocking
 		// client connections until the next call with first == false.
-		access = syscall.SYNCHRONIZE
+		access = windows.SYNCHRONIZE
 	}
 
 	timeout := int64(-50 * 10000) // 50ms
@@ -335,7 +337,7 @@ func makeServerPipeHandle(path string, sd []byte, c *PipeConfig, first bool) (sy
 		h    syscall.Handle
 		iosb ioStatusBlock
 	)
-	err = ntCreateNamedPipeFile(&h, access, &oa, &iosb, syscall.FILE_SHARE_READ|syscall.FILE_SHARE_WRITE, disposition, 0, typ, 0, 0, 0xffffffff, uint32(c.InputBufferSize), uint32(c.OutputBufferSize), &timeout).Err()
+	err = ntCreateNamedPipeFile(&h, access, &oa, &iosb, windows.FILE_SHARE_READ|windows.FILE_SHARE_WRITE, disposition, 0, typ, 0, 0, 0xffffffff, uint32(c.InputBufferSize), uint32(c.OutputBufferSize), &timeout).Err()
 	if err != nil {
 		return 0, &os.PathError{Op: "open", Path: path, Err: err}
 	}

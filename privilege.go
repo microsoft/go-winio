@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"runtime"
 	"sync"
-	"syscall"
 	"unicode/utf16"
 
 	"golang.org/x/sys/windows"
@@ -24,9 +23,9 @@ import (
 //sys lookupPrivilegeDisplayName(systemName string, name *uint16, buffer *uint16, size *uint32, languageId *uint32) (err error) = advapi32.LookupPrivilegeDisplayNameW
 
 const (
-	SE_PRIVILEGE_ENABLED = 2
+	SE_PRIVILEGE_ENABLED = windows.SE_PRIVILEGE_ENABLED
 
-	ERROR_NOT_ALL_ASSIGNED syscall.Errno = 1300
+	ERROR_NOT_ALL_ASSIGNED = windows.ERROR_NOT_ALL_ASSIGNED
 
 	SeBackupPrivilege   = "SeBackupPrivilege"
 	SeRestorePrivilege  = "SeRestorePrivilege"
@@ -183,7 +182,7 @@ func newThreadToken() (windows.Token, error) {
 	}
 
 	var token windows.Token
-	err = openThreadToken(getCurrentThread(), syscall.TOKEN_ADJUST_PRIVILEGES|syscall.TOKEN_QUERY, false, &token)
+	err = openThreadToken(getCurrentThread(), windows.TOKEN_ADJUST_PRIVILEGES|windows.TOKEN_QUERY, false, &token)
 	if err != nil {
 		rerr := revertToSelf()
 		if rerr != nil {

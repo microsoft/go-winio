@@ -7,11 +7,13 @@ import (
 	"strings"
 	"unicode/utf16"
 	"unsafe"
+
+	"golang.org/x/sys/windows"
 )
 
 const (
-	reparseTagMountPoint = 0xA0000003
-	reparseTagSymlink    = 0xA000000C
+	reparseTagMountPoint = windows.IO_REPARSE_TAG_MOUNT_POINT
+	reparseTagSymlink    = windows.IO_REPARSE_TAG_SYMLINK
 )
 
 type reparseDataBuffer struct {

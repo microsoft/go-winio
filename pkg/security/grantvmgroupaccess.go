@@ -8,6 +8,7 @@ import (
 	"unsafe"
 
 	"github.com/pkg/errors"
+	"golang.org/x/sys/windows"
 )
 
 type (
@@ -114,11 +115,11 @@ func createFile(name string, isDir bool) (syscall.Handle, error) {
 	namep := syscall.StringToUTF16(name)
 	da := uint32(desiredAccessReadControl | desiredAccessWriteDac)
 	sm := uint32(shareModeRead | shareModeWrite)
-	fa := uint32(syscall.FILE_ATTRIBUTE_NORMAL)
+	fa := uint32(windows.FILE_ATTRIBUTE_NORMAL)
 	if isDir {
-		fa = uint32(fa | syscall.FILE_FLAG_BACKUP_SEMANTICS)
+		fa = uint32(fa | windows.FILE_FLAG_BACKUP_SEMANTICS)
 	}
-	fd, err := syscall.CreateFile(&namep[0], da, sm, nil, syscall.OPEN_EXISTING, fa, 0)
+	fd, err := syscall.CreateFile(&namep[0], da, sm, nil, windows.OPEN_EXISTING, fa, 0)
 	if err != nil {
 		return 0, errors.Wrapf(err, "%s syscall.CreateFile %s", gvmga, name)
 	}

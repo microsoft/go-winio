@@ -10,6 +10,8 @@ import (
 	"sync/atomic"
 	"syscall"
 	"time"
+
+	"golang.org/x/sys/windows"
 )
 
 //sys cancelIoEx(file syscall.Handle, o *syscall.Overlapped) (err error) = CancelIoEx
@@ -32,8 +34,8 @@ func (b *atomicBool) swap(new bool) bool {
 }
 
 const (
-	cFILE_SKIP_COMPLETION_PORT_ON_SUCCESS = 1
-	cFILE_SKIP_SET_EVENT_ON_HANDLE        = 2
+	cFILE_SKIP_COMPLETION_PORT_ON_SUCCESS = windows.FILE_SKIP_COMPLETION_PORT_ON_SUCCESS
+	cFILE_SKIP_SET_EVENT_ON_HANDLE        = windows.FILE_SKIP_SET_EVENT_ON_HANDLE
 )
 
 var (
@@ -164,7 +166,7 @@ func ioCompletionProcessor(h syscall.Handle) {
 		var bytes uint32
 		var key uintptr
 		var op *ioOperation
-		err := getQueuedCompletionStatus(h, &bytes, &key, &op, syscall.INFINITE)
+		err := getQueuedCompletionStatus(h, &bytes, &key, &op, windows.INFINITE)
 		if op == nil {
 			panic(err)
 		}
@@ -175,7 +177,7 @@ func ioCompletionProcessor(h syscall.Handle) {
 // asyncIo processes the return value from ReadFile or WriteFile, blocking until
 // the operation has actually completed.
 func (f *win32File) asyncIo(c *ioOperation, d *deadlineHandler, bytes uint32, err error) (int, error) {
-	if err != syscall.ERROR_IO_PENDING {
+	if err != windows.ERROR_IO_PENDING {
 		return int(bytes), err
 	}
 
@@ -194,7 +196,7 @@ func (f *win32File) asyncIo(c *ioOperation, d *deadlineHandler, bytes uint32, er
 	select {
 	case r = <-c.ch:
 		err = r.err
-		if err == syscall.ERROR_OPERATION_ABORTED {
+		if err == windows.ERROR_OPERATION_ABORTED {
 			if f.closing.isSet() {
 				err = ErrFileClosed
 			}
@@ -207,7 +209,7 @@ func (f *win32File) asyncIo(c *ioOperation, d *deadlineHandler, bytes uint32, er
 		cancelIoEx(f.handle, &c.o)
 		r = <-c.ch
 		err = r.err
-		if err == syscall.ERROR_OPERATION_ABORTED {
+		if err == windows.ERROR_OPERATION_ABORTED {
 			err = ErrTimeout
 		}
 	}
@@ -239,7 +241,7 @@ func (f *win32File) Read(b []byte) (int, error) {
 	// Handle EOF conditions.
 	if err == nil && n == 0 && len(b) != 0 {
 		return 0, io.EOF
-	} else if err == syscall.ERROR_BROKEN_PIPE {
+	} else if err == windows.ERROR_BROKEN_PIPE {
 		return 0, io.EOF
 	} else {
 		return n, err
