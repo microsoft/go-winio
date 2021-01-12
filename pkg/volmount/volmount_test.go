@@ -9,6 +9,7 @@ import (
 	"syscall"
 	"testing"
 
+	"github.com/Microsoft/go-winio"
 	"github.com/Microsoft/go-winio/vhd"
 	"github.com/Microsoft/hcsshim/computestorage"
 	"github.com/pkg/errors"
@@ -49,6 +50,29 @@ func createNTFSVHD(ctx context.Context, vhdPath string, sizeGB uint32) (err erro
 	return nil
 }
 
+func readReparsePoint(t *testing.T, path string) []byte {
+	rpFile, err := winio.OpenForBackup(path, 0, 0, syscall.OPEN_EXISTING)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() {
+		closeErr := rpFile.Close()
+		if closeErr != nil {
+			// Assuming if we're already failing, failing more isn't wrong.
+			t.Fatal(closeErr)
+		}
+	}()
+
+	rdbbuf := make([]byte, syscall.MAXIMUM_REPARSE_DATA_BUFFER_SIZE)
+	var bytesReturned uint32
+	err = syscall.DeviceIoControl(syscall.Handle(rpFile.Fd()), syscall.FSCTL_GET_REPARSE_POINT, nil, 0, &rdbbuf[0], uint32(len(rdbbuf)), &bytesReturned, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	return rdbbuf
+}
+
 func mountAtAndCheck(t *testing.T, volumePath, mountPoint string) {
 	err := os.MkdirAll(mountPoint, 0)
 	if err != nil {
@@ -76,6 +100,22 @@ func mountAtAndCheck(t *testing.T, volumePath, mountPoint string) {
 
 	if mountPointVolumePath != volumePath {
 		t.Fatalf("Mount read-back incorrectly, expected %s; got %s", volumePath, mountPointVolumePath)
+	}
+
+	rpBuff := readReparsePoint(t, mountPoint)
+
+	rp, err := winio.DecodeReparsePoint(rpBuff)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if !rp.IsMountPoint {
+		t.Fatal("Mount point read as reparse point did not decode as mount point")
+	}
+
+	// volumePath starts with \\?\ but the reparse point data starts with \??\
+	if rp.Target[0:4] != "\\??\\" || rp.Target[4:] != volumePath[4:] {
+		t.Fatalf("Mount read as reparse point incorrectly, expected \\??\\%s; got %s", volumePath[4:], rp.Target)
 	}
 }
 
