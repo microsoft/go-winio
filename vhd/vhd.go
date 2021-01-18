@@ -176,9 +176,7 @@ func DetachVhd(path string) error {
 
 // AttachVirtualDisk attaches a virtual hard disk for use.
 func AttachVirtualDisk(handle syscall.Handle, attachVirtualDiskFlag AttachVirtualDiskFlag, parameters *AttachVirtualDiskParameters) (err error) {
-	if parameters.Version != 2 {
-		return fmt.Errorf("only version 2 VHDs are supported, found version: %d", parameters.Version)
-	}
+	// Supports both version 1 and 2 of the attach parameters as version 2 wasn't present in RS5.
 	if err := attachVirtualDisk(
 		handle,
 		nil,
@@ -192,7 +190,8 @@ func AttachVirtualDisk(handle syscall.Handle, attachVirtualDiskFlag AttachVirtua
 	return nil
 }
 
-// AttachVhd attaches a virtual hard disk at `path` for use.
+// AttachVhd attaches a virtual hard disk at `path` for use. Attaches using version 2
+// of the ATTACH_VIRTUAL_DISK_PARAMETERS.
 func AttachVhd(path string) (err error) {
 	handle, err := OpenVirtualDisk(
 		path,
