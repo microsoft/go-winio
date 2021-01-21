@@ -1,4 +1,4 @@
-// +build 386 arm
+// +build windows 386 arm
 
 package etw
 
