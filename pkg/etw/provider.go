@@ -120,7 +120,7 @@ func providerIDFromName(name string) guid.GUID {
 // NewProvider creates and registers a new ETW provider. The provider ID is
 // generated based on the provider name.
 func NewProvider(name string, callback EnableCallback) (provider *Provider, err error) {
-	return NewProviderWithID(name, providerIDFromName(name), callback)
+	return NewProviderWithOptions(name, WithCallback(callback))
 }
 
 // Close unregisters the provider.
