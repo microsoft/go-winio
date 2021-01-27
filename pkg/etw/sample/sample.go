@@ -34,7 +34,7 @@ func main() {
 		}
 	}()
 
-	providerWithGroup, err := etw.NewProviderWithGroup("TestProviderWithGroup", group, callback)
+	providerWithGroup, err := etw.NewProviderWithOptions("TestProviderWithGroup", etw.WithGroup(group), etw.WithCallback(callback))
 
 	if err != nil {
 		logrus.Error(err)

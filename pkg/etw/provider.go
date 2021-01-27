@@ -123,12 +123,6 @@ func NewProvider(name string, callback EnableCallback) (provider *Provider, err 
 	return NewProviderWithOptions(name, WithCallback(callback))
 }
 
-// NewProviderWithGroup creates and registers a new ETW provider with a
-// specificed group. The provider ID is generated based on the provider name.
-func NewProviderWithGroup(name string, group guid.GUID, callback EnableCallback) (provider *Provider, err error) {
-	return NewProviderWithOptions(name, WithGroup(group), WithCallback(callback))
-}
-
 // Close unregisters the provider.
 func (provider *Provider) Close() error {
 	if provider == nil {
