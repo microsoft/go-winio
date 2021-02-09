@@ -3,11 +3,12 @@ package security
 import (
 	"io/ioutil"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"regexp"
 	"strings"
 	"testing"
+
+	exec "golang.org/x/sys/execabs"
 )
 
 // TestGrantVmGroupAccess verifies for the three case of a file, a directory,
