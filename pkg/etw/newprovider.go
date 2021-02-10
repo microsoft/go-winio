@@ -1,4 +1,5 @@
-// +build windows amd64 arm64 386
+// +build windows
+// +build amd64 arm64 386
 
 package etw
 

@@ -1,4 +1,5 @@
-// +build windows arm
+// +build windows
+// +build arm
 
 package etw
 
