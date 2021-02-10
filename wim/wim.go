@@ -1,3 +1,5 @@
+// +build windows
+
 // Package wim implements a WIM file parser.
 //
 // WIM files are used to distribute Windows file system and container images.
