@@ -19,6 +19,7 @@ const (
 
 var (
 	errERROR_IO_PENDING error = syscall.Errno(errnoERROR_IO_PENDING)
+	errERROR_EINVAL     error = syscall.EINVAL
 )
 
 // errnoErr returns common boxed Errno values, to prevent
@@ -26,7 +27,7 @@ var (
 func errnoErr(e syscall.Errno) error {
 	switch e {
 	case 0:
-		return nil
+		return errERROR_EINVAL
 	case errnoERROR_IO_PENDING:
 		return errERROR_IO_PENDING
 	}
@@ -47,11 +48,7 @@ var (
 func enumProcesses(pids *uint32, bufferSize uint32, retBufferSize *uint32) (err error) {
 	r1, _, e1 := syscall.Syscall(procK32EnumProcesses.Addr(), 3, uintptr(unsafe.Pointer(pids)), uintptr(bufferSize), uintptr(unsafe.Pointer(retBufferSize)))
 	if r1 == 0 {
-		if e1 != 0 {
-			err = errnoErr(e1)
-		} else {
-			err = syscall.EINVAL
-		}
+		err = errnoErr(e1)
 	}
 	return
 }
@@ -59,11 +56,7 @@ func enumProcesses(pids *uint32, bufferSize uint32, retBufferSize *uint32) (err 
 func getProcessMemoryInfo(process handle, memCounters *ProcessMemoryCountersEx, size uint32) (err error) {
 	r1, _, e1 := syscall.Syscall(procK32GetProcessMemoryInfo.Addr(), 3, uintptr(process), uintptr(unsafe.Pointer(memCounters)), uintptr(size))
 	if r1 == 0 {
-		if e1 != 0 {
-			err = errnoErr(e1)
-		} else {
-			err = syscall.EINVAL
-		}
+		err = errnoErr(e1)
 	}
 	return
 }
@@ -71,11 +64,7 @@ func getProcessMemoryInfo(process handle, memCounters *ProcessMemoryCountersEx, 
 func queryFullProcessImageName(process handle, flags uint32, buffer *uint16, bufferSize *uint32) (err error) {
 	r1, _, e1 := syscall.Syscall6(procQueryFullProcessImageNameW.Addr(), 4, uintptr(process), uintptr(flags), uintptr(unsafe.Pointer(buffer)), uintptr(unsafe.Pointer(bufferSize)), 0, 0)
 	if r1 == 0 {
-		if e1 != 0 {
-			err = errnoErr(e1)
-		} else {
-			err = syscall.EINVAL
-		}
+		err = errnoErr(e1)
 	}
 	return
 }
