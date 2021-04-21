@@ -5,14 +5,21 @@ package winio
 import (
 	"os"
 	"runtime"
+	"syscall"
 	"unsafe"
+)
 
-	"golang.org/x/sys/windows"
+//sys getFileInformationByHandleEx(h syscall.Handle, class uint32, buffer *byte, size uint32) (err error) = GetFileInformationByHandleEx
+//sys setFileInformationByHandle(h syscall.Handle, class uint32, buffer *byte, size uint32) (err error) = SetFileInformationByHandle
+
+const (
+	fileBasicInfo = 0
+	fileIDInfo    = 0x12
 )
 
 // FileBasicInfo contains file access time and file attributes information.
 type FileBasicInfo struct {
-	CreationTime, LastAccessTime, LastWriteTime, ChangeTime windows.Filetime
+	CreationTime, LastAccessTime, LastWriteTime, ChangeTime syscall.Filetime
 	FileAttributes                                          uint32
 	pad                                                     uint32 // padding
 }
@@ -20,7 +27,7 @@ type FileBasicInfo struct {
 // GetFileBasicInfo retrieves times and attributes for a file.
 func GetFileBasicInfo(f *os.File) (*FileBasicInfo, error) {
 	bi := &FileBasicInfo{}
-	if err := windows.GetFileInformationByHandleEx(windows.Handle(f.Fd()), windows.FileBasicInfo, (*byte)(unsafe.Pointer(bi)), uint32(unsafe.Sizeof(*bi))); err != nil {
+	if err := getFileInformationByHandleEx(syscall.Handle(f.Fd()), fileBasicInfo, (*byte)(unsafe.Pointer(bi)), uint32(unsafe.Sizeof(*bi))); err != nil {
 		return nil, &os.PathError{Op: "GetFileInformationByHandleEx", Path: f.Name(), Err: err}
 	}
 	runtime.KeepAlive(f)
@@ -29,7 +36,7 @@ func GetFileBasicInfo(f *os.File) (*FileBasicInfo, error) {
 
 // SetFileBasicInfo sets times and attributes for a file.
 func SetFileBasicInfo(f *os.File, bi *FileBasicInfo) error {
-	if err := windows.SetFileInformationByHandle(windows.Handle(f.Fd()), windows.FileBasicInfo, (*byte)(unsafe.Pointer(bi)), uint32(unsafe.Sizeof(*bi))); err != nil {
+	if err := setFileInformationByHandle(syscall.Handle(f.Fd()), fileBasicInfo, (*byte)(unsafe.Pointer(bi)), uint32(unsafe.Sizeof(*bi))); err != nil {
 		return &os.PathError{Op: "SetFileInformationByHandle", Path: f.Name(), Err: err}
 	}
 	runtime.KeepAlive(f)
@@ -65,7 +72,7 @@ type FileIDInfo struct {
 // GetFileID retrieves the unique (volume, file ID) pair for a file.
 func GetFileID(f *os.File) (*FileIDInfo, error) {
 	fileID := &FileIDInfo{}
-	if err := windows.GetFileInformationByHandleEx(windows.Handle(f.Fd()), windows.FileIdInfo, (*byte)(unsafe.Pointer(fileID)), uint32(unsafe.Sizeof(*fileID))); err != nil {
+	if err := getFileInformationByHandleEx(syscall.Handle(f.Fd()), fileIDInfo, (*byte)(unsafe.Pointer(fileID)), uint32(unsafe.Sizeof(*fileID))); err != nil {
 		return nil, &os.PathError{Op: "GetFileInformationByHandleEx", Path: f.Name(), Err: err}
 	}
 	runtime.KeepAlive(f)
