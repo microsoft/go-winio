@@ -13,6 +13,11 @@ import (
 	exec "golang.org/x/sys/execabs"
 )
 
+const (
+	vmAccountName = `NT VIRTUAL MACHINE\\Virtual Machines`
+	vmAccountSID  = "S-1-5-83-0"
+)
+
 // TestGrantVmGroupAccess verifies for the three case of a file, a directory,
 // and a file in a directory that the appropriate ACEs are set, including
 // inheritance in the second two examples. These are the expected ACES. Is
@@ -59,9 +64,9 @@ func TestGrantVmGroupAccess(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	verifyicacls(t,
+	verifyVMAccountDACLs(t,
 		f.Name(),
-		[]string{`NT VIRTUAL MACHINE\\Virtual Machines:(R)`},
+		[]string{`(R)`},
 	)
 
 	// Two items here:
@@ -74,19 +79,19 @@ func TestGrantVmGroupAccess(t *testing.T) {
 	//
 	// In properties for the directory, advanced security settings, this will
 	// show as a single line "Allow/Virtual Machines/Read/Inherited from none/This folder, subfolder and files
-	verifyicacls(t,
+	verifyVMAccountDACLs(t,
 		d,
-		[]string{`NT VIRTUAL MACHINE\\Virtual Machines:(R)`, `NT VIRTUAL MACHINE\\Virtual Machines:(OI)(CI)(IO)(GR)`},
+		[]string{`(R)`, `(OI)(CI)(IO)(GR)`},
 	)
 
-	verifyicacls(t,
+	verifyVMAccountDACLs(t,
 		find.Name(),
-		[]string{`NT VIRTUAL MACHINE\\Virtual Machines:(I)(R)`},
+		[]string{`(I)(R)`},
 	)
 
 }
 
-func verifyicacls(t *testing.T, name string, aces []string) {
+func verifyVMAccountDACLs(t *testing.T, name string, permissions []string) {
 	cmd := exec.Command("icacls", name)
 	outb, err := cmd.CombinedOutput()
 	if err != nil {
@@ -94,15 +99,22 @@ func verifyicacls(t *testing.T, name string, aces []string) {
 	}
 	out := string(outb)
 
-	for _, ace := range aces {
+	for _, p := range permissions {
 		// Avoid '(' and ')' being part of match groups
-		ace = strings.Replace(ace, "(", "\\(", -1)
-		ace = strings.Replace(ace, ")", "\\)", -1)
+		p = strings.Replace(p, "(", "\\(", -1)
+		p = strings.Replace(p, ")", "\\)", -1)
 
-		rx := regexp.MustCompile(ace)
-		matches := rx.FindAllStringIndex(out, -1)
-		if len(matches) != 1 {
-			t.Fatalf("expected one match for %s got %d\n%s", ace, len(matches), out)
+		nameToCheck := vmAccountName + ":" + p
+		sidToCheck := vmAccountSID + ":" + p
+
+		rxName := regexp.MustCompile(nameToCheck)
+		rxSID := regexp.MustCompile(sidToCheck)
+
+		matchesName := rxName.FindAllStringIndex(out, -1)
+		matchesSID := rxSID.FindAllStringIndex(out, -1)
+
+		if len(matchesName) != 1 && len(matchesSID) != 1 {
+			t.Fatalf("expected one match for %s or %s\n%s", nameToCheck, sidToCheck, out)
 		}
 	}
 }
