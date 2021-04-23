@@ -3,19 +3,19 @@
 package winio
 
 import (
-	"syscall"
 	"unsafe"
+
+	"golang.org/x/sys/windows"
 )
 
 //sys lookupAccountName(systemName *uint16, accountName string, sid *byte, sidSize *uint32, refDomain *uint16, refDomainSize *uint32, sidNameUse *uint32) (err error) = advapi32.LookupAccountNameW
 //sys convertSidToStringSid(sid *byte, str **uint16) (err error) = advapi32.ConvertSidToStringSidW
 //sys convertStringSecurityDescriptorToSecurityDescriptor(str string, revision uint32, sd *uintptr, size *uint32) (err error) = advapi32.ConvertStringSecurityDescriptorToSecurityDescriptorW
 //sys convertSecurityDescriptorToStringSecurityDescriptor(sd *byte, revision uint32, secInfo uint32, sddl **uint16, sddlSize *uint32) (err error) = advapi32.ConvertSecurityDescriptorToStringSecurityDescriptorW
-//sys localFree(mem uintptr) = LocalFree
 //sys getSecurityDescriptorLength(sd uintptr) (len uint32) = advapi32.GetSecurityDescriptorLength
 
 const (
-	cERROR_NONE_MAPPED = syscall.Errno(1332)
+	cERROR_NONE_MAPPED = windows.ERROR_NONE_MAPPED
 )
 
 type AccountLookupError struct {
@@ -54,7 +54,7 @@ func LookupSidByName(name string) (sid string, err error) {
 
 	var sidSize, sidNameUse, refDomainSize uint32
 	err = lookupAccountName(nil, name, nil, &sidSize, nil, &refDomainSize, &sidNameUse)
-	if err != nil && err != syscall.ERROR_INSUFFICIENT_BUFFER {
+	if err != nil && err != windows.ERROR_INSUFFICIENT_BUFFER {
 		return "", &AccountLookupError{name, err}
 	}
 	sidBuffer := make([]byte, sidSize)
@@ -68,8 +68,8 @@ func LookupSidByName(name string) (sid string, err error) {
 	if err != nil {
 		return "", &AccountLookupError{name, err}
 	}
-	sid = syscall.UTF16ToString((*[0xffff]uint16)(unsafe.Pointer(strBuffer))[:])
-	localFree(uintptr(unsafe.Pointer(strBuffer)))
+	sid = windows.UTF16ToString((*[0xffff]uint16)(unsafe.Pointer(strBuffer))[:])
+	windows.LocalFree((windows.Handle)(unsafe.Pointer(strBuffer)))
 	return sid, nil
 }
 
@@ -79,7 +79,7 @@ func SddlToSecurityDescriptor(sddl string) ([]byte, error) {
 	if err != nil {
 		return nil, &SddlConversionError{sddl, err}
 	}
-	defer localFree(sdBuffer)
+	defer windows.LocalFree((windows.Handle)(unsafe.Pointer(sdBuffer)))
 	sd := make([]byte, getSecurityDescriptorLength(sdBuffer))
 	copy(sd, (*[0xffff]byte)(unsafe.Pointer(sdBuffer))[:len(sd)])
 	return sd, nil
@@ -93,6 +93,6 @@ func SecurityDescriptorToSddl(sd []byte) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	defer localFree(uintptr(unsafe.Pointer(sddl)))
-	return syscall.UTF16ToString((*[0xffff]uint16)(unsafe.Pointer(sddl))[:]), nil
+	defer windows.LocalFree((windows.Handle)(unsafe.Pointer(sddl)))
+	return windows.UTF16ToString((*[0xffff]uint16)(unsafe.Pointer(sddl))[:]), nil
 }

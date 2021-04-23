@@ -8,25 +8,21 @@ import (
 	"fmt"
 	"runtime"
 	"sync"
-	"syscall"
 	"unicode/utf16"
 
 	"golang.org/x/sys/windows"
 )
 
 //sys adjustTokenPrivileges(token windows.Token, releaseAll bool, input *byte, outputSize uint32, output *byte, requiredSize *uint32) (success bool, err error) [true] = advapi32.AdjustTokenPrivileges
-//sys impersonateSelf(level uint32) (err error) = advapi32.ImpersonateSelf
-//sys revertToSelf() (err error) = advapi32.RevertToSelf
-//sys openThreadToken(thread syscall.Handle, accessMask uint32, openAsSelf bool, token *windows.Token) (err error) = advapi32.OpenThreadToken
-//sys getCurrentThread() (h syscall.Handle) = GetCurrentThread
+//sys getCurrentThread() (h windows.Handle) = GetCurrentThread
 //sys lookupPrivilegeValue(systemName string, name string, luid *uint64) (err error) = advapi32.LookupPrivilegeValueW
 //sys lookupPrivilegeName(systemName string, luid *uint64, buffer *uint16, size *uint32) (err error) = advapi32.LookupPrivilegeNameW
 //sys lookupPrivilegeDisplayName(systemName string, name *uint16, buffer *uint16, size *uint32, languageId *uint32) (err error) = advapi32.LookupPrivilegeDisplayNameW
 
 const (
-	SE_PRIVILEGE_ENABLED = 2
+	SE_PRIVILEGE_ENABLED = windows.SE_PRIVILEGE_ENABLED
 
-	ERROR_NOT_ALL_ASSIGNED syscall.Errno = 1300
+	ERROR_NOT_ALL_ASSIGNED = windows.ERROR_NOT_ALL_ASSIGNED
 
 	SeBackupPrivilege   = "SeBackupPrivilege"
 	SeRestorePrivilege  = "SeRestorePrivilege"
@@ -177,15 +173,15 @@ func getPrivilegeName(luid uint64) string {
 }
 
 func newThreadToken() (windows.Token, error) {
-	err := impersonateSelf(securityImpersonation)
+	err := windows.ImpersonateSelf(securityImpersonation)
 	if err != nil {
 		return 0, err
 	}
 
 	var token windows.Token
-	err = openThreadToken(getCurrentThread(), syscall.TOKEN_ADJUST_PRIVILEGES|syscall.TOKEN_QUERY, false, &token)
+	err = windows.OpenThreadToken(getCurrentThread(), windows.TOKEN_ADJUST_PRIVILEGES|windows.TOKEN_QUERY, false, &token)
 	if err != nil {
-		rerr := revertToSelf()
+		rerr := windows.RevertToSelf()
 		if rerr != nil {
 			panic(rerr)
 		}
@@ -195,7 +191,7 @@ func newThreadToken() (windows.Token, error) {
 }
 
 func releaseThreadToken(h windows.Token) {
-	err := revertToSelf()
+	err := windows.RevertToSelf()
 	if err != nil {
 		panic(err)
 	}

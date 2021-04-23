@@ -45,7 +45,7 @@ var (
 	procSetSecurityInfo  = modadvapi32.NewProc("SetSecurityInfo")
 )
 
-func getSecurityInfo(handle syscall.Handle, objectType uint32, si uint32, ppsidOwner **uintptr, ppsidGroup **uintptr, ppDacl *uintptr, ppSacl *uintptr, ppSecurityDescriptor *uintptr) (err error) {
+func getSecurityInfo(handle windows.Handle, objectType uint32, si uint32, ppsidOwner **uintptr, ppsidGroup **uintptr, ppDacl *uintptr, ppSacl *uintptr, ppSecurityDescriptor *uintptr) (err error) {
 	r1, _, e1 := syscall.Syscall9(procGetSecurityInfo.Addr(), 8, uintptr(handle), uintptr(objectType), uintptr(si), uintptr(unsafe.Pointer(ppsidOwner)), uintptr(unsafe.Pointer(ppsidGroup)), uintptr(unsafe.Pointer(ppDacl)), uintptr(unsafe.Pointer(ppSacl)), uintptr(unsafe.Pointer(ppSecurityDescriptor)), 0)
 	if r1 != 0 {
 		err = errnoErr(e1)
@@ -61,7 +61,7 @@ func setEntriesInAcl(count uintptr, pListOfEEs uintptr, oldAcl uintptr, newAcl *
 	return
 }
 
-func setSecurityInfo(handle syscall.Handle, objectType uint32, si uint32, psidOwner uintptr, psidGroup uintptr, pDacl uintptr, pSacl uintptr) (err error) {
+func setSecurityInfo(handle windows.Handle, objectType uint32, si uint32, psidOwner uintptr, psidGroup uintptr, pDacl uintptr, pSacl uintptr) (err error) {
 	r1, _, e1 := syscall.Syscall9(procSetSecurityInfo.Addr(), 7, uintptr(handle), uintptr(objectType), uintptr(si), uintptr(psidOwner), uintptr(psidGroup), uintptr(pDacl), uintptr(pSacl), 0, 0)
 	if r1 != 0 {
 		err = errnoErr(e1)

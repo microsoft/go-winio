@@ -4,10 +4,10 @@ package security
 
 import (
 	"os"
-	"syscall"
 	"unsafe"
 
 	"github.com/pkg/errors"
+	"golang.org/x/sys/windows"
 )
 
 type (
@@ -80,7 +80,7 @@ func GrantVmGroupAccess(name string) error {
 	if err != nil {
 		return err // Already wrapped
 	}
-	defer syscall.CloseHandle(fd)
+	defer windows.CloseHandle(fd)
 
 	// Get the current DACL and Security Descriptor. Must defer LocalFree on success.
 	ot := objectTypeFileObject
@@ -90,7 +90,7 @@ func GrantVmGroupAccess(name string) error {
 	if err := getSecurityInfo(fd, uint32(ot), uint32(si), nil, nil, &origDACL, nil, &sd); err != nil {
 		return errors.Wrapf(err, "%s GetSecurityInfo %s", gvmga, name)
 	}
-	defer syscall.LocalFree((syscall.Handle)(unsafe.Pointer(sd)))
+	defer windows.LocalFree((windows.Handle)(unsafe.Pointer(sd)))
 
 	// Generate a new DACL which is the current DACL with the required ACEs added.
 	// Must defer LocalFree on success.
@@ -98,7 +98,7 @@ func GrantVmGroupAccess(name string) error {
 	if err != nil {
 		return err // Already wrapped
 	}
-	defer syscall.LocalFree((syscall.Handle)(unsafe.Pointer(newDACL)))
+	defer windows.LocalFree((windows.Handle)(unsafe.Pointer(newDACL)))
 
 	// And finally use SetSecurityInfo to apply the updated DACL.
 	if err := setSecurityInfo(fd, uint32(ot), uint32(si), uintptr(0), uintptr(0), newDACL, uintptr(0)); err != nil {
@@ -110,17 +110,17 @@ func GrantVmGroupAccess(name string) error {
 
 // createFile is a helper function to call [Nt]CreateFile to get a handle to
 // the file or directory.
-func createFile(name string, isDir bool) (syscall.Handle, error) {
-	namep := syscall.StringToUTF16(name)
+func createFile(name string, isDir bool) (windows.Handle, error) {
+	namep := windows.StringToUTF16(name)
 	da := uint32(desiredAccessReadControl | desiredAccessWriteDac)
 	sm := uint32(shareModeRead | shareModeWrite)
-	fa := uint32(syscall.FILE_ATTRIBUTE_NORMAL)
+	fa := uint32(windows.FILE_ATTRIBUTE_NORMAL)
 	if isDir {
-		fa = uint32(fa | syscall.FILE_FLAG_BACKUP_SEMANTICS)
+		fa = uint32(fa | windows.FILE_FLAG_BACKUP_SEMANTICS)
 	}
-	fd, err := syscall.CreateFile(&namep[0], da, sm, nil, syscall.OPEN_EXISTING, fa, 0)
+	fd, err := windows.CreateFile(&namep[0], da, sm, nil, windows.OPEN_EXISTING, fa, 0)
 	if err != nil {
-		return 0, errors.Wrapf(err, "%s syscall.CreateFile %s", gvmga, name)
+		return 0, errors.Wrapf(err, "%s windows.CreateFile %s", gvmga, name)
 	}
 	return fd, nil
 }
@@ -129,9 +129,9 @@ func createFile(name string, isDir bool) (syscall.Handle, error) {
 // The caller is responsible for LocalFree of the returned DACL on success.
 func generateDACLWithAcesAdded(name string, isDir bool, origDACL uintptr) (uintptr, error) {
 	// Generate pointers to the SIDs based on the string SIDs
-	sid, err := syscall.StringToSid(sidVmGroup)
+	sid, err := windows.StringToSid(sidVmGroup)
 	if err != nil {
-		return 0, errors.Wrapf(err, "%s syscall.StringToSid %s %s", gvmga, name, sidVmGroup)
+		return 0, errors.Wrapf(err, "%s windows.StringToSid %s %s", gvmga, name, sidVmGroup)
 	}
 
 	inheritance := inheritModeNoInheritance

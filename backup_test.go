@@ -6,8 +6,9 @@ import (
 	"io"
 	"io/ioutil"
 	"os"
-	"syscall"
 	"testing"
+
+	"golang.org/x/sys/windows"
 )
 
 var testFileName string
@@ -205,7 +206,7 @@ func makeSparseFile() error {
 		FSCTL_SET_ZERO_DATA = 0x000980c8
 	)
 
-	err = syscall.DeviceIoControl(syscall.Handle(f.Fd()), FSCTL_SET_SPARSE, nil, 0, nil, 0, nil, nil)
+	err = windows.DeviceIoControl(windows.Handle(f.Fd()), FSCTL_SET_SPARSE, nil, 0, nil, 0, nil, nil)
 	if err != nil {
 		return err
 	}
