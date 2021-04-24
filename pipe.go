@@ -13,6 +13,8 @@ import (
 	"syscall"
 	"time"
 	"unsafe"
+
+	"golang.org/x/sys/windows"
 )
 
 //sys connectNamedPipe(pipe syscall.Handle, o *syscall.Overlapped) (err error) = ConnectNamedPipe
@@ -35,7 +37,7 @@ type objectAttributes struct {
 	RootDirectory      uintptr
 	ObjectName         *unicodeString
 	Attributes         uintptr
-	SecurityDescriptor *securityDescriptor
+	SecurityDescriptor *windows.SECURITY_DESCRIPTOR
 	SecurityQoS        uintptr
 }
 
@@ -43,16 +45,6 @@ type unicodeString struct {
 	Length        uint16
 	MaximumLength uint16
 	Buffer        uintptr
-}
-
-type securityDescriptor struct {
-	Revision byte
-	Sbz1     byte
-	Control  uint16
-	Owner    uintptr
-	Group    uintptr
-	Sacl     uintptr
-	Dacl     uintptr
 }
 
 type ntstatus int32
@@ -82,8 +74,6 @@ const (
 
 	cFILE_PIPE_MESSAGE_TYPE          = 1
 	cFILE_PIPE_REJECT_REMOTE_CLIENTS = 2
-
-	cSE_DACL_PRESENT = 4
 )
 
 var (
@@ -273,7 +263,7 @@ type win32PipeListener struct {
 	doneCh      chan int
 }
 
-func makeServerPipeHandle(path string, sd []byte, c *PipeConfig, first bool) (syscall.Handle, error) {
+func makeServerPipeHandle(path string, sd *windows.SECURITY_DESCRIPTOR, c *PipeConfig, first bool) (syscall.Handle, error) {
 	path16, err := syscall.UTF16FromString(path)
 	if err != nil {
 		return 0, &os.PathError{Op: "open", Path: path, Err: err}
@@ -286,29 +276,25 @@ func makeServerPipeHandle(path string, sd []byte, c *PipeConfig, first bool) (sy
 	if err := rtlDosPathNameToNtPathName(&path16[0], &ntPath, 0, 0).Err(); err != nil {
 		return 0, &os.PathError{Op: "open", Path: path, Err: err}
 	}
-	defer localFree(ntPath.Buffer)
+	defer windows.LocalFree(windows.Handle(ntPath.Buffer))
 	oa.ObjectName = &ntPath
 
 	// The security descriptor is only needed for the first pipe.
 	if first {
 		if sd != nil {
-			len := uint32(len(sd))
-			sdb := localAlloc(0, len)
-			defer localFree(sdb)
-			copy((*[0xffff]byte)(unsafe.Pointer(sdb))[:], sd)
-			oa.SecurityDescriptor = (*securityDescriptor)(unsafe.Pointer(sdb))
+			oa.SecurityDescriptor = sd
 		} else {
 			// Construct the default named pipe security descriptor.
-			var dacl uintptr
-			if err := rtlDefaultNpAcl(&dacl).Err(); err != nil {
+			dacl := &windows.ACL{}
+			if err := windows.RtlDefaultNpAcl(&dacl); err != nil {
 				return 0, fmt.Errorf("getting default named pipe ACL: %s", err)
 			}
-			defer localFree(dacl)
-
-			sdb := &securityDescriptor{
-				Revision: 1,
-				Control:  cSE_DACL_PRESENT,
-				Dacl:     dacl,
+			sdb, err := windows.NewSecurityDescriptor()
+			if err != nil {
+				return 0, err
+			}
+			if err := sdb.SetDACL(dacl, true, true); err != nil {
+				return 0, err
 			}
 			oa.SecurityDescriptor = sdb
 		}
@@ -440,14 +426,14 @@ type PipeConfig struct {
 // The pipe must not already exist.
 func ListenPipe(path string, c *PipeConfig) (net.Listener, error) {
 	var (
-		sd  []byte
+		sd  *windows.SECURITY_DESCRIPTOR
 		err error
 	)
 	if c == nil {
 		c = &PipeConfig{}
 	}
 	if c.SecurityDescriptor != "" {
-		sd, err = SddlToSecurityDescriptor(c.SecurityDescriptor)
+		sd, err = windows.SecurityDescriptorFromString(c.SecurityDescriptor)
 		if err != nil {
 			return nil, err
 		}
