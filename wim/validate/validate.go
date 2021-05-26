@@ -1,9 +1,6 @@
-// +build windows
-
 package main
 
 import (
-	"flag"
 	"fmt"
 	"os"
 
@@ -11,41 +8,42 @@ import (
 )
 
 func main() {
-	flag.Parse()
-	f, err := os.Open(flag.Arg(0))
-	if err != nil {
-		panic(err)
+	if len(os.Args) < 2 {
+		fmt.Fprintf(os.Stderr, "usage: %s <WIM>\n", os.Args[0])
+		os.Exit(1)
 	}
-
-	w, err := wim.NewReader(f)
-	if err != nil {
-		panic(err)
-
-	}
-
-	fmt.Printf("%#v\n%#v\n", w.Image[0], w.Image[0].Windows)
-
-	dir, err := w.Image[0].Open()
-	if err != nil {
-		panic(err)
-	}
-
-	err = recur(dir)
-	if err != nil {
-		panic(err)
+	if err := run(os.Args[1]); err != nil {
+		fmt.Fprintf(os.Stderr, "error: %v\n", err)
+		os.Exit(1)
 	}
 }
 
-func recur(d *wim.File) error {
-	files, err := d.Readdir()
+func run(file string) error {
+	f, err := os.OpenFile(file, os.O_RDONLY, 0)
 	if err != nil {
-		return fmt.Errorf("%s: %s", d.Name, err)
+		return err
+	}
+	r, err := wim.NewReader(f)
+	if err != nil {
+		return err
+	}
+	fmt.Fprintf(os.Stdout, "%#v\n%#v\n", r.Image[0], r.Image[0].Windows)
+	dir, err := r.Image[0].Open()
+	if err != nil {
+		return err
+	}
+	return recur(dir)
+}
+
+func recur(dir *wim.File) error {
+	files, err := dir.Readdir()
+	if err != nil {
+		return fmt.Errorf("cannot read %q: %w", dir.Name, err)
 	}
 	for _, f := range files {
 		if f.IsDir() {
-			err = recur(f)
-			if err != nil {
-				return fmt.Errorf("%s: %s", f.Name, err)
+			if err := recur(f); err != nil {
+				return fmt.Errorf("cannot recurse directory %q: %w", f.Name, err)
 			}
 		}
 	}
