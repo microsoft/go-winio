@@ -11,7 +11,7 @@ import (
 	"time"
 	"unsafe"
 
-	"github.com/Microsoft/go-winio/pkg/guid"
+	"github.com/microsoft/go-winio/pkg/guid"
 )
 
 //sys bind(s syscall.Handle, name unsafe.Pointer, namelen int32) (err error) [failretval==socketError] = ws2_32.bind

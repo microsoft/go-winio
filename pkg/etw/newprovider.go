@@ -8,7 +8,7 @@ import (
 	"encoding/binary"
 	"unsafe"
 
-	"github.com/Microsoft/go-winio/pkg/guid"
+	"github.com/microsoft/go-winio/pkg/guid"
 	"golang.org/x/sys/windows"
 )
 
@@ -65,7 +65,6 @@ func NewProviderWithOptions(name string, options ...ProviderOpt) (provider *Prov
 		eventInfoClassProviderSetTraits,
 		uintptr(unsafe.Pointer(&provider.metadata[0])),
 		uint32(len(provider.metadata))); err != nil {
-
 		return nil, err
 	}
 

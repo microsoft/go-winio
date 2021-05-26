@@ -7,11 +7,11 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/Microsoft/go-winio/pkg/etw"
+	"github.com/microsoft/go-winio/pkg/etw"
 )
 
 func main() {
-	var pn = flag.String("provider-name", "", "The human readable ETW provider name to be converted into GUID format")
+	pn := flag.String("provider-name", "", "The human readable ETW provider name to be converted into GUID format")
 	flag.Parse()
 	if pn == nil || *pn == "" {
 		fmt.Fprint(os.Stderr, "--provider-name is required")
