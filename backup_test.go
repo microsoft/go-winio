@@ -205,7 +205,8 @@ func makeSparseFile() error {
 		FSCTL_SET_ZERO_DATA = 0x000980c8
 	)
 
-	err = syscall.DeviceIoControl(syscall.Handle(f.Fd()), FSCTL_SET_SPARSE, nil, 0, nil, 0, nil, nil)
+	var r uint32
+	err = syscall.DeviceIoControl(syscall.Handle(f.Fd()), FSCTL_SET_SPARSE, nil, 0, nil, 0, &r, nil)
 	if err != nil {
 		return err
 	}

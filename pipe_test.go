@@ -542,8 +542,10 @@ func TestMessageReadMode(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if n != 1 {
-			t.Fatal("expected 1: ", n)
+		// Since reading in message mode, pipe read() could read 0 byes and return ERROR_MORE_DATA,
+		// except win32MessageBytePipe Read() considers that a success and eats up the error code.
+		if n != 0 && n != 1 {
+			t.Fatal("expected 0 or 1: ", n)
 		}
 		vmsg = append(vmsg, ch[0])
 	}
