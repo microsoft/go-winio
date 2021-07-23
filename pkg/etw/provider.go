@@ -8,7 +8,7 @@ import (
 	"strings"
 	"unicode/utf16"
 
-	"github.com/Microsoft/go-winio/pkg/guid"
+	"github.com/microsoft/go-winio/pkg/guid"
 	"golang.org/x/sys/windows"
 )
 

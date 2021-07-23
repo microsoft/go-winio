@@ -3,7 +3,7 @@
 package etw
 
 import (
-	"github.com/Microsoft/go-winio/pkg/guid"
+	"github.com/microsoft/go-winio/pkg/guid"
 )
 
 type eventOptions struct {
