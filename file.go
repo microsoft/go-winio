@@ -231,6 +231,13 @@ func (f *win32File) Read(b []byte) (int, error) {
 		return 0, ErrTimeout
 	}
 
+	curpos, err := syscall.Seek(f.handle, 0, 1)
+	if err != nil {
+		return 0, err
+	}
+	c.o.Offset = uint32(curpos)
+	c.o.OffsetHigh = uint32(curpos >> 32)
+
 	var bytes uint32
 	err = syscall.ReadFile(f.handle, b, &bytes, &c.o)
 	n, err := f.asyncIo(c, &f.readDeadline, bytes, err)
@@ -242,6 +249,7 @@ func (f *win32File) Read(b []byte) (int, error) {
 	} else if err == syscall.ERROR_BROKEN_PIPE {
 		return 0, io.EOF
 	} else {
+		_, err = syscall.Seek(f.handle, curpos+int64(n), 0)
 		return n, err
 	}
 }
