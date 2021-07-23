@@ -175,6 +175,16 @@ func ioCompletionProcessor(h syscall.Handle) {
 // asyncIo processes the return value from ReadFile or WriteFile, blocking until
 // the operation has actually completed.
 func (f *win32File) asyncIo(c *ioOperation, d *deadlineHandler, bytes uint32, err error) (int, error) {
+
+	// It's not common, but it seems that a call to listenerRoutine
+	// while we're closing will result in ERROR_OPERATION_ABORTED.
+	// In that case, the call to Close() deadlocks. By returning
+	// ErrFileClosed here, we cause listenerRoutine to exit, which
+	// brings things down gracefully.
+	if err == syscall.ERROR_OPERATION_ABORTED {
+		return int(bytes), ErrFileClosed
+	}
+
 	if err != syscall.ERROR_IO_PENDING {
 		return int(bytes), err
 	}
