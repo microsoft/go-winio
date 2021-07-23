@@ -55,6 +55,14 @@ func StringField(name string, value string) FieldOpt {
 	}
 }
 
+// UnicodeStringField adds a single UTF-16 string field to the event.
+func UnicodeStringField(name string, value string) FieldOpt {
+	return func(em *eventMetadata, ed *eventData) {
+		em.writeField(name, inTypeUnicodeString, outTypeString, 0)
+		ed.writeUnicodeString(value)
+	}
+}
+
 // StringArray adds an array of string to the event.
 func StringArray(name string, values []string) FieldOpt {
 	return func(em *eventMetadata, ed *eventData) {
@@ -62,6 +70,17 @@ func StringArray(name string, values []string) FieldOpt {
 		ed.writeUint16(uint16(len(values)))
 		for _, v := range values {
 			ed.writeString(v)
+		}
+	}
+}
+
+// UnicodeStringArray adds an array of UTF-16 strings to the event.
+func UnicodeStringArray(name string, values []string) FieldOpt {
+	return func(em *eventMetadata, ed *eventData) {
+		em.writeArray(name, inTypeUnicodeString, outTypeString, 0)
+		ed.writeUint16(uint16(len(values)))
+		for _, v := range values {
+			ed.writeUnicodeString(v)
 		}
 	}
 }

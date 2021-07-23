@@ -6,6 +6,7 @@ import (
 	"bytes"
 	"encoding/binary"
 	"syscall"
+	"unicode/utf16"
 )
 
 // eventData maintains a buffer which builds up the data for an ETW event. It
@@ -25,6 +26,13 @@ func (ed *eventData) bytes() []byte {
 func (ed *eventData) writeString(data string) {
 	ed.buffer.WriteString(data)
 	ed.buffer.WriteByte(0)
+}
+
+// writeUnicodeString appends a string converted to UTF-16, including the null terminator, to the buffer.
+func (ed *eventData) writeUnicodeString(data string) {
+	unicode := utf16.Encode([]rune(data))
+	binary.Write(&ed.buffer, binary.LittleEndian, unicode)
+	ed.buffer.Write([]byte{0, 0})
 }
 
 // writeInt8 appends a int8 to the buffer.
