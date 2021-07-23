@@ -1,5 +1,8 @@
 # go-winio [![Build Status](https://github.com/microsoft/go-winio/actions/workflows/ci.yml/badge.svg)](https://github.com/microsoft/go-winio/actions/workflows/ci.yml)
 
+[![api docs](https://img.shields.io/badge/api-reference-blue.svg)](https://gowalker.org/github.com/Microsoft/go-winio)
+[![Go Report Card](https://goreportcard.com/badge/github.com/Microsoft/go-winio)](https://goreportcard.com/report/github.com/Microsoft/go-winio)
+
 This repository contains utilities for efficiently performing Win32 IO operations in
 Go. Currently, this is focused on accessing named pipes and other file handles, and
 for using named pipes as a net transport.
