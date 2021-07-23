@@ -102,7 +102,7 @@ func (r *resourceDescriptor) CompressedSize() int64 {
 
 func (r *resourceDescriptor) String() string {
 	s := fmt.Sprintf("%d bytes at %d", r.CompressedSize(), r.Offset)
-	if r.Flags()&4 != 0 {
+	if r.Flags()&resFlagCompressed != 0 {
 		s += fmt.Sprintf(" (uncompresses to %d)", r.OriginalSize)
 	}
 	return s
