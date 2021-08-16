@@ -46,7 +46,7 @@ func eventSetInformation(
 // for provider notifications. Because Go has trouble with callback arguments of
 // different size, it has only pointer-sized arguments, which are then cast to
 // the appropriate types when calling providerCallback.
-func providerCallbackAdapter(sourceID *guid.GUID, state uint32, level uint8, matchAnyKeyword uintptr, matchAllKeyword uintptr, filterData uintptr, i uintptr) uintptr {
+func providerCallbackAdapter(sourceID *guid.GUID, state uintptr, level uintptr, matchAnyKeyword uintptr, matchAllKeyword uintptr, filterData uintptr, i uintptr) uintptr {
 	providerCallback(*sourceID, ProviderState(state), Level(level), uint64(matchAnyKeyword), uint64(matchAllKeyword), filterData, i)
 	return 0
 }

@@ -7,6 +7,7 @@ import (
 	"bufio"
 	"fmt"
 	"os"
+	"runtime"
 
 	"github.com/Microsoft/go-winio/pkg/etw"
 	"github.com/Microsoft/go-winio/pkg/guid"
@@ -18,6 +19,8 @@ func callback(sourceID guid.GUID, state etw.ProviderState, level etw.Level, matc
 }
 
 func main() {
+	fmt.Printf("Running on %s/%s\n", runtime.GOOS, runtime.GOARCH)
+
 	group, err := guid.FromString("12341234-abcd-abcd-abcd-123412341234")
 	if err != nil {
 		logrus.Error(err)
