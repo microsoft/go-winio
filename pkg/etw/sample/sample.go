@@ -8,8 +8,8 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/Microsoft/go-winio/pkg/etw"
-	"github.com/Microsoft/go-winio/pkg/guid"
+	"github.com/microsoft/go-winio/pkg/etw"
+	"github.com/microsoft/go-winio/pkg/guid"
 	"github.com/sirupsen/logrus"
 )
 
@@ -25,7 +25,6 @@ func main() {
 	}
 
 	provider, err := etw.NewProvider("TestProvider", callback)
-
 	if err != nil {
 		logrus.Error(err)
 		return
@@ -37,7 +36,6 @@ func main() {
 	}()
 
 	providerWithGroup, err := etw.NewProviderWithOptions("TestProviderWithGroup", etw.WithGroup(group), etw.WithCallback(callback))
-
 	if err != nil {
 		logrus.Error(err)
 		return

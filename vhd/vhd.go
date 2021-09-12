@@ -6,8 +6,7 @@ import (
 	"fmt"
 	"syscall"
 
-	"github.com/Microsoft/go-winio/pkg/guid"
-	"github.com/pkg/errors"
+	"github.com/microsoft/go-winio/pkg/guid"
 	"golang.org/x/sys/windows"
 )
 
@@ -155,7 +154,7 @@ func CreateVhdx(path string, maxSizeInGb, blockSizeInMb uint32) error {
 // DetachVirtualDisk detaches a virtual hard disk by handle.
 func DetachVirtualDisk(handle syscall.Handle) (err error) {
 	if err := detachVirtualDisk(handle, 0, 0); err != nil {
-		return errors.Wrap(err, "failed to detach virtual disk")
+		return fmt.Errorf("failed to detach virtual disk: %w", err)
 	}
 	return nil
 }
@@ -185,7 +184,7 @@ func AttachVirtualDisk(handle syscall.Handle, attachVirtualDiskFlag AttachVirtua
 		parameters,
 		nil,
 	); err != nil {
-		return errors.Wrap(err, "failed to attach virtual disk")
+		return fmt.Errorf("failed to attach virtual disk: %w", err)
 	}
 	return nil
 }
@@ -209,7 +208,7 @@ func AttachVhd(path string) (err error) {
 		AttachVirtualDiskFlagNone,
 		&params,
 	); err != nil {
-		return errors.Wrap(err, "failed to attach virtual disk")
+		return fmt.Errorf("failed to attach virtual disk: %w", err)
 	}
 	return nil
 }
@@ -246,7 +245,7 @@ func OpenVirtualDiskWithParameters(vhdPath string, virtualDiskAccessMask Virtual
 		parameters,
 		&handle,
 	); err != nil {
-		return 0, errors.Wrap(err, "failed to open virtual disk")
+		return 0, fmt.Errorf("failed to open virtual disk: %w", err)
 	}
 	return handle, nil
 }
@@ -272,7 +271,7 @@ func CreateVirtualDisk(path string, virtualDiskAccessMask VirtualDiskAccessMask,
 		nil,
 		&handle,
 	); err != nil {
-		return handle, errors.Wrap(err, "failed to create virtual disk")
+		return handle, fmt.Errorf("failed to create virtual disk: %w", err)
 	}
 	return handle, nil
 }
@@ -290,7 +289,7 @@ func GetVirtualDiskPhysicalPath(handle syscall.Handle) (_ string, err error) {
 		&diskPathSizeInBytes,
 		&diskPhysicalPathBuf[0],
 	); err != nil {
-		return "", errors.Wrap(err, "failed to get disk physical path")
+		return "", fmt.Errorf("failed to get disk physical path: %w", err)
 	}
 	return windows.UTF16ToString(diskPhysicalPathBuf[:]), nil
 }
