@@ -59,9 +59,9 @@ func eventSetInformation(
 // For x86, the matchAny and matchAll keywords need to be assembled from two
 // 32-bit integers, because the max size of an argument is uintptr, but those
 // two arguments are actually 64-bit integers.
-func providerCallbackAdapter(sourceID *guid.GUID, state uint32, level uint8, matchAnyKeyword_low uint32, matchAnyKeyword_high uint32, matchAllKeyword_low uint32, matchAllKeyword_high uint32, filterData uintptr, i uintptr) uintptr {
-	matchAnyKeyword := uint64(matchAnyKeyword_high) << 32 | uint64(matchAnyKeyword_low)
-	matchAllKeyword := uint64(matchAllKeyword_high) << 32 | uint64(matchAllKeyword_low)
+func providerCallbackAdapter(sourceID *guid.GUID, state uint32, level uint32, matchAnyKeyword_low uint32, matchAnyKeyword_high uint32, matchAllKeyword_low uint32, matchAllKeyword_high uint32, filterData uintptr, i uintptr) uintptr {
+	matchAnyKeyword := uint64(matchAnyKeyword_high)<<32 | uint64(matchAnyKeyword_low)
+	matchAllKeyword := uint64(matchAllKeyword_high)<<32 | uint64(matchAllKeyword_low)
 	providerCallback(*sourceID, ProviderState(state), Level(level), uint64(matchAnyKeyword), uint64(matchAllKeyword), filterData, i)
 	return 0
 }
