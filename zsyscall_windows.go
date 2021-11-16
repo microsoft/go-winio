@@ -70,6 +70,8 @@ var (
 	procLocalFree                                            = modkernel32.NewProc("LocalFree")
 	procSetFileCompletionNotificationModes                   = modkernel32.NewProc("SetFileCompletionNotificationModes")
 	procNtCreateNamedPipeFile                                = modntdll.NewProc("NtCreateNamedPipeFile")
+	procNtQueryEaFile                                        = modntdll.NewProc("NtQueryEaFile")
+	procNtSetEaFile                                          = modntdll.NewProc("NtSetEaFile")
 	procRtlDefaultNpAcl                                      = modntdll.NewProc("RtlDefaultNpAcl")
 	procRtlDosPathNameToNtPathName_U                         = modntdll.NewProc("RtlDosPathNameToNtPathName_U")
 	procRtlNtStatusToDosErrorNoTeb                           = modntdll.NewProc("RtlNtStatusToDosErrorNoTeb")
@@ -382,6 +384,26 @@ func setFileCompletionNotificationModes(h syscall.Handle, flags uint8) (err erro
 
 func ntCreateNamedPipeFile(pipe *syscall.Handle, access uint32, oa *objectAttributes, iosb *ioStatusBlock, share uint32, disposition uint32, options uint32, typ uint32, readMode uint32, completionMode uint32, maxInstances uint32, inboundQuota uint32, outputQuota uint32, timeout *int64) (status ntstatus) {
 	r0, _, _ := syscall.Syscall15(procNtCreateNamedPipeFile.Addr(), 14, uintptr(unsafe.Pointer(pipe)), uintptr(access), uintptr(unsafe.Pointer(oa)), uintptr(unsafe.Pointer(iosb)), uintptr(share), uintptr(disposition), uintptr(options), uintptr(typ), uintptr(readMode), uintptr(completionMode), uintptr(maxInstances), uintptr(inboundQuota), uintptr(outputQuota), uintptr(unsafe.Pointer(timeout)), 0)
+	status = ntstatus(r0)
+	return
+}
+
+func getFileEA(handle windows.Handle, iosb *ioStatusBlock, buf *uint8, bufLen uint32, returnSingleEntry bool, eaList uintptr, eaListLen uint32, eaIndex *uint32, restartScan bool) (status ntstatus) {
+	var _p0 uint32
+	if returnSingleEntry {
+		_p0 = 1
+	}
+	var _p1 uint32
+	if restartScan {
+		_p1 = 1
+	}
+	r0, _, _ := syscall.Syscall9(procNtQueryEaFile.Addr(), 9, uintptr(handle), uintptr(unsafe.Pointer(iosb)), uintptr(unsafe.Pointer(buf)), uintptr(bufLen), uintptr(_p0), uintptr(eaList), uintptr(eaListLen), uintptr(unsafe.Pointer(eaIndex)), uintptr(_p1))
+	status = ntstatus(r0)
+	return
+}
+
+func setFileEA(handle windows.Handle, iosb *ioStatusBlock, buf *uint8, bufLen uint32) (status ntstatus) {
+	r0, _, _ := syscall.Syscall6(procNtSetEaFile.Addr(), 4, uintptr(handle), uintptr(unsafe.Pointer(iosb)), uintptr(unsafe.Pointer(buf)), uintptr(bufLen), 0, 0)
 	status = ntstatus(r0)
 	return
 }

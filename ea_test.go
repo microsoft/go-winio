@@ -4,12 +4,19 @@
 package winio
 
 import (
+	"fmt"
 	"io/ioutil"
+	"math"
+	"math/rand"
 	"os"
+	"path/filepath"
 	"reflect"
 	"syscall"
 	"testing"
+	"time"
 	"unsafe"
+
+	"golang.org/x/sys/windows"
 )
 
 var (
@@ -22,6 +29,10 @@ var (
 	testEasNotPadded = testEasEncoded[0 : len(testEasEncoded)-3]
 	testEasTruncated = testEasEncoded[0:20]
 )
+
+func init() {
+	rand.Seed(time.Now().Unix())
+}
 
 func Test_RoundTripEas(t *testing.T) {
 	b, err := EncodeExtendedAttributes(testEas)
@@ -88,5 +99,50 @@ func Test_SetFileEa(t *testing.T) {
 	r, _, _ := ntSetEaFile.Call(f.Fd(), uintptr(unsafe.Pointer(&iosb[0])), uintptr(unsafe.Pointer(&testEasEncoded[0])), uintptr(len(testEasEncoded)))
 	if r != 0 {
 		t.Fatalf("NtSetEaFile failed with %08x", r)
+	}
+}
+
+func Test_SetGetFileEA(t *testing.T) {
+	tempDir := t.TempDir()
+	testfilePath := filepath.Join(tempDir, "testfile.txt")
+	// create temp file
+	testfile, err := os.Create(testfilePath)
+	if err != nil {
+		t.Fatalf("failed to create temporary file: %s", err)
+	}
+	testfile.Close()
+
+	nAttrs := 3
+	testEAs := make([]ExtendedAttribute, 3)
+	// generate random extended attributes for test
+	for i := 0; i < nAttrs; i++ {
+		// EA name is automatically converted to upper case before storing, so
+		// when reading it back it returns the upper case name. To avoid test
+		// failures because of that keep the name upper cased.
+		testEAs[i].Name = fmt.Sprintf("TESTEA%d", i+1)
+		testEAs[i].Value = make([]byte, rand.Int31n(math.MaxUint8))
+		rand.Read(testEAs[i].Value)
+	}
+
+	utf16Path := windows.StringToUTF16Ptr(testfilePath)
+	fileAccessRightReadWriteEA := (0x8 | 0x10)
+	fileHandle, err := windows.CreateFile(utf16Path, uint32(fileAccessRightReadWriteEA), 0, nil, windows.OPEN_EXISTING, windows.FILE_ATTRIBUTE_NORMAL, 0)
+	if err != nil {
+		t.Fatalf("open file failed with: %s", err)
+	}
+	defer windows.Close(fileHandle)
+
+	if err := SetFileEA(fileHandle, testEAs); err != nil {
+		t.Fatalf("set EA for file failed: %s", err)
+	}
+
+	var readEAs []ExtendedAttribute
+	if readEAs, err = GetFileEA(fileHandle); err != nil {
+		t.Fatalf("get EA for file failed: %s", err)
+	}
+
+	if !reflect.DeepEqual(readEAs, testEAs) {
+		t.Logf("expected: %+v, found: %+v\n", testEAs, readEAs)
+		t.Fatalf("EAs read from testfile don't match")
 	}
 }

@@ -22,7 +22,7 @@ type FileBasicInfo struct {
 func GetFileBasicInfo(f *os.File) (*FileBasicInfo, error) {
 	bi := &FileBasicInfo{}
 	if err := windows.GetFileInformationByHandleEx(windows.Handle(f.Fd()), windows.FileBasicInfo, (*byte)(unsafe.Pointer(bi)), uint32(unsafe.Sizeof(*bi))); err != nil {
-		return nil, &os.PathError{Op: "GetFileInformationByHandleEx", Path: f.Name(), Err: err}
+		return nil, &os.SyscallError{Syscall: "GetFileInformationByHandleEx", Err: err}
 	}
 	runtime.KeepAlive(f)
 	return bi, nil
@@ -31,9 +31,18 @@ func GetFileBasicInfo(f *os.File) (*FileBasicInfo, error) {
 // SetFileBasicInfo sets times and attributes for a file.
 func SetFileBasicInfo(f *os.File, bi *FileBasicInfo) error {
 	if err := windows.SetFileInformationByHandle(windows.Handle(f.Fd()), windows.FileBasicInfo, (*byte)(unsafe.Pointer(bi)), uint32(unsafe.Sizeof(*bi))); err != nil {
-		return &os.PathError{Op: "SetFileInformationByHandle", Path: f.Name(), Err: err}
+		return &os.SyscallError{Syscall: "SetFileInformationByHandle", Err: err}
 	}
 	runtime.KeepAlive(f)
+	return nil
+}
+
+// SetFileBasicInfoForHandle sets times and attributes for a file represented by
+// the given handle
+func SetFileBasicInfoForHandle(f windows.Handle, bi *FileBasicInfo) error {
+	if err := windows.SetFileInformationByHandle(f, windows.FileBasicInfo, (*byte)(unsafe.Pointer(bi)), uint32(unsafe.Sizeof(*bi))); err != nil {
+		return &os.SyscallError{Syscall: "SetFileInformationByHandle", Err: err}
+	}
 	return nil
 }
 
@@ -50,7 +59,7 @@ type FileStandardInfo struct {
 func GetFileStandardInfo(f *os.File) (*FileStandardInfo, error) {
 	si := &FileStandardInfo{}
 	if err := windows.GetFileInformationByHandleEx(windows.Handle(f.Fd()), windows.FileStandardInfo, (*byte)(unsafe.Pointer(si)), uint32(unsafe.Sizeof(*si))); err != nil {
-		return nil, &os.PathError{Op: "GetFileInformationByHandleEx", Path: f.Name(), Err: err}
+		return nil, &os.SyscallError{Syscall: "GetFileInformationByHandleEx", Err: err}
 	}
 	runtime.KeepAlive(f)
 	return si, nil
@@ -67,7 +76,7 @@ type FileIDInfo struct {
 func GetFileID(f *os.File) (*FileIDInfo, error) {
 	fileID := &FileIDInfo{}
 	if err := windows.GetFileInformationByHandleEx(windows.Handle(f.Fd()), windows.FileIdInfo, (*byte)(unsafe.Pointer(fileID)), uint32(unsafe.Sizeof(*fileID))); err != nil {
-		return nil, &os.PathError{Op: "GetFileInformationByHandleEx", Path: f.Name(), Err: err}
+		return nil, &os.SyscallError{Syscall: "GetFileInformationByHandleEx", Err: err}
 	}
 	runtime.KeepAlive(f)
 	return fileID, nil

@@ -27,6 +27,7 @@ import (
 //sys rtlDosPathNameToNtPathName(name *uint16, ntName *unicodeString, filePart uintptr, reserved uintptr) (status ntstatus) = ntdll.RtlDosPathNameToNtPathName_U
 //sys rtlDefaultNpAcl(dacl *uintptr) (status ntstatus) = ntdll.RtlDefaultNpAcl
 
+// ioStatusBlock represents the IO_STATUS_BLOCK struct defined here: https://docs.microsoft.com/en-us/windows-hardware/drivers/ddi/wdm/ns-wdm-_io_status_block
 type ioStatusBlock struct {
 	Status, Information uintptr
 }

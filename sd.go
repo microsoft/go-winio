@@ -4,8 +4,11 @@
 package winio
 
 import (
+	"fmt"
 	"syscall"
 	"unsafe"
+
+	"golang.org/x/sys/windows"
 )
 
 //sys lookupAccountName(systemName *uint16, accountName string, sid *byte, sidSize *uint32, refDomain *uint16, refDomainSize *uint32, sidNameUse *uint32) (err error) = advapi32.LookupAccountNameW
@@ -96,4 +99,20 @@ func SecurityDescriptorToSddl(sd []byte) (string, error) {
 	}
 	defer localFree(uintptr(unsafe.Pointer(sddl)))
 	return syscall.UTF16ToString((*[0xffff]uint16)(unsafe.Pointer(sddl))[:]), nil
+}
+
+func GetFileSecurityDescriptor(path string) (*windows.SECURITY_DESCRIPTOR, error) {
+	utf16Path, err := windows.UTF16FromString(path)
+	if err != nil {
+		return nil, err
+	}
+	fileHandle, err := windows.CreateFile(&utf16Path[0], (windows.READ_CONTROL | windows.ACCESS_SYSTEM_SECURITY), 0, nil, windows.OPEN_EXISTING, (windows.FILE_ATTRIBUTE_NORMAL | windows.FILE_FLAG_BACKUP_SEMANTICS), 0)
+	if err != nil {
+		return nil, fmt.Errorf("open file failed with: %w", err)
+	}
+	sd, err := windows.GetSecurityInfo(fileHandle, windows.SE_FILE_OBJECT, (windows.ATTRIBUTE_SECURITY_INFORMATION | windows.DACL_SECURITY_INFORMATION | windows.GROUP_SECURITY_INFORMATION | windows.LABEL_SECURITY_INFORMATION | windows.OWNER_SECURITY_INFORMATION | windows.SACL_SECURITY_INFORMATION | windows.SCOPE_SECURITY_INFORMATION | windows.BACKUP_SECURITY_INFORMATION))
+	if err != nil {
+		return nil, fmt.Errorf("get security info failed: %w", err)
+	}
+	return sd, nil
 }

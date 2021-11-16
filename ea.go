@@ -1,9 +1,15 @@
+//go:build windows
+// +build windows
+
 package winio
 
 import (
 	"bytes"
 	"encoding/binary"
 	"errors"
+	"fmt"
+
+	"golang.org/x/sys/windows"
 )
 
 type fileFullEaInformation struct {
@@ -12,6 +18,9 @@ type fileFullEaInformation struct {
 	NameLength      uint8
 	ValueLength     uint16
 }
+
+//sys getFileEA(handle windows.Handle, iosb *ioStatusBlock, buf *uint8, bufLen uint32, returnSingleEntry bool, eaList uintptr, eaListLen uint32, eaIndex *uint32, restartScan bool) (status ntstatus) = ntdll.NtQueryEaFile
+//sys setFileEA(handle windows.Handle, iosb *ioStatusBlock, buf *uint8, bufLen uint32) (status ntstatus) = ntdll.NtSetEaFile
 
 var (
 	fileFullEaInformationSize = binary.Size(&fileFullEaInformation{})
@@ -26,6 +35,44 @@ type ExtendedAttribute struct {
 	Name  string
 	Value []byte
 	Flags uint8
+}
+
+// GetFileEA retrieves the extended attributes for the file represented by `handle`. The
+// `handle` must have been opened with file access flag FILE_READ_EA (0x8).
+func GetFileEA(handle windows.Handle) ([]ExtendedAttribute, error) {
+	// default buffer size to start with
+	bufLen := 1024
+	buf := make([]byte, bufLen)
+	var iosb ioStatusBlock
+	// keep increasing the buffer size until it is large enough
+	for {
+		status := getFileEA(handle, &iosb, &buf[0], uint32(bufLen), false, 0, 0, nil, true)
+		if status.Err() != nil {
+			// convert ntstatus code to windows error
+			if status.Err() == windows.ERROR_INSUFFICIENT_BUFFER || status.Err() == windows.ERROR_MORE_DATA {
+				bufLen *= 2
+				buf = make([]byte, bufLen)
+			} else {
+				return nil, fmt.Errorf("get file EA failed with: %w", status.Err())
+			}
+		} else {
+			break
+		}
+	}
+	return DecodeExtendedAttributes(buf)
+}
+
+// SetFileEA sets the extended attributes for the file represented by `handle`.  The
+// handle must have been opened with the file access flag FILE_WRITE_EA(0x10).
+func SetFileEA(handle windows.Handle, attrs []ExtendedAttribute) error {
+	encodedEA, err := EncodeExtendedAttributes(attrs)
+	if err != nil {
+		return fmt.Errorf("failed to encoded extended attributes: %w", err)
+	}
+
+	var iosb ioStatusBlock
+
+	return setFileEA(handle, &iosb, &encodedEA[0], uint32(len(encodedEA))).Err()
 }
 
 func parseEa(b []byte) (ea ExtendedAttribute, nb []byte, err error) {
