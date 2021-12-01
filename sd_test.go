@@ -20,7 +20,7 @@ func TestLookupValidSid(t *testing.T) {
 }
 
 func TestLookupEmptyNameFails(t *testing.T) {
-	_, err := LookupSidByName(".\\weoifjdsklfj")
+	_, err := LookupSidByName("")
 	aerr, ok := err.(*AccountLookupError)
 	if !ok || aerr.Err != cERROR_NONE_MAPPED {
 		t.Fatalf("expected AccountLookupError with ERROR_NONE_MAPPED, got %s", err)
