@@ -62,9 +62,9 @@ type OpenVirtualDiskParameters struct {
 	Version2 OpenVersion2
 }
 
-// The OpenVersion2 structure was mistakingly changed to have the GetInfoOnly and ReadOnly fields be go bools instead
-// of int32's (they're defined as Windows BOOL's so int32 is the correct type). Fix this mistake here by making the right structure we need to pass
-// and not exporting it. We'll translate to the correct type as needed in any of the Open___ calls.
+// The higher level `OpenVersion2` struct uses bools to refer to `GetInfoOnly` and `ReadOnly` for ease of use. However,
+// the internal windows structure uses `BOOLS` aka int32s for these types. `openVersion2` is used for translating
+// `OpenVersion2` fields to the correct windows internal field types on the `Open____` methods.
 type openVersion2 struct {
 	getInfoOnly    int32
 	readOnly       int32
