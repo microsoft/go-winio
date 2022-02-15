@@ -1,3 +1,4 @@
+//go:build windows
 // +build windows
 
 package vhd
@@ -13,7 +14,7 @@ import (
 //go:generate go run mksyscall_windows.go -output zvhd_windows.go vhd.go
 
 //sys createVirtualDisk(virtualStorageType *VirtualStorageType, path string, virtualDiskAccessMask uint32, securityDescriptor *uintptr, createVirtualDiskFlags uint32, providerSpecificFlags uint32, parameters *CreateVirtualDiskParameters, overlapped *syscall.Overlapped, handle *syscall.Handle) (win32err error) = virtdisk.CreateVirtualDisk
-//sys openVirtualDisk(virtualStorageType *VirtualStorageType, path string, virtualDiskAccessMask uint32, openVirtualDiskFlags uint32, parameters *OpenVirtualDiskParameters, handle *syscall.Handle) (win32err error) = virtdisk.OpenVirtualDisk
+//sys openVirtualDisk(virtualStorageType *VirtualStorageType, path string, virtualDiskAccessMask uint32, openVirtualDiskFlags uint32, parameters *openVirtualDiskParameters, handle *syscall.Handle) (win32err error) = virtdisk.OpenVirtualDisk
 //sys attachVirtualDisk(handle syscall.Handle, securityDescriptor *uintptr, attachVirtualDiskFlag uint32, providerSpecificFlags uint32, parameters *AttachVirtualDiskParameters, overlapped *syscall.Overlapped) (win32err error) = virtdisk.AttachVirtualDisk
 //sys detachVirtualDisk(handle syscall.Handle, detachVirtualDiskFlags uint32, providerSpecificFlags uint32) (win32err error) = virtdisk.DetachVirtualDisk
 //sys getVirtualDiskPhysicalPath(handle syscall.Handle, diskPathSizeInBytes *uint32, buffer *uint16) (win32err error) = virtdisk.GetVirtualDiskPhysicalPath
@@ -61,13 +62,27 @@ type OpenVirtualDiskParameters struct {
 	Version2 OpenVersion2
 }
 
+// The higher level `OpenVersion2` struct uses bools to refer to `GetInfoOnly` and `ReadOnly` for ease of use. However,
+// the internal windows structure uses `BOOLS` aka int32s for these types. `openVersion2` is used for translating
+// `OpenVersion2` fields to the correct windows internal field types on the `Open____` methods.
+type openVersion2 struct {
+	getInfoOnly    int32
+	readOnly       int32
+	resiliencyGUID guid.GUID
+}
+
+type openVirtualDiskParameters struct {
+	version  uint32
+	version2 openVersion2
+}
+
 type AttachVersion2 struct {
 	RestrictedOffset uint64
 	RestrictedLength uint64
 }
 
 type AttachVirtualDiskParameters struct {
-	Version  uint32 // Must always be set to 2
+	Version  uint32
 	Version2 AttachVersion2
 }
 
@@ -145,10 +160,7 @@ func CreateVhdx(path string, maxSizeInGb, blockSizeInMb uint32) error {
 		return err
 	}
 
-	if err := syscall.CloseHandle(handle); err != nil {
-		return err
-	}
-	return nil
+	return syscall.CloseHandle(handle)
 }
 
 // DetachVirtualDisk detaches a virtual hard disk by handle.
@@ -233,16 +245,32 @@ func OpenVirtualDiskWithParameters(vhdPath string, virtualDiskAccessMask Virtual
 	var (
 		handle      syscall.Handle
 		defaultType VirtualStorageType
+		getInfoOnly int32
+		readOnly    int32
 	)
 	if parameters.Version != 2 {
 		return handle, fmt.Errorf("only version 2 VHDs are supported, found version: %d", parameters.Version)
+	}
+	if parameters.Version2.GetInfoOnly {
+		getInfoOnly = 1
+	}
+	if parameters.Version2.ReadOnly {
+		readOnly = 1
+	}
+	params := &openVirtualDiskParameters{
+		version: parameters.Version,
+		version2: openVersion2{
+			getInfoOnly,
+			readOnly,
+			parameters.Version2.ResiliencyGUID,
+		},
 	}
 	if err := openVirtualDisk(
 		&defaultType,
 		vhdPath,
 		uint32(virtualDiskAccessMask),
 		uint32(openVirtualDiskFlags),
-		parameters,
+		params,
 		&handle,
 	); err != nil {
 		return 0, fmt.Errorf("failed to open virtual disk: %w", err)
