@@ -116,24 +116,23 @@ func BasicInfoHeader(name string, size int64, fileInfo *winio.FileBasicInfo) *ta
 // SecurityDescriptorFromTarHeader reads the SDDL associated with the header of the current file
 // from the tar header and returns the security descriptor into a byte slice.
 func SecurityDescriptorFromTarHeader(hdr *tar.Header) ([]byte, error) {
-	// Maintaining old SDDL-based behavior for backward
-	// compatibility.  All new tar headers written by this library
-	// will have raw binary for the security descriptor.
-	var sd []byte
-	var err error
-	if sddl, ok := hdr.PAXRecords[hdrSecurityDescriptor]; ok {
-		sd, err = winio.SddlToSecurityDescriptor(sddl)
-		if err != nil {
-			return nil, err
-		}
-	}
 	if sdraw, ok := hdr.PAXRecords[hdrRawSecurityDescriptor]; ok {
-		sd, err = base64.StdEncoding.DecodeString(sdraw)
+		sd, err := base64.StdEncoding.DecodeString(sdraw)
 		if err != nil {
+			// Not returning sd as-is in the error-case, as base64.DecodeString
+			// may return partially decoded data (not nil or empty slice) in case
+			// of a failure: https://github.com/golang/go/blob/go1.17.7/src/encoding/base64/base64.go#L382-L387
 			return nil, err
 		}
+		return sd, nil
 	}
-	return sd, nil
+	// Maintaining old SDDL-based behavior for backward compatibility. All new
+	// tar headers written by this library will have raw binary for the security
+	// descriptor.
+	if sddl, ok := hdr.PAXRecords[hdrSecurityDescriptor]; ok {
+		return winio.SddlToSecurityDescriptor(sddl)
+	}
+	return nil, nil
 }
 
 // ExtendedAttributesFromTarHeader reads the EAs associated with the header of the
