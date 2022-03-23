@@ -12,6 +12,8 @@ import (
 	"time"
 	"unsafe"
 
+	"golang.org/x/sys/windows/registry"
+
 	"github.com/Microsoft/go-winio/pkg/guid"
 )
 
@@ -313,4 +315,32 @@ func (conn *HvsockConn) SetReadDeadline(t time.Time) error {
 // SetWriteDeadline implements the net.Conn SetWriteDeadline method.
 func (conn *HvsockConn) SetWriteDeadline(t time.Time) error {
 	return conn.sock.SetWriteDeadline(t)
+}
+
+// HvsockRegisterService registers the application defined by the guid and name with the
+// Hyper-V Host's registry. If the GUID is already registered, then the name is overwritten with
+// the new name.
+//
+// See: https://docs.microsoft.com/en-us/virtualization/hyper-v-on-windows/user-guide/make-integration-service#register-a-new-application
+func HvsockRegisterService(id guid.GUID, name string) error {
+	k, _, err := registry.CreateKey(registry.LOCAL_MACHINE, hvSocketRegKey(id), registry.WRITE)
+	if err != nil {
+		return fmt.Errorf("could not create registry for %s: %w", id.String(), err)
+	}
+	defer k.Close()
+
+	if err = k.SetStringValue("ElementName", name); err != nil {
+		return fmt.Errorf("could not set service name to %s: %w", name, err)
+	}
+
+	return nil
+}
+
+// HvSockUnregisterService deleted the registration defined by the guid from the Hyper-V Host's registry.
+func HvsockUnregisterService(id guid.GUID) error {
+	return registry.DeleteKey(registry.LOCAL_MACHINE, hvSocketRegKey(id))
+}
+
+func hvSocketRegKey(id guid.GUID) string {
+	return `SOFTWARE\Microsoft\Windows NT\CurrentVersion\Virtualization\GuestCommunicationServices\` + id.String()
 }
