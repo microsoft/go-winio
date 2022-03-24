@@ -1,6 +1,6 @@
 //go:build windows
 
-package sockets
+package socket
 
 import (
 	"fmt"
@@ -13,7 +13,7 @@ import (
 	"golang.org/x/sys/windows"
 )
 
-//go:generate go run golang.org/x/sys/windows/mkwinsyscall -output zsyscall_windows.go sockets.go
+//go:generate go run golang.org/x/sys/windows/mkwinsyscall -output zsyscall_windows.go socket.go
 
 //sys getsockname(s windows.Handle, name unsafe.Pointer, namelen *int32) (err error) [failretval==socketError] = ws2_32.getsockname
 //sys getpeername(s windows.Handle, name unsafe.Pointer, namelen *int32) (err error) [failretval==socketError] = ws2_32.getpeername
@@ -21,23 +21,12 @@ import (
 
 const socketError = uintptr(^uint32(0))
 
-// CloseWriter is a connection that can disable writing to itself.
-type CloseWriter interface {
-	net.Conn
-	CloseWrite() error
-}
-
-// CloseReader is a connection that can disable reading from itself.
-type CloseReader interface {
-	net.Conn
-	CloseRead() error
-}
+var ErrSocketClosed = fmt.Errorf("socket closed: %w", net.ErrClosed)
 
 // GetSockName returns the socket's local address. It will call the `rsa.FromBytes()` on the
 // buffer returned by the getsockname syscall. The buffer is allocated to the size specified
 // by `rsa.Sockaddr()`.
 func GetSockName(s windows.Handle, rsa RawSockaddr) error {
-	// todo: replace this (and RawSockaddr) with generics
 	ptr, l, err := rsa.Sockaddr()
 	if err != nil {
 		return fmt.Errorf("could not find socket size to allocate buffer: %w", err)
@@ -111,7 +100,7 @@ func (f *runtimeFunc) Load() error {
 		if f.err != nil {
 			return
 		}
-		defer windows.CloseHandle(s)
+		defer windows.CloseHandle(s) //nolint:errcheck
 
 		var n uint32
 		f.err = windows.WSAIoctl(s,
@@ -126,12 +115,11 @@ func (f *runtimeFunc) Load() error {
 		)
 	})
 	return f.err
-
 }
 
 var (
 	// todo: add `AcceptEx` and `GetAcceptExSockaddrs`
-	WSAID_CONNECTEX = guid.GUID{
+	WSAID_CONNECTEX = guid.GUID{ //nolint:revive,stylecheck
 		Data1: 0x25a207b9,
 		Data2: 0xddf3,
 		Data3: 0x4660,
@@ -142,9 +130,8 @@ var (
 )
 
 func ConnectEx(fd windows.Handle, rsa RawSockaddr, sendBuf *byte, sendDataLen uint32, bytesSent *uint32, overlapped *windows.Overlapped) error {
-	err := connectExFunc.Load()
-	if err != nil {
-		return fmt.Errorf("failed to load ConnectEx function pointer: %e", err)
+	if err := connectExFunc.Load(); err != nil {
+		return fmt.Errorf("failed to load ConnectEx function pointer: %w", err)
 	}
 	ptr, n, err := rsa.Sockaddr()
 	if err != nil {
@@ -163,6 +150,7 @@ func ConnectEx(fd windows.Handle, rsa RawSockaddr, sendBuf *byte, sendDataLen ui
 //   [in]           LPOVERLAPPED lpOverlapped
 // )
 func connectEx(s windows.Handle, name unsafe.Pointer, namelen int32, sendBuf *byte, sendDataLen uint32, bytesSent *uint32, overlapped *windows.Overlapped) (err error) {
+	// todo: after upgrading to 1.18, switch to syscall.SyscallN from syscall.Syscall9
 	r1, _, e1 := syscall.Syscall9(connectExFunc.addr, 7, uintptr(s), uintptr(name), uintptr(namelen), uintptr(unsafe.Pointer(sendBuf)), uintptr(sendDataLen), uintptr(unsafe.Pointer(bytesSent)), uintptr(unsafe.Pointer(overlapped)), 0, 0)
 	if r1 == 0 {
 		if e1 != 0 {

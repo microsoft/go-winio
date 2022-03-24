@@ -5,6 +5,7 @@ package winio
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -15,72 +16,85 @@ import (
 
 	"golang.org/x/sys/windows"
 
+	"github.com/Microsoft/go-winio/internal/socket"
 	"github.com/Microsoft/go-winio/pkg/guid"
-	"github.com/Microsoft/go-winio/pkg/sockets"
 )
 
 const afHvSock = 34 // AF_HYPERV
 
-var (
-	// https://docs.microsoft.com/en-us/virtualization/hyper-v-on-windows/user-guide/make-integration-service#vmid-wildcards
+// Well known Service and VM IDs
+//https://docs.microsoft.com/en-us/virtualization/hyper-v-on-windows/user-guide/make-integration-service#vmid-wildcards
 
-	// HVguidWildcard is the wildcard VmId for accepting connections from all partitions.
-	HVguidWildcard = guid.GUID{} // 00000000-0000-0000-0000-000000000000
+// HvsockGUIDWildcard is the wildcard VmId for accepting connections from all partitions.
+func HvsockGUIDWildcard() guid.GUID { // 00000000-0000-0000-0000-000000000000
+	return guid.GUID{}
+}
 
-	// HVguidBroadcast is the wildcard VmId for broadcasting sends to all partitions
-	HVguidBroadcast = guid.GUID{ //ffffffff-ffff-ffff-ffff-ffffffffffff
+// HvsockGUIDBroadcast is the wildcard VmId for broadcasting sends to all partitions
+func HvsockGUIDBroadcast() guid.GUID { //ffffffff-ffff-ffff-ffff-ffffffffffff
+	return guid.GUID{
 		Data1: 0xffffffff,
 		Data2: 0xffff,
 		Data3: 0xffff,
 		Data4: [8]uint8{0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff},
 	}
+}
 
-	// HVGUIDLoopback is the Loopback VmId for accepting connections to the same partition as the connector.
-	HVguidLoopback = guid.GUID{ // e0e16197-dd56-4a10-9195-5ee7a155a838
+// HvsockGUIDLoopback is the Loopback VmId for accepting connections to the same partition as the connector.
+func HvsockGUIDLoopback() guid.GUID { // e0e16197-dd56-4a10-9195-5ee7a155a838
+	return guid.GUID{
 		Data1: 0xe0e16197,
 		Data2: 0xdd56,
 		Data3: 0x4a10,
 		Data4: [8]uint8{0x91, 0x95, 0x5e, 0xe7, 0xa1, 0x55, 0xa8, 0x38},
 	}
+}
 
-	// HVguidSiloHost is the address of a silo's host partition:
-	// - The silo host of a hosted silo is the utility VM.
-	// - The silo host of a silo on a physical host is the physical host.
-	HVguidSiloHost = guid.GUID{ // 36bd0c5c-7276-4223-88ba-7d03b654c568
+// HvsockGUIDSiloHost is the address of a silo's host partition:
+// - The silo host of a hosted silo is the utility VM.
+// - The silo host of a silo on a physical host is the physical host.
+func HvsockGUIDSiloHost() guid.GUID { // 36bd0c5c-7276-4223-88ba-7d03b654c568
+	return guid.GUID{
 		Data1: 0x36bd0c5c,
 		Data2: 0x7276,
 		Data3: 0x4223,
 		Data4: [8]byte{0x88, 0xba, 0x7d, 0x03, 0xb6, 0x54, 0xc5, 0x68},
 	}
+}
 
-	// HVguidChildren is the wildcard VmId for accepting connections from the connector's child partitions.
-	HVguidChildren = guid.GUID{ // 90db8b89-0d35-4f79-8ce9-49ea0ac8b7cd
+// HvsockGUIDChildren is the wildcard VmId for accepting connections from the connector's child partitions.
+func HvsockGUIDChildren() guid.GUID { // 90db8b89-0d35-4f79-8ce9-49ea0ac8b7cd
+	return guid.GUID{
 		Data1: 0x90db8b89,
 		Data2: 0xd35,
 		Data3: 0x4f79,
 		Data4: [8]uint8{0x8c, 0xe9, 0x49, 0xea, 0xa, 0xc8, 0xb7, 0xcd},
 	}
+}
 
-	// HVguidParent is the wildcard VmId for accepting connections from the connector's parent partition.
-	// Listening on this VmId accepts connection from:
-	// - Inside silos: silo host partition.
-	// - Inside hosted silo: host of the VM.
-	// - Inside VM: VM host.
-	// - Physical host: Not supported.
-	HVguidParent = guid.GUID{ // a42e7cda-d03f-480c-9cc2-a4de20abb878
+// HvsockGUIDParent is the wildcard VmId for accepting connections from the connector's parent partition.
+// Listening on this VmId accepts connection from:
+// - Inside silos: silo host partition.
+// - Inside hosted silo: host of the VM.
+// - Inside VM: VM host.
+// - Physical host: Not supported.
+func HvsockGUIDParent() guid.GUID { // a42e7cda-d03f-480c-9cc2-a4de20abb878
+	return guid.GUID{
 		Data1: 0xa42e7cda,
 		Data2: 0xd03f,
 		Data3: 0x480c,
 		Data4: [8]uint8{0x9c, 0xc2, 0xa4, 0xde, 0x20, 0xab, 0xb8, 0x78},
 	}
+}
 
-	// HVguidVSockServiceGUIDTemplate is the Service GUID used for the VSOCK protocol
-	hvguidVSockServiceTemplate = guid.GUID{ // 00000000-facb-11e6-bd58-64006a7986d3
+// hvsockVsockServiceTemplate is the Service GUID used for the VSOCK protocol
+func hvsockVsockServiceTemplate() guid.GUID { // 00000000-facb-11e6-bd58-64006a7986d3
+	return guid.GUID{
 		Data2: 0xfacb,
 		Data3: 0x11e6,
 		Data4: [8]uint8{0xbd, 0x58, 0x64, 0x00, 0x6a, 0x79, 0x86, 0xd3},
 	}
-)
+}
 
 // An HvsockAddr is an address for a AF_HYPERV socket.
 type HvsockAddr struct {
@@ -95,7 +109,7 @@ type rawHvsockAddr struct {
 	ServiceID guid.GUID
 }
 
-var _ sockets.RawSockaddr = &rawHvsockAddr{}
+var _ socket.RawSockaddr = &rawHvsockAddr{}
 
 // Network returns the address's network name, "hvsock".
 func (addr *HvsockAddr) Network() string {
@@ -108,7 +122,7 @@ func (addr *HvsockAddr) String() string {
 
 // VsockServiceID returns an hvsock service ID corresponding to the specified AF_VSOCK port.
 func VsockServiceID(port uint32) guid.GUID {
-	g := hvguidVSockServiceTemplate // make a copy
+	g := hvsockVsockServiceTemplate() // make a copy
 	g.Data1 = port
 	return g
 }
@@ -136,12 +150,12 @@ func (r *rawHvsockAddr) FromBytes(b []byte) error {
 	n := int(unsafe.Sizeof(rawHvsockAddr{}))
 
 	if len(b) < n {
-		return fmt.Errorf("got %d, want %d: %w", len(b), n, sockets.ErrBufferSize)
+		return fmt.Errorf("got %d, want %d: %w", len(b), n, socket.ErrBufferSize)
 	}
 
 	copy(unsafe.Slice((*byte)(unsafe.Pointer(r)), n), b[:n])
 	if r.Family != afHvSock {
-		return fmt.Errorf("got %d, want %d: %w", r.Family, afHvSock, sockets.ErrAddrFamily)
+		return fmt.Errorf("got %d, want %d: %w", r.Family, afHvSock, socket.ErrAddrFamily)
 	}
 
 	return nil
@@ -185,7 +199,7 @@ func ListenHvsock(addr *HvsockAddr) (_ *HvsockListener, err error) {
 		return nil, l.opErr("listen", err)
 	}
 	sa := addr.raw()
-	err = sockets.Bind(windows.Handle(sock.handle), &sa)
+	err = socket.Bind(windows.Handle(sock.handle), &sa)
 	if err != nil {
 		return nil, l.opErr("listen", os.NewSyscallError("socket", err))
 	}
@@ -228,25 +242,19 @@ func (l *HvsockListener) Accept() (_ net.Conn, err error) {
 	var addrbuf [addrlen * 2]byte
 
 	var bytes uint32
-	err = syscall.AcceptEx(l.sock.handle,
-		sock.handle,
-		&addrbuf[0],
-		0, // rxdatalen
-		addrlen,
-		addrlen,
-		&bytes,
-		&c.o)
-	_, err = l.sock.asyncIo(c,
-		nil, // deadlineHandler
-		bytes,
-		err)
-	if err != nil {
+	err = syscall.AcceptEx(l.sock.handle, sock.handle, &addrbuf[0], 0 /*rxdatalen*/, addrlen, addrlen, &bytes, &c.o)
+	if _, err = l.sock.asyncIo(c, nil, bytes, err); err != nil {
 		return nil, l.opErr("accept", os.NewSyscallError("acceptex", err))
 	}
 
 	conn := &HvsockConn{
 		sock: sock,
 	}
+	// The local address returned in the AcceptEx buffer is the same as the Listener socket's
+	// address. However, the service GUID reported by GetSockName is different from the Listeners
+	// socket, and is sometimes the same as the local address of the socket that dialed the
+	// address, with the service GUID.Data1 incremented, but othertimes is different.
+	// todo: does the local address matter? is the listener's address or the actual address appropriate?
 	conn.local.fromRaw((*rawHvsockAddr)(unsafe.Pointer(&addrbuf[0])))
 	conn.remote.fromRaw((*rawHvsockAddr)(unsafe.Pointer(&addrbuf[addrlen])))
 
@@ -257,19 +265,6 @@ func (l *HvsockListener) Accept() (_ net.Conn, err error) {
 		return nil, conn.opErr("accept", os.NewSyscallError("setsockopt", err))
 	}
 
-	// The local address returned in the AcceptEx buffer is the same as the Listener socket's
-	// address. However, the service GUID reported by GetSockName is different from the Listeners
-	// socket, and is sometimes the same as the local address of the socket that dialed the
-	// address, with the service GUID.Data1 incremented, but othertimes is different.
-	// todo: does the local address matter? is the listener's address or the actual address appropriate?
-
-	// var ra rawHvsockAddr
-	// err = sockets.GetSockName(windows.Handle(sock.handle), &ra)
-	// if err != nil {
-	// 	return nil, conn.opErr("accept", os.NewSyscallError("getsockname", err))
-	// }
-	// conn.local.fromRaw(&ra)
-
 	sock = nil
 	return conn, nil
 }
@@ -279,6 +274,7 @@ func (l *HvsockListener) Close() error {
 	return l.sock.Close()
 }
 
+// HvsockDialer configures and dials a Hyper-V Socket (ie, [HvsockConn]).
 type HvsockDialer struct {
 	// Deadline is the time the Dial operation must connect before erroring.
 	Deadline time.Time
@@ -293,11 +289,18 @@ type HvsockDialer struct {
 	rt *time.Timer // redial wait timer
 }
 
-func (d *HvsockDialer) Dial(addr *HvsockAddr) (*HvsockConn, error) {
-	return d.DialContext(context.Background(), addr)
+// Dial the Hyper-V socket at addr.
+//
+// See (*HvsockDialer).Dial for more information.
+func Dial(ctx context.Context, addr *HvsockAddr) (conn *HvsockConn, err error) {
+	return (&HvsockDialer{}).Dial(ctx, addr)
 }
 
-func (d *HvsockDialer) DialContext(ctx context.Context, addr *HvsockAddr) (conn *HvsockConn, err error) {
+// Dial attempts to connect to the Hyper-V socket at addr, and returns a connection if successful.
+// Will attempt (HvsockDialer).Retries if dialing fails, waiting (HvsockDialer).RetryWait between
+// retries.
+// Dialing can be cancelled either by providing (HvsockDialer).Deadline, or cancelling ctx.
+func (d *HvsockDialer) Dial(ctx context.Context, addr *HvsockAddr) (conn *HvsockConn, err error) {
 	op := "dial"
 	// create the conn early to use opErr()
 	conn = &HvsockConn{
@@ -326,7 +329,7 @@ func (d *HvsockDialer) DialContext(ctx context.Context, addr *HvsockAddr) (conn 
 	}()
 
 	sa := addr.raw()
-	err = sockets.Bind(windows.Handle(sock.handle), &sa)
+	err = socket.Bind(windows.Handle(sock.handle), &sa)
 	if err != nil {
 		return nil, conn.opErr(op, os.NewSyscallError("bind", err))
 	}
@@ -337,23 +340,19 @@ func (d *HvsockDialer) DialContext(ctx context.Context, addr *HvsockAddr) (conn 
 	}
 	defer sock.wg.Done()
 	var bytes uint32
-	n := 1 + int(d.Retries)
-	for i := 1; i <= n; i++ {
-		err = sockets.ConnectEx(
+	for i := uint(0); i <= d.Retries; i++ {
+		err = socket.ConnectEx(
 			windows.Handle(sock.handle),
 			&sa,
 			nil, // sendBuf
 			0,   // sendDataLen
 			&bytes,
 			(*windows.Overlapped)(unsafe.Pointer(&c.o)))
-		// todo: create an asyncIO version that takes a context
-		// could create a deadlineHandler triggered by context cancelation, but that seems inefficient ...
 		_, err = sock.asyncIo(c, nil, bytes, err)
-		if i < n && canRedial(err) {
-			if err = d.redialWait(ctx); err != nil {
-				break
+		if i < d.Retries && canRedial(err) {
+			if err = d.redialWait(ctx); err == nil {
+				continue
 			}
-			continue
 		}
 		break
 	}
@@ -374,7 +373,7 @@ func (d *HvsockDialer) DialContext(ctx context.Context, addr *HvsockAddr) (conn 
 
 	// get the local name
 	var sal rawHvsockAddr
-	err = sockets.GetSockName(windows.Handle(sock.handle), &sal)
+	err = socket.GetSockName(windows.Handle(sock.handle), &sal)
 	if err != nil {
 		return nil, conn.opErr(op, os.NewSyscallError("getsockname", err))
 	}
@@ -391,6 +390,7 @@ func (d *HvsockDialer) DialContext(ctx context.Context, addr *HvsockAddr) (conn 
 	return conn, nil
 }
 
+// redialWait waits before attempting to redial, resetting the timer as appropriate
 func (d *HvsockDialer) redialWait(ctx context.Context) (err error) {
 	if d.RetryWait == 0 {
 		return nil
@@ -429,6 +429,10 @@ func canRedial(err error) bool {
 }
 
 func (conn *HvsockConn) opErr(op string, err error) error {
+	// translate from "file closed" to "socket closed"
+	if errors.Is(err, ErrFileClosed) {
+		err = socket.ErrSocketClosed
+	}
 	return &net.OpError{Op: op, Net: "hvsock", Source: &conn.local, Addr: &conn.remote, Err: err}
 }
 
@@ -443,8 +447,8 @@ func (conn *HvsockConn) Read(b []byte) (int, error) {
 	err = syscall.WSARecv(conn.sock.handle, &buf, 1, &bytes, &flags, &c.o, nil)
 	n, err := conn.sock.asyncIo(c, &conn.sock.readDeadline, bytes, err)
 	if err != nil {
-		if _, ok := err.(syscall.Errno); ok {
-			err = os.NewSyscallError("wsarecv", err)
+		if eno := windows.Errno(0); errors.As(err, &eno) {
+			err = os.NewSyscallError("wsarecv", eno)
 		}
 		return 0, conn.opErr("read", err)
 	} else if n == 0 {
@@ -477,8 +481,8 @@ func (conn *HvsockConn) write(b []byte) (int, error) {
 	err = syscall.WSASend(conn.sock.handle, &buf, 1, &bytes, 0, &c.o, nil)
 	n, err := conn.sock.asyncIo(c, &conn.sock.writeDeadline, bytes, err)
 	if err != nil {
-		if _, ok := err.(syscall.Errno); ok {
-			err = os.NewSyscallError("wsasend", err)
+		if eno := windows.Errno(0); errors.As(err, &eno) {
+			err = os.NewSyscallError("wsasend", eno)
 		}
 		return 0, conn.opErr("write", err)
 	}
@@ -497,11 +501,16 @@ func (conn *HvsockConn) IsClosed() bool {
 // shutdown disables sending or receiving on a socket
 func (conn *HvsockConn) shutdown(how int) error {
 	if conn.IsClosed() {
-		return ErrFileClosed
+		return socket.ErrSocketClosed
 	}
 
 	err := syscall.Shutdown(conn.sock.handle, how)
 	if err != nil {
+		// If the connection was closed, shutdowns fail with "not connected"
+		if errors.Is(err, windows.WSAENOTCONN) ||
+			errors.Is(err, windows.WSAESHUTDOWN) {
+			err = socket.ErrSocketClosed
+		}
 		return os.NewSyscallError("shutdown", err)
 	}
 	return nil
