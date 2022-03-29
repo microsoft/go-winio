@@ -5,7 +5,10 @@ on:
 
 jobs:
   test:
-    runs-on: 'windows-2019'
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [windows-2019, windows-2022, ubuntu-latest]
     steps:
       - uses: actions/checkout@v2
       - uses: actions/setup-go@v2
