@@ -46,27 +46,29 @@ func Test_Variant(t *testing.T) {
 		{mustFromString(t, "f5cbc1a9-4cba-45a0-ffdd-b6761fc7dcc0"), VariantFuture},
 	}
 	for _, tc := range testCases {
-		actualVariant := tc.g.Variant()
-		if actualVariant != tc.v {
-			t.Fatalf("Variant is not correct.\nExpected: %d\nActual: %d\nGUID: %s", tc.v, actualVariant, tc.g)
-		}
+		t.Run(tc.v.String()+"/"+tc.g.String(), func(t *testing.T) {
+			actualVariant := tc.g.Variant()
+			if actualVariant != tc.v {
+				t.Fatalf("Variant is not correct.\nExpected: %d\nActual: %d\nGUID: %s", tc.v, actualVariant, tc.g)
+			}
+		})
 	}
 }
 
 func Test_SetVariant(t *testing.T) {
-	testCases := []Variant{
-		VariantNCS,
-		VariantRFC4122,
-		VariantMicrosoft,
-		VariantFuture,
-	}
 	g := mustFromString(t, "f5cbc1a9-4cba-45a0-bfdd-b6761fc7dcc0")
-	for _, tc := range testCases {
-		t.Logf("Test case: %d", tc)
-		g.setVariant(tc)
-		if g.Variant() != tc {
-			t.Fatalf("Variant is incorrect.\nExpected: %d\nActual: %d", tc, g.Variant())
+	for i := 0; i < len(_Variant_index)-1; i++ {
+		v := Variant(i)
+		if v == VariantUnknown {
+			// Unknown is not a valid variant
+			continue
 		}
+		t.Run(v.String(), func(t *testing.T) {
+			g.setVariant(v)
+			if g.Variant() != v {
+				t.Fatalf("Variant is incorrect.\nExpected: %d\nActual: %d", v, g.Variant())
+			}
+		})
 	}
 }
 
@@ -83,22 +85,25 @@ func Test_Version(t *testing.T) {
 		{mustFromString(t, "f5cbc1a9-4cba-55a0-0fdd-b6761fc7dcc0"), 5},
 	}
 	for _, tc := range testCases {
-		actualVersion := tc.g.Version()
-		if actualVersion != tc.v {
-			t.Fatalf("Version is not correct.\nExpected: %d\nActual: %d\nGUID: %s", tc.v, actualVersion, tc.g)
-		}
+		t.Run(tc.v.String()+"-"+tc.g.String(), func(t *testing.T) {
+			actualVersion := tc.g.Version()
+			if actualVersion != tc.v {
+				t.Fatalf("Version is not correct.\nExpected: %d\nActual: %d\nGUID: %s", tc.v, actualVersion, tc.g)
+			}
+		})
 	}
 }
 
 func Test_SetVersion(t *testing.T) {
 	g := mustFromString(t, "f5cbc1a9-4cba-45a0-bfdd-b6761fc7dcc0")
 	for tc := 0; tc < 16; tc++ {
-		t.Logf("Test case: %d", tc)
 		v := Version(tc)
-		g.setVersion(v)
-		if g.Version() != v {
-			t.Fatalf("Version is incorrect.\nExpected: %d\nActual: %d", v, g.Version())
-		}
+		t.Run(v.String(), func(t *testing.T) {
+			g.setVersion(v)
+			if g.Version() != v {
+				t.Fatalf("Version is incorrect.\nExpected: %d\nActual: %d", v, g.Version())
+			}
+		})
 	}
 }
 
@@ -160,10 +165,12 @@ func Test_V5KnownValues(t *testing.T) {
 		},
 	}
 	for _, tc := range testCases {
-		g := mustNewV5(t, tc.ns, []byte(tc.name))
-		if g != tc.g {
-			t.Fatalf("GUIDs are not equal.\nExpected: %s\nActual: %s", tc.g, g)
-		}
+		t.Run(tc.name, func(t *testing.T) {
+			g := mustNewV5(t, tc.ns, []byte(tc.name))
+			if g != tc.g {
+				t.Fatalf("GUIDs are not equal.\nExpected: %s\nActual: %s", tc.g, g)
+			}
+		})
 	}
 }
 
