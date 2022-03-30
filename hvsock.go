@@ -336,7 +336,7 @@ func HvsockRegisterService(id guid.GUID, name string) error {
 	return nil
 }
 
-// HvSockUnregisterService deleted the registration defined by the guid from the Hyper-V Host's registry.
+// HvsockUnregisterService deletes the registration defined by the guid from the Hyper-V Host's registry.
 func HvsockUnregisterService(id guid.GUID) error {
 	return registry.DeleteKey(registry.LOCAL_MACHINE, hvSocketRegKey(id))
 }
