@@ -89,8 +89,7 @@ const (
 
 var (
 	// ErrPipeListenerClosed is returned for pipe operations on listeners that have been closed.
-	// This error should match net.errClosing since docker takes a dependency on its text.
-	ErrPipeListenerClosed = errors.New("use of closed network connection")
+	ErrPipeListenerClosed = net.ErrClosed
 
 	errPipeWriteClosed = errors.New("pipe has been closed for write")
 )
