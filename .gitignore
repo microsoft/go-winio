@@ -1,1 +1,7 @@
+.vscode/
+
 *.exe
+
+# go workspaces
+go.work
+go.work.sum
