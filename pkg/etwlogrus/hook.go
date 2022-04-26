@@ -12,8 +12,9 @@ import (
 	"github.com/Microsoft/go-winio/pkg/etw"
 )
 
-const DefaultEventName = "LogrusEntry"
+const defaultEventName = "LogrusEntry"
 
+// ErrNoProvider is returned when a hook is created without a provider being configured.
 var ErrNoProvider = errors.New("no ETW registered provider")
 
 // HookOpt is an option to change the behavior of the Logrus ETW hook
@@ -96,13 +97,15 @@ func (h *Hook) Fire(e *logrus.Entry) error {
 		return nil
 	}
 
-	name := DefaultEventName
+	name := defaultEventName
 	if h.getName != nil {
 		if n := h.getName(e); n != "" {
 			name = n
 		}
 	}
 
+	// extra room for two more options in addition to log level to avoid repeated reallocations
+	// if the user also provides options
 	opts := make([]etw.EventOpt, 0, 3)
 	opts = append(opts, etw.WithLevel(level))
 	if h.getEventsOpts != nil {
