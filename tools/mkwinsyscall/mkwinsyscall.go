@@ -1,50 +1,9 @@
+//go:build windows
+
 // Copyright 2013 The Go Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
-/*
-mkwinsyscall generates windows system call bodies
-
-It parses all files specified on command line containing function
-prototypes (like syscall_windows.go) and prints system call bodies
-to standard output.
-
-The prototypes are marked by lines beginning with "//sys" and read
-like func declarations if //sys is replaced by func, but:
-
-  - The parameter lists must give a name for each argument. This
-    includes return parameters.
-
-  - The parameter lists must give a type for each argument:
-    the (x, y, z int) shorthand is not allowed.
-
-  - If the return parameter is an error number, it must be named err.
-
-  - If go func name needs to be different from its winapi dll name,
-    the winapi name could be specified at the end, after "=" sign, like
-    //sys LoadLibrary(libname string) (handle uint32, err error) = LoadLibraryA
-
-  - Each function that returns err needs to supply a condition, that
-    return value of winapi will be tested against to detect failure.
-    This would set err to windows "last-error", otherwise it will be nil.
-    The value can be provided at end of //sys declaration, like
-    //sys LoadLibrary(libname string) (handle uint32, err error) [failretval==-1] = LoadLibraryA
-    and is [failretval==0] by default.
-
-  - If the function name ends in a "?", then the function not existing is non-
-    fatal, and an error will be returned instead of panicking.
-
-Usage:
-
-	mkwinsyscall [flags] [path ...]
-
-The flags are:
-
-	-output
-		Specify output file name (outputs to console if blank).
-	-trace
-		Generate print statement after every syscall.
-*/
 package main
 
 import (
@@ -66,16 +25,25 @@ import (
 	"strconv"
 	"strings"
 	"text/template"
+
+	"golang.org/x/sys/windows"
 )
 
 var (
 	filename       = flag.String("output", "", "output file name (standard output if omitted)")
 	printTraceFlag = flag.Bool("trace", false, "generate print statement after every syscall")
 	systemDLL      = flag.Bool("systemdll", true, "whether all DLLs should be loaded from the Windows system directory")
+	winio          = flag.Bool("winio", false, `import this package ("github.com/Microsoft/go-winio")`)
+	utf16          = flag.Bool("utf16", true, "encode string arguments as UTF-16 for syscalls not ending in 'A' or 'W'")
+	sortdecls      = flag.Bool("sort", true, "sort DLL and function declarations")
 )
 
 func trim(s string) string {
 	return strings.Trim(s, " \t")
+}
+
+func endsIn(s string, c byte) bool {
+	return len(s) >= 1 && s[len(s)-1] == c
 }
 
 var packageName string
@@ -330,18 +298,30 @@ func (r *Rets) SetErrorCode() string {
 	const ntstatus = `if r0 != 0 {
 		ntstatus = %sNTStatus(r0)
 	}`
+	const hrCode = `if int32(r0) < 0 {
+		if r0&0x1fff0000 == 0x00070000 {
+			r0 &= 0xffff
+		}
+		%s = %sErrno(r0)
+	}`
+
 	if r.Name == "" && !r.ReturnsError {
 		return ""
 	}
 	if r.Name == "" {
 		return r.useLongHandleErrorCode("r1")
 	}
-	if r.Type == "error" && r.Name == "ntstatus" {
-		return fmt.Sprintf(ntstatus, windowsdot())
-	}
 	if r.Type == "error" {
-		return fmt.Sprintf(code, r.Name, syscalldot())
+		switch r.Name {
+		case "ntstatus":
+			return fmt.Sprintf(ntstatus, windowsdot())
+		case "hr":
+			return fmt.Sprintf(hrCode, r.Name, syscalldot())
+		default:
+			return fmt.Sprintf(code, r.Name, syscalldot())
+		}
 	}
+
 	s := ""
 	switch {
 	case r.Type[0] == '*':
@@ -490,7 +470,7 @@ func newFn(s string) (*Fn, error) {
 	default:
 		return nil, errors.New("Could not extract dll name from \"" + f.src + "\"")
 	}
-	if n := f.dllfuncname; strings.HasSuffix(n, "?") {
+	if n := f.dllfuncname; endsIn(n, '?') {
 		f.dllfuncname = n[:len(n)-1]
 		f.Rets.fnMaybeAbsent = true
 	}
@@ -593,26 +573,26 @@ func (f *Fn) HelperCallParamList() string {
 }
 
 // MaybeAbsent returns source code for handling functions that are possibly unavailable.
-func (p *Fn) MaybeAbsent() string {
-	if !p.Rets.fnMaybeAbsent {
+func (f *Fn) MaybeAbsent() string {
+	if !f.Rets.fnMaybeAbsent {
 		return ""
 	}
 	const code = `%[1]s = proc%[2]s.Find()
 	if %[1]s != nil {
 		return
 	}`
-	errorVar := p.Rets.ErrorVarName()
+	errorVar := f.Rets.ErrorVarName()
 	if errorVar == "" {
 		errorVar = "err"
 	}
-	return fmt.Sprintf(code, errorVar, p.DLLFuncName())
+	return fmt.Sprintf(code, errorVar, f.DLLFuncName())
 }
 
 // IsUTF16 is true, if f is W (utf16) function. It is false
 // for all A (ascii) functions.
 func (f *Fn) IsUTF16() bool {
 	s := f.DLLFuncName()
-	return s[len(s)-1] == 'W'
+	return endsIn(s, 'W') || (*utf16 && !endsIn(s, 'A'))
 }
 
 // StrconvFunc returns name of Go string to OS string function for f.
@@ -709,18 +689,43 @@ func (src *Source) DLLs() []string {
 			r = append(r, name)
 		}
 	}
-	sort.Strings(r)
+	if *sortdecls {
+		sort.Strings(r)
+	}
 	return r
 }
 
-// ParseFile adds additional file path to a source set src.
+// ParseFile adds additional file (or files, if path is a glob pattern) path to a source set src.
 func (src *Source) ParseFile(path string) error {
 	file, err := os.Open(path)
+	if err == nil {
+		defer file.Close()
+		return src.parseFile(file)
+	} else if !(errors.Is(err, os.ErrNotExist) || errors.Is(err, windows.ERROR_INVALID_NAME)) {
+		return err
+	}
+
+	paths, err := filepath.Glob(path)
 	if err != nil {
 		return err
 	}
-	defer file.Close()
 
+	for _, path := range paths {
+		file, err := os.Open(path)
+		if err != nil {
+			return err
+		}
+		err = src.parseFile(file)
+		file.Close()
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func (src *Source) parseFile(file *os.File) error {
 	s := bufio.NewScanner(file)
 	for s.Scan() {
 		t := trim(s.Text())
@@ -743,18 +748,20 @@ func (src *Source) ParseFile(path string) error {
 	if err := s.Err(); err != nil {
 		return err
 	}
-	src.Files = append(src.Files, path)
-	sort.Slice(src.Funcs, func(i, j int) bool {
-		fi, fj := src.Funcs[i], src.Funcs[j]
-		if fi.DLLName() == fj.DLLName() {
-			return fi.DLLFuncName() < fj.DLLFuncName()
-		}
-		return fi.DLLName() < fj.DLLName()
-	})
+	src.Files = append(src.Files, file.Name())
+	if *sortdecls {
+		sort.Slice(src.Funcs, func(i, j int) bool {
+			fi, fj := src.Funcs[i], src.Funcs[j]
+			if fi.DLLName() == fj.DLLName() {
+				return fi.DLLFuncName() < fj.DLLFuncName()
+			}
+			return fi.DLLName() < fj.DLLName()
+		})
+	}
 
 	// get package name
 	fset := token.NewFileSet()
-	_, err = file.Seek(0, 0)
+	_, err := file.Seek(0, 0)
 	if err != nil {
 		return err
 	}
@@ -818,6 +825,9 @@ func (src *Source) Generate(w io.Writer) error {
 			src.ExternalImport("golang.org/x/sys/windows")
 		}
 	}
+	if *winio {
+		src.ExternalImport("github.com/Microsoft/go-winio")
+	}
 	if packageName != "syscall" {
 		src.Import("syscall")
 	}
@@ -828,6 +838,9 @@ func (src *Source) Generate(w io.Writer) error {
 			arg := "\"" + dll + ".dll\""
 			if !*systemDLL {
 				return syscalldot() + "NewLazyDLL(" + arg + ")"
+			}
+			if strings.HasPrefix(dll, "api_") || strings.HasPrefix(dll, "ext_") {
+				arg = strings.Replace(arg, "_", "-", -1)
 			}
 			switch pkgtype {
 			case pkgStd:
@@ -887,8 +900,9 @@ func main() {
 
 // TODO: use println instead to print in the following template
 const srcTemplate = `
+{{define "main"}} //go:build windows
 
-{{define "main"}}// Code generated by 'go generate'; DO NOT EDIT.
+// Code generated by 'go generate' using "github.com/Microsoft/go-winio/tools/mkwinsyscall"; DO NOT EDIT.
 
 package {{packagename}}
 

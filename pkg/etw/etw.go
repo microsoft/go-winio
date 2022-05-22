@@ -7,7 +7,7 @@
 // set of C macros.
 package etw
 
-//go:generate go run mksyscall_windows.go -output zsyscall_windows.go etw.go
+//go:generate go run github.com/Microsoft/go-winio/tools/mkwinsyscall -output zsyscall_windows.go etw.go
 
 //sys eventRegister(providerId *windows.GUID, callback uintptr, callbackContext uintptr, providerHandle *providerHandle) (win32err error) = advapi32.EventRegister
 
