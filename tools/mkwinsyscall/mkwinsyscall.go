@@ -588,8 +588,9 @@ func (f *Fn) MaybeAbsent() string {
 	return fmt.Sprintf(code, errorVar, f.DLLFuncName())
 }
 
-// IsUTF16 is true, if f is W (utf16) function. It is false
-// for all A (ascii) functions.
+// IsUTF16 is true, if f is W (UTF-16) function and false for all A (ASCII) functions.
+// Functions ending in neither will default to UTF-16, unless the `-utf16` flag is set
+// to `false`.
 func (f *Fn) IsUTF16() bool {
 	s := f.DLLFuncName()
 	return endsIn(s, 'W') || (*utf16 && !endsIn(s, 'A'))
