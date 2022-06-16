@@ -11,7 +11,7 @@ import (
 	"golang.org/x/sys/windows"
 )
 
-//go:generate go run mksyscall_windows.go -output zvhd_windows.go vhd.go
+//go:generate go run github.com/Microsoft/go-winio/tools/mkwinsyscall -output zvhd_windows.go vhd.go
 
 //sys createVirtualDisk(virtualStorageType *VirtualStorageType, path string, virtualDiskAccessMask uint32, securityDescriptor *uintptr, createVirtualDiskFlags uint32, providerSpecificFlags uint32, parameters *CreateVirtualDiskParameters, overlapped *syscall.Overlapped, handle *syscall.Handle) (win32err error) = virtdisk.CreateVirtualDisk
 //sys openVirtualDisk(virtualStorageType *VirtualStorageType, path string, virtualDiskAccessMask uint32, openVirtualDiskFlags uint32, parameters *openVirtualDiskParameters, handle *syscall.Handle) (win32err error) = virtdisk.OpenVirtualDisk
