@@ -13,10 +13,24 @@ func TestLookupInvalidSid(t *testing.T) {
 	}
 }
 
+func TestLookupInvalidName(t *testing.T) {
+	_, err := LookupNameBySid("notasid")
+	aerr, ok := err.(*AccountLookupError)
+	if !ok || aerr.Err != cERROR_INVALID_SID {
+		t.Fatalf("expected AccountLookupError with ERROR_INVALID_SID got %s", err)
+	}
+}
+
 func TestLookupValidSid(t *testing.T) {
-	sid, err := LookupSidByName("Everyone")
-	if err != nil || sid != "S-1-1-0" {
-		t.Fatalf("expected S-1-1-0, got %s, %s", sid, err)
+	everyone := "S-1-1-0"
+	name, err := LookupNameBySid(everyone)
+	if err != nil {
+		t.Fatalf("expected a valid account name, got %v", err)
+	}
+
+	sid, err := LookupSidByName(name)
+	if err != nil || sid != everyone {
+		t.Fatalf("expected %s, got %s, %s", everyone, sid, err)
 	}
 }
 

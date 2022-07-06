@@ -6,10 +6,14 @@ package winio
 import (
 	"syscall"
 	"unsafe"
+
+	"golang.org/x/sys/windows"
 )
 
 //sys lookupAccountName(systemName *uint16, accountName string, sid *byte, sidSize *uint32, refDomain *uint16, refDomainSize *uint32, sidNameUse *uint32) (err error) = advapi32.LookupAccountNameW
+//sys lookupAccountSid(systemName *uint16, sid *byte, name *uint16, nameSize *uint32, refDomain *uint16, refDomainSize *uint32, sidNameUse *uint32) (err error) = advapi32.LookupAccountSidW
 //sys convertSidToStringSid(sid *byte, str **uint16) (err error) = advapi32.ConvertSidToStringSidW
+//sys convertStringSidToSid(str *uint16, sid **byte) (err error) = advapi32.ConvertStringSidToSidW
 //sys convertStringSecurityDescriptorToSecurityDescriptor(str string, revision uint32, sd *uintptr, size *uint32) (err error) = advapi32.ConvertStringSecurityDescriptorToSecurityDescriptorW
 //sys convertSecurityDescriptorToStringSecurityDescriptor(sd *byte, revision uint32, secInfo uint32, sddl **uint16, sddlSize *uint32) (err error) = advapi32.ConvertSecurityDescriptorToStringSecurityDescriptorW
 //sys localFree(mem uintptr) = LocalFree
@@ -17,6 +21,7 @@ import (
 
 const (
 	cERROR_NONE_MAPPED = syscall.Errno(1332)
+	cERROR_INVALID_SID = syscall.Errno(1337)
 )
 
 type AccountLookupError struct {
@@ -30,6 +35,8 @@ func (e *AccountLookupError) Error() string {
 	}
 	var s string
 	switch e.Err {
+	case cERROR_INVALID_SID:
+		s = "the security ID structure is invalid"
 	case cERROR_NONE_MAPPED:
 		s = "not found"
 	default:
@@ -72,6 +79,40 @@ func LookupSidByName(name string) (sid string, err error) {
 	sid = syscall.UTF16ToString((*[0xffff]uint16)(unsafe.Pointer(strBuffer))[:])
 	localFree(uintptr(unsafe.Pointer(strBuffer)))
 	return sid, nil
+}
+
+// LookupNameBySid looks up the name of an account by SID
+func LookupNameBySid(sid string) (name string, err error) {
+	if sid == "" {
+		return "", &AccountLookupError{sid, cERROR_NONE_MAPPED}
+	}
+
+	sidBuffer, err := windows.UTF16PtrFromString(sid)
+	if err != nil {
+		return "", &AccountLookupError{sid, err}
+	}
+
+	var sidPtr *byte
+	if err = convertStringSidToSid(sidBuffer, &sidPtr); err != nil {
+		return "", &AccountLookupError{sid, err}
+	}
+	defer localFree(uintptr(unsafe.Pointer(sidPtr)))
+
+	var nameSize, refDomainSize, sidNameUse uint32
+	err = lookupAccountSid(nil, sidPtr, nil, &nameSize, nil, &refDomainSize, &sidNameUse)
+	if err != nil && err != windows.ERROR_INSUFFICIENT_BUFFER {
+		return "", &AccountLookupError{sid, err}
+	}
+
+	nameBuffer := make([]uint16, nameSize)
+	refDomainBuffer := make([]uint16, refDomainSize)
+	err = lookupAccountSid(nil, sidPtr, &nameBuffer[0], &nameSize, &refDomainBuffer[0], &refDomainSize, &sidNameUse)
+	if err != nil {
+		return "", &AccountLookupError{sid, err}
+	}
+
+	name = windows.UTF16ToString(nameBuffer)
+	return name, nil
 }
 
 func SddlToSecurityDescriptor(sddl string) ([]byte, error) {
