@@ -140,8 +140,11 @@ func (addr *HvsockAddr) fromRaw(raw *rawHvsockAddr) {
 	addr.ServiceID = raw.ServiceID
 }
 
-// Sockaddr interface allows use with `sockets.Bind()` and `.ConnectEx()`
-func (r *rawHvsockAddr) Sockaddr() (ptr unsafe.Pointer, len int32, err error) {
+// Sockaddr returns a pointer to and the size of this struct.
+//
+// Implements the [socket.RawSockaddr] interface, and allows use in
+// [socket.Bind()] and [socket.ConnectEx()]
+func (r *rawHvsockAddr) Sockaddr() (unsafe.Pointer, int32, error) {
 	return unsafe.Pointer(r), int32(unsafe.Sizeof(rawHvsockAddr{})), nil
 }
 
@@ -447,7 +450,8 @@ func (conn *HvsockConn) Read(b []byte) (int, error) {
 	err = syscall.WSARecv(conn.sock.handle, &buf, 1, &bytes, &flags, &c.o, nil)
 	n, err := conn.sock.asyncIo(c, &conn.sock.readDeadline, bytes, err)
 	if err != nil {
-		if eno := windows.Errno(0); errors.As(err, &eno) {
+		var eno windows.Errno
+		if errors.As(err, &eno) {
 			err = os.NewSyscallError("wsarecv", eno)
 		}
 		return 0, conn.opErr("read", err)
@@ -481,7 +485,8 @@ func (conn *HvsockConn) write(b []byte) (int, error) {
 	err = syscall.WSASend(conn.sock.handle, &buf, 1, &bytes, 0, &c.o, nil)
 	n, err := conn.sock.asyncIo(c, &conn.sock.writeDeadline, bytes, err)
 	if err != nil {
-		if eno := windows.Errno(0); errors.As(err, &eno) {
+		var eno windows.Errno
+		if errors.As(err, &eno) {
 			err = os.NewSyscallError("wsasend", eno)
 		}
 		return 0, conn.opErr("write", err)

@@ -3,6 +3,7 @@
 package socket
 
 import (
+	"errors"
 	"fmt"
 	"net"
 	"sync"
@@ -21,57 +22,46 @@ import (
 
 const socketError = uintptr(^uint32(0))
 
-var ErrSocketClosed = fmt.Errorf("socket closed: %w", net.ErrClosed)
+var (
+	// todo(helsaawy): create custom error types to store the desired vs actual size and addr family?
 
-// GetSockName returns the socket's local address. It will call the `rsa.FromBytes()` on the
-// buffer returned by the getsockname syscall. The buffer is allocated to the size specified
-// by `rsa.Sockaddr()`.
+	ErrBufferSize     = errors.New("buffer size")
+	ErrAddrFamily     = errors.New("address family")
+	ErrInvalidPointer = errors.New("invalid pointer")
+	ErrSocketClosed   = fmt.Errorf("socket closed: %w", net.ErrClosed)
+)
+
+// todo(helsaawy): replace these with generics, ie: GetSockName[S RawSockaddr](s windows.Handle) (S, error)
+
+// GetSockName writes the local address of socket s to the [RawSockaddr] rsa.
+// If rsa is not large enough, the [windows.WSAEFAULT] is returned.
 func GetSockName(s windows.Handle, rsa RawSockaddr) error {
 	ptr, l, err := rsa.Sockaddr()
 	if err != nil {
-		return fmt.Errorf("could not find socket size to allocate buffer: %w", err)
-	}
-	if err = validateSockAddr(ptr, l); err != nil {
-		return err
+		return fmt.Errorf("could not retrieve socket pointer and size: %w", err)
 	}
 
-	b := make([]byte, l)
-	err = getsockname(s, unsafe.Pointer(&b[0]), &l)
-	if err != nil {
-		// although getsockname returns WSAEFAULT if the buffer is too small, it does not set
-		// &l to the correct size, so--apart from doubling the buffer repeatedly--there is no remedy
-		return err
-	}
-	return rsa.FromBytes(b[:l])
+	// although getsockname returns WSAEFAULT if the buffer is too small, it does not set
+	// &l to the correct size, so--apart from doubling the buffer repeatedly--there is no remedy
+	return getsockname(s, ptr, &l)
 }
 
 // GetPeerName returns the remote address the socket is connected to.
 //
-// See GetSockName for more information.
+// See [GetSockName] for more information.
 func GetPeerName(s windows.Handle, rsa RawSockaddr) error {
 	ptr, l, err := rsa.Sockaddr()
 	if err != nil {
-		return fmt.Errorf("could not find socket size to allocate buffer: %w", err)
-	}
-	if err = validateSockAddr(ptr, l); err != nil {
-		return err
+		return fmt.Errorf("could not retrieve socket pointer and size: %w", err)
 	}
 
-	b := make([]byte, l)
-	err = getpeername(s, unsafe.Pointer(&b[0]), &l)
-	if err != nil {
-		return err
-	}
-	return rsa.FromBytes(b[:l])
+	return getpeername(s, ptr, &l)
 }
 
 func Bind(s windows.Handle, rsa RawSockaddr) (err error) {
 	ptr, l, err := rsa.Sockaddr()
 	if err != nil {
-		return fmt.Errorf("could not find socket pointer and size: %w", err)
-	}
-	if err = validateSockAddr(ptr, l); err != nil {
-		return err
+		return fmt.Errorf("could not retrieve socket pointer and size: %w", err)
 	}
 
 	return bind(s, ptr, l)
@@ -150,7 +140,7 @@ func ConnectEx(fd windows.Handle, rsa RawSockaddr, sendBuf *byte, sendDataLen ui
 //   [in]           LPOVERLAPPED lpOverlapped
 // )
 func connectEx(s windows.Handle, name unsafe.Pointer, namelen int32, sendBuf *byte, sendDataLen uint32, bytesSent *uint32, overlapped *windows.Overlapped) (err error) {
-	// todo: after upgrading to 1.18, switch to syscall.SyscallN from syscall.Syscall9
+	// todo: after upgrading to 1.18, switch from syscall.Syscall9 to syscall.SyscallN
 	r1, _, e1 := syscall.Syscall9(connectExFunc.addr, 7, uintptr(s), uintptr(name), uintptr(namelen), uintptr(unsafe.Pointer(sendBuf)), uintptr(sendDataLen), uintptr(unsafe.Pointer(bytesSent)), uintptr(unsafe.Pointer(overlapped)), 0, 0)
 	if r1 == 0 {
 		if e1 != 0 {
