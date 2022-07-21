@@ -6,3 +6,5 @@ require (
 	github.com/sirupsen/logrus v1.7.0
 	golang.org/x/sys v0.0.0-20220422013727-9388b58f7150
 )
+
+require golang.org/x/sync v0.0.0-20220722155255-886fb9371eb4 // indirect
