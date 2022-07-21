@@ -178,6 +178,8 @@ func ioCompletionProcessor(h syscall.Handle) {
 	}
 }
 
+// todo: helsaawy - create an asyncIO version that takes a context
+
 // asyncIo processes the return value from ReadFile or WriteFile, blocking until
 // the operation has actually completed.
 func (f *win32File) asyncIo(c *ioOperation, d *deadlineHandler, bytes uint32, err error) (int, error) {
@@ -221,6 +223,7 @@ func (f *win32File) asyncIo(c *ioOperation, d *deadlineHandler, bytes uint32, er
 	// runtime.KeepAlive is needed, as c is passed via native
 	// code to ioCompletionProcessor, c must remain alive
 	// until the channel read is complete.
+	// todo: (de)allocate *ioOperation via win32 heap functions, instead of needing to KeepAlive?
 	runtime.KeepAlive(c)
 	return int(r.bytes), err
 }
