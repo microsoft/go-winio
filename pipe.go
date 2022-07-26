@@ -456,6 +456,28 @@ func ListenPipe(path string, c *PipeConfig) (net.Listener, error) {
 	if err != nil {
 		return nil, err
 	}
+	// Create a client handle and connect it.  This results in the pipe
+	// instance always existing, so that clients see ERROR_PIPE_BUSY
+	// rather than ERROR_FILE_NOT_FOUND.  This ties the first instance
+	// up so that no other instances can be used.  This would have been
+	// cleaner if the Win32 API matched CreateFile with ConnectNamedPipe
+	// instead of CreateNamedPipe.  (Apparently created named pipes are
+	// considered to be in listening state regardless of whether any
+	// active calls to ConnectNamedPipe are outstanding.)
+	// On Windows 10: NtCreateNamedPipeFile creates the pipe instance and
+	// client connect fails with ERROR_PIPE_BUSY.
+	// But on Windows 7: NtCreateNamedPipeFile is not creating the pipe
+	// instance and need to create client handle to connect to it.
+	// Ignoring the error from the createFile as it fails on Win10 and
+	// is needed for Win7.
+	h2, err := createFile(path, 0, 0, nil, syscall.OPEN_EXISTING, cSECURITY_SQOS_PRESENT|cSECURITY_ANONYMOUS, 0)
+	if err == nil {
+		// Close the client handle. The server side of the instance will
+		// still be busy, leading to ERROR_PIPE_BUSY instead of
+		// ERROR_NOT_FOUND, as long as we don't close the server handle,
+		// or disconnect the client with DisconnectNamedPipe.
+		syscall.Close(h2)
+	}
 	l := &win32PipeListener{
 		firstHandle: h,
 		path:        path,
