@@ -298,8 +298,10 @@ func TestDialTimesOutByDefault(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer l.Close()
-	_, err = DialPipe(testPipeName, nil)
-	if err != ErrTimeout {
+	start := time.Now()
+	timeout := time.Millisecond
+	_, err = DialPipe(testPipeName, &timeout)
+	if err != ErrTimeout || time.Since(start) < time.Millisecond {
 		t.Fatalf("expected ErrTimeout, got %v", err)
 	}
 }
@@ -312,14 +314,15 @@ func TestTimeoutPendingRead(t *testing.T) {
 	defer l.Close()
 
 	serverDone := make(chan struct{})
-
+	isReading := make(chan struct{})
 	go func() {
 		s, err := l.Accept()
 		if err != nil {
 			t.Fatal(err)
 		}
-		time.Sleep(1 * time.Second)
 		s.Close()
+		isReading <- struct{}{}
+
 		close(serverDone)
 	}()
 
@@ -332,11 +335,10 @@ func TestTimeoutPendingRead(t *testing.T) {
 	clientErr := make(chan error)
 	go func() {
 		buf := make([]byte, 10)
+		<-isReading
 		_, err = client.Read(buf)
 		clientErr <- err
 	}()
-
-	time.Sleep(100 * time.Millisecond) // make *sure* the pipe is reading before we set the deadline
 	client.SetReadDeadline(aLongTimeAgo)
 
 	select {
@@ -360,12 +362,14 @@ func TestTimeoutPendingWrite(t *testing.T) {
 
 	serverDone := make(chan struct{})
 
+	isReading := make(chan struct{})
+	wrote := make(chan struct{})
 	go func() {
 		s, err := l.Accept()
 		if err != nil {
 			t.Fatal(err)
 		}
-		time.Sleep(1 * time.Second)
+		isReading <- struct{}{}
 		s.Close()
 		close(serverDone)
 	}()
@@ -378,12 +382,14 @@ func TestTimeoutPendingWrite(t *testing.T) {
 
 	clientErr := make(chan error)
 	go func() {
+		<-isReading // allow it to close
 		_, err = client.Write([]byte("this should timeout"))
+		wrote <- struct{}{}
 		clientErr <- err
 	}()
 
-	time.Sleep(100 * time.Millisecond) // make *sure* the pipe is writing before we set the deadline
 	client.SetWriteDeadline(aLongTimeAgo)
+	<-wrote
 
 	select {
 	case err = <-clientErr:
@@ -423,12 +429,12 @@ func TestEchoWithMessaging(t *testing.T) {
 		}
 		defer conn.Close()
 
-		time.Sleep(500 * time.Millisecond) // make *sure* we don't begin to read before eof signal is sent
+		time.Sleep(200 * time.Millisecond) // make *sure* we don't begin to read before eof signal is sent
 		io.Copy(conn, conn)
 		conn.(CloseWriter).CloseWrite()
 		close(listenerDone)
 	}()
-	timeout := 1 * time.Second
+	timeout := 500 * time.Second
 	client, err := DialPipe(testPipeName, &timeout)
 	if err != nil {
 		t.Fatal(err)
@@ -484,13 +490,20 @@ func TestConnectRace(t *testing.T) {
 		}
 	}()
 
+	// Dial all in background
+	var wg sync.WaitGroup
 	for i := 0; i < 1000; i++ {
-		c, err := DialPipe(testPipeName, nil)
-		if err != nil {
-			t.Fatal(err)
-		}
-		c.Close()
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			c, err := DialPipe(testPipeName, nil)
+			if err != nil {
+				t.Fatal(err)
+			}
+			c.Close()
+		}()
 	}
+	wg.Wait() // wait for all to finish
 }
 
 func TestMessageReadMode(t *testing.T) {
