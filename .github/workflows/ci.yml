@@ -3,27 +3,84 @@ on:
   - push
   - pull_request
 
+env:
+  GO_VERSION: "1.17"
+
 jobs:
+  lint:
+    name: Lint
+    runs-on: windows-2019
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions/setup-go@v3
+        with:
+          go-version: ${{ env.GO_VERSION }}
+      - name: Run golangci-lint
+        uses: golangci/golangci-lint-action@v3
+        with:
+          args: >-
+            --verbose
+            --timeout=5m
+            --config=.golangci.yml
+            --max-issues-per-linter=0
+            --max-same-issues=0
+            --modules-download-mode=readonly
+
+  go-generate:
+    name: Validate Go Generate
+    runs-on: windows-2019
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions/setup-go@v3
+        with:
+          go-version: ${{ env.GO_VERSION }}
+      - name: Verify generated files
+        shell: pwsh
+        run: |
+          Write-Output "::group::go generate"
+          go generate -x ./...
+          Write-Output "::endgroup::"
+          if ($LASTEXITCODE -ne 0) {
+            Write-Output "::error title=Go Generate::Error running go generate."
+            exit $LASTEXITCODE
+          }
+
+          git add -N .
+          Write-Output "::group::git diff"
+          git diff --stat --exit-code
+          Write-Output "::endgroup::"
+          if ($LASTEXITCODE -ne 0) {
+            Write-Output "::error ::Generated files are not up to date. Please run ``go generate ./...``."
+            exit $LASTEXITCODE
+          }
+
   test:
+    name: Run Tests
+    needs:
+      - lint
+      - go-generate
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
         os: [windows-2019, windows-2022, ubuntu-latest]
     steps:
-      - uses: actions/checkout@v2
-      - uses: actions/setup-go@v2
+      - uses: actions/checkout@v3
+      - uses: actions/setup-go@v3
         with:
-          go-version: '^1.17.0'
+          go-version: ${{ env.GO_VERSION }}
       - run: go test -gcflags=all=-d=checkptr -v ./...
 
   build:
-    runs-on: 'windows-2019'
+    name: Build Repo
+    needs:
+      - test
+    runs-on: "windows-2019"
     steps:
-      - uses: actions/checkout@v2
-      - uses: actions/setup-go@v2
+      - uses: actions/checkout@v3
+      - uses: actions/setup-go@v3
         with:
-          go-version: '^1.17.0'
-
+          go-version: ${{ env.GO_VERSION }}
       - run: go build ./pkg/etw/sample/
       - run: go build ./tools/etw-provider-gen/
+      - run: go build ./tools/mkwinsyscall/
       - run: go build ./wim/validate/
