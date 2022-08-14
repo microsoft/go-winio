@@ -1,3 +1,4 @@
+//go:build windows
 // +build windows
 
 package main
@@ -20,7 +21,6 @@ func main() {
 	w, err := wim.NewReader(f)
 	if err != nil {
 		panic(err)
-
 	}
 
 	fmt.Printf("%#v\n%#v\n", w.Image[0], w.Image[0].Windows)
@@ -39,13 +39,13 @@ func main() {
 func recur(d *wim.File) error {
 	files, err := d.Readdir()
 	if err != nil {
-		return fmt.Errorf("%s: %s", d.Name, err)
+		return fmt.Errorf("%s: %w", d.Name, err)
 	}
 	for _, f := range files {
 		if f.IsDir() {
 			err = recur(f)
 			if err != nil {
-				return fmt.Errorf("%s: %s", f.Name, err)
+				return fmt.Errorf("%s: %w", f.Name, err)
 			}
 		}
 	}

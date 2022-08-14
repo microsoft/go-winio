@@ -18,13 +18,16 @@ like func declarations if //sys is replaced by func, but:
 
   - If go func name needs to be different from its winapi dll name,
     the winapi name could be specified at the end, after "=" sign, like
+
     //sys LoadLibrary(libname string) (handle uint32, err error) = LoadLibraryA
 
   - Each function that returns err needs to supply a condition, that
     return value of winapi will be tested against to detect failure.
     This would set err to windows "last-error", otherwise it will be nil.
     The value can be provided at end of //sys declaration, like
+
     //sys LoadLibrary(libname string) (handle uint32, err error) [failretval==-1] = LoadLibraryA
+
     and is [failretval==0] by default.
 
   - If the function name ends in a "?", then the function not existing is non-
@@ -32,21 +35,23 @@ like func declarations if //sys is replaced by func, but:
 
 Usage:
 
-    mkwinsyscall [flags] [path ...]
+	mkwinsyscall [flags] [path ...]
 
-The flags are:
+Flags
 
-    -output string
-        Specify output file name (standard output if omitted).
-    -sort
-        Sort DLL and Function declarations (default true). Setting to false is intended to maintain
-		compatibility with older versions of mkwinsyscall so that diffs are easier to read and understand.
-    -systemdll
-        Specify that all DLLs should be loaded from the Windows system directory (default true).
-    -trace
-        Generate print statement after every syscall.
-    winio
-        Import this package ("github.com/Microsoft/go-winio").
-
+	-output string
+	      Output file name (standard output if omitted).
+	-sort
+	      Sort DLL and function declarations (default true).
+	      Intended to help transition from  older versions of mkwinsyscall by making diffs
+	      easier to read and understand.
+	-systemdll
+	      Whether all DLLs should be loaded from the Windows system directory (default true).
+	-trace
+	      Generate print statement after every syscall.
+	-utf16
+	      Encode string arguments as UTF-16 for syscalls not ending in 'A' or 'W' (default true).
+	-winio
+	      Import this package ("github.com/Microsoft/go-winio").
 */
 package main

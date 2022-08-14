@@ -1,3 +1,4 @@
+//go:build windows
 // +build windows
 
 package backuptar
@@ -6,7 +7,6 @@ import (
 	"archive/tar"
 	"bytes"
 	"io"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -25,8 +25,7 @@ func ensurePresent(t *testing.T, m map[string]string, keys ...string) {
 }
 
 func setSparse(t *testing.T, f *os.File) {
-	const FSCTL_SET_SPARSE uint32 = 0x900c4
-	if err := windows.DeviceIoControl(windows.Handle(f.Fd()), FSCTL_SET_SPARSE, nil, 0, nil, 0, nil, nil); err != nil {
+	if err := windows.DeviceIoControl(windows.Handle(f.Fd()), windows.FSCTL_SET_SPARSE, nil, 0, nil, 0, nil, nil); err != nil {
 		t.Fatal(err)
 	}
 }
@@ -68,10 +67,12 @@ func compareReaders(t *testing.T, rActual io.Reader, rExpected io.Reader) {
 func TestRoundTrip(t *testing.T) {
 	// Each test case is a name mapped to a function which must create a file and return its path.
 	// The test then round-trips that file through backuptar, and validates the output matches the input.
+	//
+	//nolint:gosec // G306: Expect WriteFile permissions to be 0600 or less
 	for name, setup := range map[string]func(*testing.T) string{
 		"normalFile": func(t *testing.T) string {
 			path := filepath.Join(t.TempDir(), "foo.txt")
-			if err := ioutil.WriteFile(path, []byte("testing 1 2 3\n"), 0644); err != nil {
+			if err := os.WriteFile(path, []byte("testing 1 2 3\n"), 0644); err != nil {
 				t.Fatal(err)
 			}
 			return path

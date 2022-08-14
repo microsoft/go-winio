@@ -109,7 +109,7 @@ func (f *runtimeFunc) Load() error {
 
 var (
 	// todo: add `AcceptEx` and `GetAcceptExSockaddrs`
-	WSAID_CONNECTEX = guid.GUID{ //nolint:revive,stylecheck
+	WSAID_CONNECTEX = guid.GUID{ //revive:disable-line:var-naming ALL_CAPS
 		Data1: 0x25a207b9,
 		Data2: 0xddf3,
 		Data3: 0x4660,
@@ -119,7 +119,14 @@ var (
 	connectExFunc = runtimeFunc{id: WSAID_CONNECTEX}
 )
 
-func ConnectEx(fd windows.Handle, rsa RawSockaddr, sendBuf *byte, sendDataLen uint32, bytesSent *uint32, overlapped *windows.Overlapped) error {
+func ConnectEx(
+	fd windows.Handle,
+	rsa RawSockaddr,
+	sendBuf *byte,
+	sendDataLen uint32,
+	bytesSent *uint32,
+	overlapped *windows.Overlapped,
+) error {
 	if err := connectExFunc.Load(); err != nil {
 		return fmt.Errorf("failed to load ConnectEx function pointer: %w", err)
 	}
@@ -139,9 +146,28 @@ func ConnectEx(fd windows.Handle, rsa RawSockaddr, sendBuf *byte, sendDataLen ui
 //   [out]          LPDWORD lpdwBytesSent,
 //   [in]           LPOVERLAPPED lpOverlapped
 // )
-func connectEx(s windows.Handle, name unsafe.Pointer, namelen int32, sendBuf *byte, sendDataLen uint32, bytesSent *uint32, overlapped *windows.Overlapped) (err error) {
+
+func connectEx(
+	s windows.Handle,
+	name unsafe.Pointer,
+	namelen int32,
+	sendBuf *byte,
+	sendDataLen uint32,
+	bytesSent *uint32,
+	overlapped *windows.Overlapped,
+) (err error) {
 	// todo: after upgrading to 1.18, switch from syscall.Syscall9 to syscall.SyscallN
-	r1, _, e1 := syscall.Syscall9(connectExFunc.addr, 7, uintptr(s), uintptr(name), uintptr(namelen), uintptr(unsafe.Pointer(sendBuf)), uintptr(sendDataLen), uintptr(unsafe.Pointer(bytesSent)), uintptr(unsafe.Pointer(overlapped)), 0, 0)
+	r1, _, e1 := syscall.Syscall9(connectExFunc.addr,
+		7,
+		uintptr(s),
+		uintptr(name),
+		uintptr(namelen),
+		uintptr(unsafe.Pointer(sendBuf)),
+		uintptr(sendDataLen),
+		uintptr(unsafe.Pointer(bytesSent)),
+		uintptr(unsafe.Pointer(overlapped)),
+		0,
+		0)
 	if r1 == 0 {
 		if e1 != 0 {
 			err = error(e1)
@@ -149,5 +175,5 @@ func connectEx(s windows.Handle, name unsafe.Pointer, namelen int32, sendBuf *by
 			err = syscall.EINVAL
 		}
 	}
-	return
+	return err
 }

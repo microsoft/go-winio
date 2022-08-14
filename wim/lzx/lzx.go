@@ -100,7 +100,7 @@ func (f *decompressor) ensureAtLeast(n int) error {
 	}
 	n, err := io.ReadAtLeast(f.r, f.b[f.bv-f.bo:], n)
 	if err != nil {
-		if err == io.EOF {
+		if err == io.EOF { //nolint:errorlint
 			err = io.ErrUnexpectedEOF
 		} else {
 			f.fail(err)
@@ -117,10 +117,8 @@ func (f *decompressor) ensureAtLeast(n int) error {
 // Otherwise, on error, it sets f.err.
 func (f *decompressor) feed() bool {
 	err := f.ensureAtLeast(2)
-	if err != nil {
-		if err == io.ErrUnexpectedEOF {
-			return false
-		}
+	if err == io.ErrUnexpectedEOF { //nolint:errorlint // returns io.ErrUnexpectedEOF by contract
+		return false
 	}
 	f.c |= (uint32(f.b[f.bo+1])<<8 | uint32(f.b[f.bo])) << (16 - f.nbits)
 	f.nbits += 16
@@ -232,9 +230,8 @@ func (f *decompressor) getCode(h *huffman) uint16 {
 		// are, since entries with all possible suffixes were
 		// added to the table.
 		c := h.table[f.c>>(32-tablebits)]
-		if c >= 1<<lenshift {
-			// The code is already in c.
-		} else {
+		if !(c >= 1<<lenshift) {
+			// The code is not in c.
 			c = h.extra[c][f.c<<tablebits>>(32-(h.maxbits-tablebits))]
 		}
 
@@ -399,41 +396,37 @@ func (f *decompressor) readTrees(readAligned bool) (main *huffman, length *huffm
 		}
 		aligned = buildTable(alignedLen[:])
 		if aligned == nil {
-			err = errors.New("corrupt")
-			return
+			return main, length, aligned, errors.New("corrupt")
 		}
 	}
 
 	// The main tree is encoded in two parts.
 	err = f.readTree(f.mainlens[:maincodesplit])
 	if err != nil {
-		return
+		return main, length, aligned, err
 	}
 	err = f.readTree(f.mainlens[maincodesplit:])
 	if err != nil {
-		return
+		return main, length, aligned, err
 	}
 
 	main = buildTable(f.mainlens[:])
 	if main == nil {
-		err = errors.New("corrupt")
-		return
+		return main, length, aligned, errors.New("corrupt")
 	}
 
 	// The length tree is encoding in a single part.
 	err = f.readTree(f.lenlens[:])
 	if err != nil {
-		return
+		return main, length, aligned, err
 	}
 
 	length = buildTable(f.lenlens[:])
 	if length == nil {
-		err = errors.New("corrupt")
-		return
+		return main, length, aligned, errors.New("corrupt")
 	}
 
-	err = f.err
-	return
+	return main, length, aligned, f.err
 }
 
 // readCompressedBlock decodes a compressed block, writing into the window
@@ -465,7 +458,7 @@ func (f *decompressor) readCompressedBlock(start, end uint16, hmain, hlength, ha
 		matchlen += 2
 
 		var matchoffset uint16
-		if slot < 3 {
+		if slot < 3 { //nolint:nestif // todo: simplify nested complexity
 			// The offset is one of the LRU values.
 			matchoffset = f.lru[slot]
 			f.lru[slot] = f.lru[0]
@@ -586,7 +579,7 @@ func (f *decompressor) Read(b []byte) (int, error) {
 	return f.windowReader.Read(b)
 }
 
-func (f *decompressor) Close() error {
+func (*decompressor) Close() error {
 	return nil
 }
 

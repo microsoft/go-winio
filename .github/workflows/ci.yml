@@ -27,14 +27,14 @@ jobs:
             --modules-download-mode=readonly
 
   go-generate:
-    name: Validate Go Generate
+    name: Go Generate
     runs-on: windows-2019
     steps:
       - uses: actions/checkout@v3
       - uses: actions/setup-go@v3
         with:
           go-version: ${{ env.GO_VERSION }}
-      - name: Verify generated files
+      - name: Run go generate
         shell: pwsh
         run: |
           Write-Output "::group::go generate"
@@ -44,7 +44,9 @@ jobs:
             Write-Output "::error title=Go Generate::Error running go generate."
             exit $LASTEXITCODE
           }
-
+      - name: Diff
+        shell: pwsh
+        run: |
           git add -N .
           Write-Output "::group::git diff"
           git diff --stat --exit-code

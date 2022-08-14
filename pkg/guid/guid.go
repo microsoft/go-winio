@@ -7,7 +7,7 @@ package guid
 
 import (
 	"crypto/rand"
-	"crypto/sha1"
+	"crypto/sha1" //nolint:gosec // not used for secure application
 	"encoding"
 	"encoding/binary"
 	"fmt"
@@ -59,7 +59,7 @@ func NewV4() (GUID, error) {
 // big-endian UTF16 stream of bytes. If that is desired, the string can be
 // encoded as such before being passed to this function.
 func NewV5(namespace GUID, name []byte) (GUID, error) {
-	b := sha1.New()
+	b := sha1.New() //nolint:gosec // not used for secure application
 	namespaceBytes := namespace.ToArray()
 	b.Write(namespaceBytes[:])
 	b.Write(name)

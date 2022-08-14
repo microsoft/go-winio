@@ -1,3 +1,4 @@
+//go:build windows
 // +build windows
 
 package process
@@ -32,6 +33,8 @@ func EnumProcesses() ([]uint32, error) {
 // ProcessMemoryCountersEx is the PROCESS_MEMORY_COUNTERS_EX struct from
 // Windows:
 // https://docs.microsoft.com/en-us/windows/win32/api/psapi/ns-psapi-process_memory_counters_ex
+//
+//nolint:revive // process.ProcessMemoryCountersEx stutters, too late to change it
 type ProcessMemoryCountersEx struct {
 	Cb                         uint32
 	PageFaultCount             uint32
@@ -75,7 +78,7 @@ func QueryFullProcessImageName(process windows.Handle, flags uint32) (string, er
 	for {
 		b := make([]uint16, bufferSize)
 		err := queryFullProcessImageName(process, flags, &b[0], &bufferSize)
-		if err == windows.ERROR_INSUFFICIENT_BUFFER {
+		if err == windows.ERROR_INSUFFICIENT_BUFFER { //nolint:errorlint // err is Errno
 			bufferSize = bufferSize * 2
 			continue
 		}
@@ -84,5 +87,4 @@ func QueryFullProcessImageName(process windows.Handle, flags uint32) (string, er
 		}
 		return windows.UTF16ToString(b[:bufferSize]), nil
 	}
-
 }

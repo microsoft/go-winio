@@ -1,6 +1,7 @@
 package fs
 
 import (
+	"errors"
 	"os"
 	"testing"
 )
@@ -18,7 +19,7 @@ func TestGetFSTypeOfKnownDrive(t *testing.T) {
 
 func TestGetFSTypeOfInvalidPath(t *testing.T) {
 	_, err := GetFileSystemType("7:\\")
-	if err != ErrInvalidPath {
+	if !errors.Is(err, ErrInvalidPath) {
 		t.Fatalf("Expected `ErrInvalidPath`, got %v", err)
 	}
 }

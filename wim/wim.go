@@ -1,3 +1,4 @@
+//go:build windows || linux
 // +build windows linux
 
 // Package wim implements a WIM file parser.
@@ -8,13 +9,12 @@ package wim
 
 import (
 	"bytes"
-	"crypto/sha1"
+	"crypto/sha1" //nolint:gosec // not used for secure application
 	"encoding/binary"
 	"encoding/xml"
 	"errors"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"strconv"
 	"sync"
 	"time"
@@ -22,6 +22,8 @@ import (
 )
 
 // File attribute constants from Windows.
+//
+//nolint:revive // var-naming: ALL_CAPS
 const (
 	FILE_ATTRIBUTE_READONLY            = 0x00000001
 	FILE_ATTRIBUTE_HIDDEN              = 0x00000002
@@ -44,6 +46,8 @@ const (
 )
 
 // Windows processor architectures.
+//
+//nolint:revive // var-naming: ALL_CAPS
 const (
 	PROCESSOR_ARCHITECTURE_INTEL         = 0
 	PROCESSOR_ARCHITECTURE_MIPS          = 1
@@ -62,6 +66,8 @@ const (
 
 var wimImageTag = [...]byte{'M', 'S', 'W', 'I', 'M', 0, 0, 0}
 
+// todo: replace this with pkg/guid.GUID (and add tests to make sure nothing breaks)
+
 type guid struct {
 	Data1 uint32
 	Data2 uint16
@@ -70,7 +76,18 @@ type guid struct {
 }
 
 func (g guid) String() string {
-	return fmt.Sprintf("%08x-%04x-%04x-%02x%02x-%02x%02x%02x%02x%02x%02x", g.Data1, g.Data2, g.Data3, g.Data4[0], g.Data4[1], g.Data4[2], g.Data4[3], g.Data4[4], g.Data4[5], g.Data4[6], g.Data4[7])
+	return fmt.Sprintf("%08x-%04x-%04x-%02x%02x-%02x%02x%02x%02x%02x%02x",
+		g.Data1,
+		g.Data2,
+		g.Data3,
+		g.Data4[0],
+		g.Data4[1],
+		g.Data4[2],
+		g.Data4[3],
+		g.Data4[4],
+		g.Data4[5],
+		g.Data4[6],
+		g.Data4[7])
 }
 
 type resourceDescriptor struct {
@@ -81,6 +98,7 @@ type resourceDescriptor struct {
 
 type resFlag byte
 
+//nolint:deadcode,varcheck // need unused variables for iota to work
 const (
 	resFlagFree resFlag = 1 << iota
 	resFlagMetadata
@@ -120,6 +138,7 @@ type streamDescriptor struct {
 
 type hdrFlag uint32
 
+//nolint:deadcode,varcheck // need unused variables for iota to work
 const (
 	hdrFlagReserved hdrFlag = 1 << iota
 	hdrFlagCompressed
@@ -131,6 +150,7 @@ const (
 	hdrFlagRpFix
 )
 
+//nolint:deadcode,varcheck // need unused variables for iota to work
 const (
 	hdrFlagCompressReserved hdrFlag = 1 << (iota + 16)
 	hdrFlagCompressXpress
@@ -208,13 +228,13 @@ func (ft *Filetime) Time() time.Time {
 	return time.Unix(0, nsec)
 }
 
-// UnmarshalXML unmarshals the time from a WIM XML blob.
+// UnmarshalXML unmarshalls the time from a WIM XML blob.
 func (ft *Filetime) UnmarshalXML(d *xml.Decoder, start xml.StartElement) error {
-	type time struct {
+	type Time struct {
 		Low  string `xml:"LOWPART"`
 		High string `xml:"HIGHPART"`
 	}
-	var t time
+	var t Time
 	err := d.DecodeElement(&t, &start)
 	if err != nil {
 		return err
@@ -282,6 +302,8 @@ func (e *ParseError) Error() string {
 	}
 	return fmt.Sprintf("WIM parse error: %s %s: %s", e.Oper, e.Path, e.Err.Error())
 }
+
+func (e *ParseError) Unwrap() error { return e.Err }
 
 // Reader provides functions to read a WIM file.
 type Reader struct {
@@ -380,14 +402,14 @@ func NewReader(f io.ReaderAt) (*Reader, error) {
 		return nil, err
 	}
 
-	var info info
-	err = xml.Unmarshal([]byte(xmlinfo), &info)
+	var inf info
+	err = xml.Unmarshal([]byte(xmlinfo), &inf)
 	if err != nil {
 		return nil, &ParseError{Oper: "XML info", Err: err}
 	}
 
 	for i, img := range images {
-		for _, imgInfo := range info.Image {
+		for _, imgInfo := range inf.Image {
 			if imgInfo.Index == i+1 {
 				img.ImageInfo = imgInfo
 				break
@@ -417,8 +439,8 @@ func (r *Reader) resourceReaderWithOffset(hdr *resourceDescriptor, offset int64)
 	var sr io.ReadCloser
 	section := io.NewSectionReader(r.r, hdr.Offset, hdr.CompressedSize())
 	if hdr.Flags()&resFlagCompressed == 0 {
-		section.Seek(offset, 0)
-		sr = ioutil.NopCloser(section)
+		_, _ = section.Seek(offset, 0)
+		sr = io.NopCloser(section)
 	} else {
 		cr, err := newCompressedReader(section, hdr.OriginalSize, offset)
 		if err != nil {
@@ -436,7 +458,7 @@ func (r *Reader) readResource(hdr *resourceDescriptor) ([]byte, error) {
 		return nil, err
 	}
 	defer rsrc.Close()
-	return ioutil.ReadAll(rsrc)
+	return io.ReadAll(rsrc)
 }
 
 func (r *Reader) readXML() (string, error) {
@@ -449,17 +471,17 @@ func (r *Reader) readXML() (string, error) {
 	}
 	defer rsrc.Close()
 
-	XMLData := make([]uint16, r.hdr.XMLData.OriginalSize/2)
-	err = binary.Read(rsrc, binary.LittleEndian, XMLData)
+	xmlData := make([]uint16, r.hdr.XMLData.OriginalSize/2)
+	err = binary.Read(rsrc, binary.LittleEndian, xmlData)
 	if err != nil {
 		return "", &ParseError{Oper: "XML data", Err: err}
 	}
 
 	// The BOM will always indicate little-endian UTF-16.
-	if XMLData[0] != 0xfeff {
+	if xmlData[0] != 0xfeff {
 		return "", &ParseError{Oper: "XML data", Err: errors.New("invalid BOM")}
 	}
-	return string(utf16.Decode(XMLData[1:])), nil
+	return string(utf16.Decode(xmlData[1:])), nil
 }
 
 func (r *Reader) readOffsetTable(res *resourceDescriptor) (map[SHA1Hash]resourceDescriptor, []*Image, error) {
@@ -475,7 +497,7 @@ func (r *Reader) readOffsetTable(res *resourceDescriptor) (map[SHA1Hash]resource
 	for i := 0; ; i++ {
 		var res streamDescriptor
 		err := binary.Read(br, binary.LittleEndian, &res)
-		if err == io.EOF {
+		if err == io.EOF { //nolint:errorlint
 			break
 		}
 		if err != nil {
@@ -491,7 +513,7 @@ func (r *Reader) readOffsetTable(res *resourceDescriptor) (map[SHA1Hash]resource
 			if err != nil {
 				panic(fmt.Sprint(i, err))
 			}
-			hash := sha1.New()
+			hash := sha1.New() //nolint:gosec // not used for secure application
 			_, err = io.Copy(hash, sec)
 			sec.Close()
 			if err != nil {
@@ -522,12 +544,11 @@ func (r *Reader) readOffsetTable(res *resourceDescriptor) (map[SHA1Hash]resource
 	return fileData, images, nil
 }
 
-func (r *Reader) readSecurityDescriptors(rsrc io.Reader) (sds [][]byte, n int64, err error) {
+func (*Reader) readSecurityDescriptors(rsrc io.Reader) (sds [][]byte, n int64, err error) {
 	var secBlock securityblockDisk
 	err = binary.Read(rsrc, binary.LittleEndian, &secBlock)
 	if err != nil {
-		err = &ParseError{Oper: "security table", Err: err}
-		return
+		return sds, 0, &ParseError{Oper: "security table", Err: err}
 	}
 
 	n += securityblockDiskSize
@@ -535,8 +556,7 @@ func (r *Reader) readSecurityDescriptors(rsrc io.Reader) (sds [][]byte, n int64,
 	secSizes := make([]int64, secBlock.NumEntries)
 	err = binary.Read(rsrc, binary.LittleEndian, &secSizes)
 	if err != nil {
-		err = &ParseError{Oper: "security table sizes", Err: err}
-		return
+		return sds, n, &ParseError{Oper: "security table sizes", Err: err}
 	}
 
 	n += int64(secBlock.NumEntries * 8)
@@ -546,8 +566,7 @@ func (r *Reader) readSecurityDescriptors(rsrc io.Reader) (sds [][]byte, n int64,
 		sd := make([]byte, size&0xffffffff)
 		_, err = io.ReadFull(rsrc, sd)
 		if err != nil {
-			err = &ParseError{Oper: "security descriptor", Err: err}
-			return
+			return sds, n, &ParseError{Oper: "security descriptor", Err: err}
 		}
 		n += int64(len(sd))
 		sds[i] = sd
@@ -555,17 +574,16 @@ func (r *Reader) readSecurityDescriptors(rsrc io.Reader) (sds [][]byte, n int64,
 
 	secsize := int64((secBlock.TotalLength + 7) &^ 7)
 	if n > secsize {
-		err = &ParseError{Oper: "security descriptor", Err: errors.New("security descriptor table too small")}
-		return
+		return sds, n, &ParseError{Oper: "security descriptor", Err: errors.New("security descriptor table too small")}
 	}
 
-	_, err = io.CopyN(ioutil.Discard, rsrc, secsize-n)
+	_, err = io.CopyN(io.Discard, rsrc, secsize-n)
 	if err != nil {
-		return
+		return sds, n, err
 	}
 
 	n = secsize
-	return
+	return sds, n, nil
 }
 
 // Open parses the image and returns the root directory.
@@ -621,10 +639,10 @@ func (img *Image) readdir(offset int64) ([]*File, error) {
 		img.curOffset = offset
 	}
 	if offset > img.curOffset {
-		_, err := io.CopyN(ioutil.Discard, img.r, offset-img.curOffset)
+		_, err := io.CopyN(io.Discard, img.r, offset-img.curOffset)
 		if err != nil {
 			img.reset()
-			if err == io.EOF {
+			if err == io.EOF { //nolint:errorlint
 				err = io.ErrUnexpectedEOF
 			}
 			return nil, err
@@ -635,7 +653,7 @@ func (img *Image) readdir(offset int64) ([]*File, error) {
 	for {
 		e, n, err := img.readNextEntry(img.r)
 		img.curOffset += n
-		if err == io.EOF {
+		if err == io.EOF { //nolint:errorlint
 			break
 		}
 		if err != nil {
@@ -699,7 +717,11 @@ func (img *Image) readNextEntry(r io.Reader) (*File, int64, error) {
 		var ok bool
 		offset, ok = img.wim.fileData[dentry.Hash]
 		if !ok {
-			return nil, 0, &ParseError{Oper: "directory entry", Path: name, Err: fmt.Errorf("could not find file data matching hash %#v", dentry)}
+			return nil, 0, &ParseError{
+				Oper: "directory entry",
+				Path: name,
+				Err:  fmt.Errorf("could not find file data matching hash %#v", dentry),
+			}
 		}
 	}
 
@@ -742,9 +764,9 @@ func (img *Image) readNextEntry(r io.Reader) (*File, int64, error) {
 		f.SecurityDescriptor = img.sds[dentry.SecurityID]
 	}
 
-	_, err = io.CopyN(ioutil.Discard, r, left)
+	_, err = io.CopyN(io.Discard, r, left)
 	if err != nil {
-		if err == io.EOF {
+		if err == io.EOF { //nolint:errorlint
 			err = io.ErrUnexpectedEOF
 		}
 		return nil, 0, err
@@ -771,7 +793,11 @@ func (img *Image) readNextEntry(r io.Reader) (*File, int64, error) {
 	}
 
 	if dentry.Attributes&FILE_ATTRIBUTE_REPARSE_POINT != 0 && f.Size == 0 {
-		return nil, 0, &ParseError{Oper: "directory entry", Path: name, Err: errors.New("reparse point is missing reparse stream")}
+		return nil, 0, &ParseError{
+			Oper: "directory entry",
+			Path: name,
+			Err:  errors.New("reparse point is missing reparse stream"),
+		}
 	}
 
 	return f, length, nil
@@ -781,7 +807,7 @@ func (img *Image) readNextStream(r io.Reader) (*Stream, int64, error) {
 	var length int64
 	err := binary.Read(r, binary.LittleEndian, &length)
 	if err != nil {
-		if err == io.EOF {
+		if err == io.EOF { //nolint:errorlint
 			err = io.ErrUnexpectedEOF
 		}
 		return nil, 0, &ParseError{Oper: "stream length check", Err: err}
@@ -818,7 +844,11 @@ func (img *Image) readNextStream(r io.Reader) (*Stream, int64, error) {
 		var ok bool
 		offset, ok = img.wim.fileData[sentry.Hash]
 		if !ok {
-			return nil, 0, &ParseError{Oper: "stream entry", Path: name, Err: fmt.Errorf("could not find file data matching hash %v", sentry.Hash)}
+			return nil, 0, &ParseError{
+				Oper: "stream entry",
+				Path: name,
+				Err:  fmt.Errorf("could not find file data matching hash %v", sentry.Hash),
+			}
 		}
 	}
 
@@ -832,9 +862,9 @@ func (img *Image) readNextStream(r io.Reader) (*Stream, int64, error) {
 		offset: offset,
 	}
 
-	_, err = io.CopyN(ioutil.Discard, r, left)
+	_, err = io.CopyN(io.Discard, r, left)
 	if err != nil {
-		if err == io.EOF {
+		if err == io.EOF { //nolint:errorlint
 			err = io.ErrUnexpectedEOF
 		}
 		return nil, 0, err

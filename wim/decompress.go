@@ -1,3 +1,4 @@
+//go:build windows || linux
 // +build windows linux
 
 package wim
@@ -5,7 +6,6 @@ package wim
 import (
 	"encoding/binary"
 	"io"
-	"io/ioutil"
 
 	"github.com/Microsoft/go-winio/wim/lzx"
 )
@@ -35,7 +35,6 @@ func newCompressedReader(r *io.SectionReader, originalSize int64, offset int64) 
 		for i, n := range chunks32 {
 			chunks[i+1] = int64(n)
 		}
-
 	} else {
 		// 64-bit chunk offsets
 		base = (nchunks - 1) * 8
@@ -62,7 +61,7 @@ func newCompressedReader(r *io.SectionReader, originalSize int64, offset int64) 
 
 	suboff := offset % chunkSize
 	if suboff != 0 {
-		_, err := io.CopyN(ioutil.Discard, cr.d, suboff)
+		_, err := io.CopyN(io.Discard, cr.d, suboff)
 		if err != nil {
 			return nil, err
 		}
@@ -110,7 +109,7 @@ func (r *compressedReader) reset(n int) error {
 		}
 		r.d = d
 	} else {
-		r.d = ioutil.NopCloser(section)
+		r.d = io.NopCloser(section)
 	}
 
 	return nil
@@ -119,7 +118,7 @@ func (r *compressedReader) reset(n int) error {
 func (r *compressedReader) Read(b []byte) (int, error) {
 	for {
 		n, err := r.d.Read(b)
-		if err != io.EOF {
+		if err != io.EOF { //nolint:errorlint
 			return n, err
 		}
 

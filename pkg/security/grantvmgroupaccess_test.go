@@ -1,9 +1,9 @@
-//+build windows
+//go:build windows
+// +build windows
 
 package security
 
 import (
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -36,7 +36,7 @@ const (
 // S-1-5-83-1-3166535780-1122986932-343720105-43916321:(I)(R,W)
 
 func TestGrantVmGroupAccess(t *testing.T) {
-	f, err := ioutil.TempFile("", "gvmgafile")
+	f, err := os.CreateTemp("", "gvmgafile")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -45,16 +45,12 @@ func TestGrantVmGroupAccess(t *testing.T) {
 		os.Remove(f.Name())
 	}()
 
-	d, err := ioutil.TempDir("", "gvmgadir")
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer os.RemoveAll(d)
-
+	d := t.TempDir()
 	find, err := os.Create(filepath.Join(d, "find.txt"))
 	if err != nil {
 		t.Fatal(err)
 	}
+	defer find.Close()
 
 	if err := GrantVmGroupAccess(f.Name()); err != nil {
 		t.Fatal(err)
@@ -88,7 +84,6 @@ func TestGrantVmGroupAccess(t *testing.T) {
 		find.Name(),
 		[]string{`(I)(R)`},
 	)
-
 }
 
 func verifyVMAccountDACLs(t *testing.T, name string, permissions []string) {
