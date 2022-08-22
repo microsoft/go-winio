@@ -60,7 +60,7 @@ Alternatively, `golangci-lint` can be [installed locally][lint-install] and run 
 
 ### Go Generate
 
-The pipeline checks that auto-generated code, via `go generate`, be up to date.
+The pipeline checks that auto-generated code, via `go generate`, are up to date.
 
 This can be done for the entire repo:
 

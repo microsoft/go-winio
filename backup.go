@@ -39,7 +39,7 @@ const (
 //nolint:revive // var-naming: ALL_CAPS
 const (
 	WRITE_DAC              = windows.WRITE_DAC
-	WRITE_OWNER            = windows.WRITE_DAC
+	WRITE_OWNER            = windows.WRITE_OWNER
 	ACCESS_SYSTEM_SECURITY = windows.ACCESS_SYSTEM_SECURITY
 )
 
