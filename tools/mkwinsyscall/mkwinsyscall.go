@@ -16,7 +16,6 @@ import (
 	"go/parser"
 	"go/token"
 	"io"
-	"io/ioutil"
 	"log"
 	"os"
 	"path/filepath"
@@ -27,6 +26,24 @@ import (
 	"text/template"
 
 	"golang.org/x/sys/windows"
+)
+
+const (
+	pkgSyscall = "syscall"
+	pkgWindows = "windows"
+
+	// common types.
+
+	tBool    = "bool"
+	tBoolPtr = "*bool"
+	tError   = "error"
+	tString  = "string"
+
+	// error variable names.
+
+	varErr         = "err"
+	varErrNTStatus = "ntStatus"
+	varErrHR       = "hr"
 )
 
 var (
@@ -53,20 +70,20 @@ func packagename() string {
 }
 
 func windowsdot() string {
-	if packageName == "windows" {
+	if packageName == pkgWindows {
 		return ""
 	}
-	return "windows."
+	return pkgWindows + "."
 }
 
 func syscalldot() string {
-	if packageName == "syscall" {
+	if packageName == pkgSyscall {
 		return ""
 	}
-	return "syscall."
+	return pkgSyscall + "."
 }
 
-// Param is function parameter
+// Param is function parameter.
 type Param struct {
 	Name      string
 	Type      string
@@ -134,9 +151,9 @@ func (p *Param) StringTmpVarCode() string {
 // TmpVarCode returns source code for temp variable.
 func (p *Param) TmpVarCode() string {
 	switch {
-	case p.Type == "bool":
+	case p.Type == tBool:
 		return p.BoolTmpVarCode()
-	case p.Type == "*bool":
+	case p.Type == tBoolPtr:
 		return p.BoolPointerTmpVarCode()
 	case strings.HasPrefix(p.Type, "[]"):
 		return p.SliceTmpVarCode()
@@ -148,7 +165,7 @@ func (p *Param) TmpVarCode() string {
 // TmpVarReadbackCode returns source code for reading back the temp variable into the original variable.
 func (p *Param) TmpVarReadbackCode() string {
 	switch {
-	case p.Type == "*bool":
+	case p.Type == tBoolPtr:
 		return fmt.Sprintf("*%s = %s != 0", p.Name, p.tmpVar())
 	default:
 		return ""
@@ -170,11 +187,11 @@ func (p *Param) SyscallArgList() []string {
 	t := p.HelperType()
 	var s string
 	switch {
-	case t == "*bool":
+	case t == tBoolPtr:
 		s = fmt.Sprintf("unsafe.Pointer(&%s)", p.tmpVar())
 	case t[0] == '*':
 		s = fmt.Sprintf("unsafe.Pointer(%s)", p.Name)
-	case t == "bool":
+	case t == tBool:
 		s = p.tmpVar()
 	case strings.HasPrefix(t, "[]"):
 		return []string{
@@ -189,12 +206,12 @@ func (p *Param) SyscallArgList() []string {
 
 // IsError determines if p parameter is used to return error.
 func (p *Param) IsError() bool {
-	return p.Name == "err" && p.Type == "error"
+	return p.Name == varErr && p.Type == tError
 }
 
 // HelperType returns type of parameter p used in helper function.
 func (p *Param) HelperType() string {
-	if p.Type == "string" {
+	if p.Type == tString {
 		return p.fn.StrconvType()
 	}
 	return p.Type
@@ -226,9 +243,9 @@ type Rets struct {
 // ErrorVarName returns error variable name for r.
 func (r *Rets) ErrorVarName() string {
 	if r.ReturnsError {
-		return "err"
+		return varErr
 	}
-	if r.Type == "error" {
+	if r.Type == tError {
 		return r.Name
 	}
 	return ""
@@ -241,7 +258,7 @@ func (r *Rets) ToParams() []*Param {
 		ps = append(ps, &Param{Name: r.Name, Type: r.Type})
 	}
 	if r.ReturnsError {
-		ps = append(ps, &Param{Name: "err", Type: "error"})
+		ps = append(ps, &Param{Name: varErr, Type: tError})
 	}
 	return ps
 }
@@ -295,8 +312,8 @@ func (r *Rets) SetErrorCode() string {
 	const code = `if r0 != 0 {
 		%s = %sErrno(r0)
 	}`
-	const ntstatus = `if r0 != 0 {
-		ntstatus = %sNTStatus(r0)
+	const ntStatus = `if r0 != 0 {
+		%s = %sNTStatus(r0)
 	}`
 	const hrCode = `if int32(r0) < 0 {
 		if r0&0x1fff0000 == 0x00070000 {
@@ -311,22 +328,22 @@ func (r *Rets) SetErrorCode() string {
 	if r.Name == "" {
 		return r.useLongHandleErrorCode("r1")
 	}
-	if r.Type == "error" {
+	if r.Type == tError {
 		switch r.Name {
-		case "ntstatus":
-			return fmt.Sprintf(ntstatus, windowsdot())
-		case "hr":
+		case varErrNTStatus, strings.ToLower(varErrNTStatus): // allow ntstatus to work
+			return fmt.Sprintf(ntStatus, r.Name, windowsdot())
+		case varErrHR:
 			return fmt.Sprintf(hrCode, r.Name, syscalldot())
 		default:
 			return fmt.Sprintf(code, r.Name, syscalldot())
 		}
 	}
 
-	s := ""
+	var s string
 	switch {
 	case r.Type[0] == '*':
 		s = fmt.Sprintf("%s = (%s)(unsafe.Pointer(r0))", r.Name, r.Type)
-	case r.Type == "bool":
+	case r.Type == tBool:
 		s = fmt.Sprintf("%s = r0 != 0", r.Name)
 	default:
 		s = fmt.Sprintf("%s = %s(r0)", r.Name, r.Type)
@@ -564,7 +581,7 @@ func (f *Fn) HelperCallParamList() string {
 	a := make([]string, 0, len(f.Params))
 	for _, p := range f.Params {
 		s := p.Name
-		if p.Type == "string" {
+		if p.Type == tString {
 			s = p.tmpVar()
 		}
 		a = append(a, s)
@@ -583,7 +600,7 @@ func (f *Fn) MaybeAbsent() string {
 	}`
 	errorVar := f.Rets.ErrorVarName()
 	if errorVar == "" {
-		errorVar = "err"
+		errorVar = varErr
 	}
 	return fmt.Sprintf(code, errorVar, f.DLLFuncName())
 }
@@ -616,7 +633,7 @@ func (f *Fn) StrconvType() string {
 // Otherwise it is false.
 func (f *Fn) HasStringParam() bool {
 	for _, p := range f.Params {
-		if p.Type == "string" {
+		if p.Type == tString {
 			return true
 		}
 	}
@@ -892,7 +909,8 @@ func main() {
 	if *filename == "" {
 		_, err = os.Stdout.Write(data)
 	} else {
-		err = ioutil.WriteFile(*filename, data, 0644)
+		//nolint:gosec // G306: code file, no need for wants 0600
+		err = os.WriteFile(*filename, data, 0644)
 	}
 	if err != nil {
 		log.Fatal(err)
@@ -900,6 +918,7 @@ func main() {
 }
 
 // TODO: use println instead to print in the following template
+
 const srcTemplate = `
 {{define "main"}} //go:build windows
 

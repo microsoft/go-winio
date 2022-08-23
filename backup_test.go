@@ -5,16 +5,17 @@ package winio
 
 import (
 	"io"
-	"io/ioutil"
 	"os"
 	"syscall"
 	"testing"
+
+	"golang.org/x/sys/windows"
 )
 
 var testFileName string
 
 func TestMain(m *testing.M) {
-	f, err := ioutil.TempFile("", "tmp")
+	f, err := os.CreateTemp("", "tmp")
 	if err != nil {
 		panic(err)
 	}
@@ -62,7 +63,7 @@ func TestBackupRead(t *testing.T) {
 	defer f.Close()
 	r := NewBackupFileReader(f, false)
 	defer r.Close()
-	b, err := ioutil.ReadAll(r)
+	b, err := io.ReadAll(r)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -90,7 +91,7 @@ func TestBackupStreamRead(t *testing.T) {
 	gotAltData := false
 	for {
 		hdr, err := br.Next()
-		if err == io.EOF {
+		if err == io.EOF { //nolint:errorlint
 			break
 		}
 		if err != nil {
@@ -105,7 +106,7 @@ func TestBackupStreamRead(t *testing.T) {
 			if hdr.Name != "" {
 				t.Fatalf("unexpected name %s", hdr.Name)
 			}
-			b, err := ioutil.ReadAll(br)
+			b, err := io.ReadAll(br)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -120,7 +121,7 @@ func TestBackupStreamRead(t *testing.T) {
 			if hdr.Name != ":ads.txt:$DATA" {
 				t.Fatalf("incorrect name %s", hdr.Name)
 			}
-			b, err := ioutil.ReadAll(br)
+			b, err := io.ReadAll(br)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -176,7 +177,7 @@ func TestBackupStreamWrite(t *testing.T) {
 
 	f.Close()
 
-	b, err := ioutil.ReadFile(testFileName)
+	b, err := os.ReadFile(testFileName)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -184,7 +185,7 @@ func TestBackupStreamWrite(t *testing.T) {
 		t.Fatalf("wrong data %v", b)
 	}
 
-	b, err = ioutil.ReadFile(testFileName + ":ads.txt")
+	b, err = os.ReadFile(testFileName + ":ads.txt")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -201,12 +202,7 @@ func makeSparseFile() error {
 	}
 	defer f.Close()
 
-	const (
-		FSCTL_SET_SPARSE    = 0x000900c4
-		FSCTL_SET_ZERO_DATA = 0x000980c8
-	)
-
-	err = syscall.DeviceIoControl(syscall.Handle(f.Fd()), FSCTL_SET_SPARSE, nil, 0, nil, 0, nil, nil)
+	err = syscall.DeviceIoControl(syscall.Handle(f.Fd()), windows.FSCTL_SET_SPARSE, nil, 0, nil, 0, nil, nil)
 	if err != nil {
 		return err
 	}
@@ -246,7 +242,7 @@ func TestBackupSparseFile(t *testing.T) {
 	br := NewBackupStreamReader(r)
 	for {
 		hdr, err := br.Next()
-		if err == io.EOF {
+		if err == io.EOF { //nolint:errorlint
 			break
 		}
 		if err != nil {

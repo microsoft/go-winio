@@ -3,20 +3,25 @@
 
 package winio
 
-import "testing"
+import (
+	"errors"
+	"testing"
+
+	"golang.org/x/sys/windows"
+)
 
 func TestLookupInvalidSid(t *testing.T) {
 	_, err := LookupSidByName(".\\weoifjdsklfj")
-	aerr, ok := err.(*AccountLookupError)
-	if !ok || aerr.Err != cERROR_NONE_MAPPED {
+	var aerr *AccountLookupError
+	if !errors.As(err, &aerr) || !errors.Is(err, windows.ERROR_NONE_MAPPED) {
 		t.Fatalf("expected AccountLookupError with ERROR_NONE_MAPPED, got %s", err)
 	}
 }
 
 func TestLookupInvalidName(t *testing.T) {
 	_, err := LookupNameBySid("notasid")
-	aerr, ok := err.(*AccountLookupError)
-	if !ok || aerr.Err != cERROR_INVALID_SID {
+	var aerr *AccountLookupError
+	if !errors.As(err, &aerr) || !errors.Is(aerr.Err, windows.ERROR_INVALID_SID) {
 		t.Fatalf("expected AccountLookupError with ERROR_INVALID_SID got %s", err)
 	}
 }
@@ -36,8 +41,8 @@ func TestLookupValidSid(t *testing.T) {
 
 func TestLookupEmptyNameFails(t *testing.T) {
 	_, err := LookupSidByName("")
-	aerr, ok := err.(*AccountLookupError)
-	if !ok || aerr.Err != cERROR_NONE_MAPPED {
+	var aerr *AccountLookupError
+	if !errors.As(err, &aerr) || !errors.Is(aerr.Err, windows.ERROR_NONE_MAPPED) {
 		t.Fatalf("expected AccountLookupError with ERROR_NONE_MAPPED, got %s", err)
 	}
 }

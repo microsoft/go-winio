@@ -44,7 +44,7 @@ func WithGetName(f func(*logrus.Entry) string) HookOpt {
 	}
 }
 
-// WithAdditionalEventOpts allows additional ETW event properties (keywords, tags, etc.) to be specified
+// WithEventOpts allows additional ETW event properties (keywords, tags, etc.) to be specified.
 func WithEventOpts(f func(*logrus.Entry) []etw.EventOpt) HookOpt {
 	return func(h *Hook) error {
 		h.getEventsOpts = f

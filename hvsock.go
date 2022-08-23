@@ -20,7 +20,7 @@ import (
 	"github.com/Microsoft/go-winio/pkg/guid"
 )
 
-const afHvSock = 34 // AF_HYPERV
+const afHVSock = 34 // AF_HYPERV
 
 // Well known Service and VM IDs
 //https://docs.microsoft.com/en-us/virtualization/hyper-v-on-windows/user-guide/make-integration-service#vmid-wildcards
@@ -30,7 +30,7 @@ func HvsockGUIDWildcard() guid.GUID { // 00000000-0000-0000-0000-000000000000
 	return guid.GUID{}
 }
 
-// HvsockGUIDBroadcast is the wildcard VmId for broadcasting sends to all partitions
+// HvsockGUIDBroadcast is the wildcard VmId for broadcasting sends to all partitions.
 func HvsockGUIDBroadcast() guid.GUID { //ffffffff-ffff-ffff-ffff-ffffffffffff
 	return guid.GUID{
 		Data1: 0xffffffff,
@@ -51,8 +51,8 @@ func HvsockGUIDLoopback() guid.GUID { // e0e16197-dd56-4a10-9195-5ee7a155a838
 }
 
 // HvsockGUIDSiloHost is the address of a silo's host partition:
-// - The silo host of a hosted silo is the utility VM.
-// - The silo host of a silo on a physical host is the physical host.
+//   - The silo host of a hosted silo is the utility VM.
+//   - The silo host of a silo on a physical host is the physical host.
 func HvsockGUIDSiloHost() guid.GUID { // 36bd0c5c-7276-4223-88ba-7d03b654c568
 	return guid.GUID{
 		Data1: 0x36bd0c5c,
@@ -74,10 +74,10 @@ func HvsockGUIDChildren() guid.GUID { // 90db8b89-0d35-4f79-8ce9-49ea0ac8b7cd
 
 // HvsockGUIDParent is the wildcard VmId for accepting connections from the connector's parent partition.
 // Listening on this VmId accepts connection from:
-// - Inside silos: silo host partition.
-// - Inside hosted silo: host of the VM.
-// - Inside VM: VM host.
-// - Physical host: Not supported.
+//   - Inside silos: silo host partition.
+//   - Inside hosted silo: host of the VM.
+//   - Inside VM: VM host.
+//   - Physical host: Not supported.
 func HvsockGUIDParent() guid.GUID { // a42e7cda-d03f-480c-9cc2-a4de20abb878
 	return guid.GUID{
 		Data1: 0xa42e7cda,
@@ -87,7 +87,7 @@ func HvsockGUIDParent() guid.GUID { // a42e7cda-d03f-480c-9cc2-a4de20abb878
 	}
 }
 
-// hvsockVsockServiceTemplate is the Service GUID used for the VSOCK protocol
+// hvsockVsockServiceTemplate is the Service GUID used for the VSOCK protocol.
 func hvsockVsockServiceTemplate() guid.GUID { // 00000000-facb-11e6-bd58-64006a7986d3
 	return guid.GUID{
 		Data2: 0xfacb,
@@ -112,7 +112,7 @@ type rawHvsockAddr struct {
 var _ socket.RawSockaddr = &rawHvsockAddr{}
 
 // Network returns the address's network name, "hvsock".
-func (addr *HvsockAddr) Network() string {
+func (*HvsockAddr) Network() string {
 	return "hvsock"
 }
 
@@ -129,7 +129,7 @@ func VsockServiceID(port uint32) guid.GUID {
 
 func (addr *HvsockAddr) raw() rawHvsockAddr {
 	return rawHvsockAddr{
-		Family:    afHvSock,
+		Family:    afHVSock,
 		VMID:      addr.VMID,
 		ServiceID: addr.ServiceID,
 	}
@@ -143,12 +143,12 @@ func (addr *HvsockAddr) fromRaw(raw *rawHvsockAddr) {
 // Sockaddr returns a pointer to and the size of this struct.
 //
 // Implements the [socket.RawSockaddr] interface, and allows use in
-// [socket.Bind()] and [socket.ConnectEx()]
+// [socket.Bind] and [socket.ConnectEx].
 func (r *rawHvsockAddr) Sockaddr() (unsafe.Pointer, int32, error) {
 	return unsafe.Pointer(r), int32(unsafe.Sizeof(rawHvsockAddr{})), nil
 }
 
-// Sockaddr interface allows use with `sockets.Bind()` and `.ConnectEx()`
+// Sockaddr interface allows use with `sockets.Bind()` and `.ConnectEx()`.
 func (r *rawHvsockAddr) FromBytes(b []byte) error {
 	n := int(unsafe.Sizeof(rawHvsockAddr{}))
 
@@ -157,8 +157,8 @@ func (r *rawHvsockAddr) FromBytes(b []byte) error {
 	}
 
 	copy(unsafe.Slice((*byte)(unsafe.Pointer(r)), n), b[:n])
-	if r.Family != afHvSock {
-		return fmt.Errorf("got %d, want %d: %w", r.Family, afHvSock, socket.ErrAddrFamily)
+	if r.Family != afHVSock {
+		return fmt.Errorf("got %d, want %d: %w", r.Family, afHVSock, socket.ErrAddrFamily)
 	}
 
 	return nil
@@ -180,8 +180,8 @@ type HvsockConn struct {
 
 var _ net.Conn = &HvsockConn{}
 
-func newHvSocket() (*win32File, error) {
-	fd, err := syscall.Socket(afHvSock, syscall.SOCK_STREAM, 1)
+func newHVSocket() (*win32File, error) {
+	fd, err := syscall.Socket(afHVSock, syscall.SOCK_STREAM, 1)
 	if err != nil {
 		return nil, os.NewSyscallError("socket", err)
 	}
@@ -197,7 +197,7 @@ func newHvSocket() (*win32File, error) {
 // ListenHvsock listens for connections on the specified hvsock address.
 func ListenHvsock(addr *HvsockAddr) (_ *HvsockListener, err error) {
 	l := &HvsockListener{addr: *addr}
-	sock, err := newHvSocket()
+	sock, err := newHVSocket()
 	if err != nil {
 		return nil, l.opErr("listen", err)
 	}
@@ -224,7 +224,7 @@ func (l *HvsockListener) Addr() net.Addr {
 
 // Accept waits for the next connection and returns it.
 func (l *HvsockListener) Accept() (_ net.Conn, err error) {
-	sock, err := newHvSocket()
+	sock, err := newHVSocket()
 	if err != nil {
 		return nil, l.opErr("accept", err)
 	}
@@ -233,20 +233,21 @@ func (l *HvsockListener) Accept() (_ net.Conn, err error) {
 			sock.Close()
 		}
 	}()
-	c, err := l.sock.prepareIo()
+	c, err := l.sock.prepareIO()
 	if err != nil {
 		return nil, l.opErr("accept", err)
 	}
 	defer l.sock.wg.Done()
 
-	// AcceptEx, per documentation, requires an extra 16 bytes per address:
+	// AcceptEx, per documentation, requires an extra 16 bytes per address.
+	//
 	// https://docs.microsoft.com/en-us/windows/win32/api/mswsock/nf-mswsock-acceptex
 	const addrlen = uint32(16 + unsafe.Sizeof(rawHvsockAddr{}))
 	var addrbuf [addrlen * 2]byte
 
 	var bytes uint32
 	err = syscall.AcceptEx(l.sock.handle, sock.handle, &addrbuf[0], 0 /*rxdatalen*/, addrlen, addrlen, &bytes, &c.o)
-	if _, err = l.sock.asyncIo(c, nil, bytes, err); err != nil {
+	if _, err = l.sock.asyncIO(c, nil, bytes, err); err != nil {
 		return nil, l.opErr("accept", os.NewSyscallError("acceptex", err))
 	}
 
@@ -294,7 +295,7 @@ type HvsockDialer struct {
 
 // Dial the Hyper-V socket at addr.
 //
-// See (*HvsockDialer).Dial for more information.
+// See [HvsockDialer.Dial] for more information.
 func Dial(ctx context.Context, addr *HvsockAddr) (conn *HvsockConn, err error) {
 	return (&HvsockDialer{}).Dial(ctx, addr)
 }
@@ -302,6 +303,7 @@ func Dial(ctx context.Context, addr *HvsockAddr) (conn *HvsockConn, err error) {
 // Dial attempts to connect to the Hyper-V socket at addr, and returns a connection if successful.
 // Will attempt (HvsockDialer).Retries if dialing fails, waiting (HvsockDialer).RetryWait between
 // retries.
+//
 // Dialing can be cancelled either by providing (HvsockDialer).Deadline, or cancelling ctx.
 func (d *HvsockDialer) Dial(ctx context.Context, addr *HvsockAddr) (conn *HvsockConn, err error) {
 	op := "dial"
@@ -321,7 +323,7 @@ func (d *HvsockDialer) Dial(ctx context.Context, addr *HvsockAddr) (conn *Hvsock
 		return nil, conn.opErr(op, err)
 	}
 
-	sock, err := newHvSocket()
+	sock, err := newHVSocket()
 	if err != nil {
 		return nil, conn.opErr(op, err)
 	}
@@ -337,7 +339,7 @@ func (d *HvsockDialer) Dial(ctx context.Context, addr *HvsockAddr) (conn *Hvsock
 		return nil, conn.opErr(op, os.NewSyscallError("bind", err))
 	}
 
-	c, err := sock.prepareIo()
+	c, err := sock.prepareIO()
 	if err != nil {
 		return nil, conn.opErr(op, err)
 	}
@@ -351,7 +353,7 @@ func (d *HvsockDialer) Dial(ctx context.Context, addr *HvsockAddr) (conn *Hvsock
 			0,   // sendDataLen
 			&bytes,
 			(*windows.Overlapped)(unsafe.Pointer(&c.o)))
-		_, err = sock.asyncIo(c, nil, bytes, err)
+		_, err = sock.asyncIO(c, nil, bytes, err)
 		if i < d.Retries && canRedial(err) {
 			if err = d.redialWait(ctx); err == nil {
 				continue
@@ -382,7 +384,7 @@ func (d *HvsockDialer) Dial(ctx context.Context, addr *HvsockAddr) (conn *Hvsock
 	}
 	conn.local.fromRaw(&sal)
 
-	// one last check for timeout, since asyncIO doesnt check the context
+	// one last check for timeout, since asyncIO doesn't check the context
 	if err = ctx.Err(); err != nil {
 		return nil, conn.opErr(op, err)
 	}
@@ -393,7 +395,7 @@ func (d *HvsockDialer) Dial(ctx context.Context, addr *HvsockAddr) (conn *Hvsock
 	return conn, nil
 }
 
-// redialWait waits before attempting to redial, resetting the timer as appropriate
+// redialWait waits before attempting to redial, resetting the timer as appropriate.
 func (d *HvsockDialer) redialWait(ctx context.Context) (err error) {
 	if d.RetryWait == 0 {
 		return nil
@@ -419,9 +421,9 @@ func (d *HvsockDialer) redialWait(ctx context.Context) (err error) {
 	return ctx.Err()
 }
 
-// assumes error is a plain, unwrapped syscall.Errno provided by direct syscall
+// assumes error is a plain, unwrapped syscall.Errno provided by direct syscall.
 func canRedial(err error) bool {
-	// nolint:errorlint
+	//nolint:errorlint // guaranteed to be an Errno
 	switch err {
 	case windows.WSAECONNREFUSED, windows.WSAENETUNREACH, windows.WSAETIMEDOUT,
 		windows.ERROR_CONNECTION_REFUSED, windows.ERROR_CONNECTION_UNAVAIL:
@@ -440,7 +442,7 @@ func (conn *HvsockConn) opErr(op string, err error) error {
 }
 
 func (conn *HvsockConn) Read(b []byte) (int, error) {
-	c, err := conn.sock.prepareIo()
+	c, err := conn.sock.prepareIO()
 	if err != nil {
 		return 0, conn.opErr("read", err)
 	}
@@ -448,7 +450,7 @@ func (conn *HvsockConn) Read(b []byte) (int, error) {
 	buf := syscall.WSABuf{Buf: &b[0], Len: uint32(len(b))}
 	var flags, bytes uint32
 	err = syscall.WSARecv(conn.sock.handle, &buf, 1, &bytes, &flags, &c.o, nil)
-	n, err := conn.sock.asyncIo(c, &conn.sock.readDeadline, bytes, err)
+	n, err := conn.sock.asyncIO(c, &conn.sock.readDeadline, bytes, err)
 	if err != nil {
 		var eno windows.Errno
 		if errors.As(err, &eno) {
@@ -475,7 +477,7 @@ func (conn *HvsockConn) Write(b []byte) (int, error) {
 }
 
 func (conn *HvsockConn) write(b []byte) (int, error) {
-	c, err := conn.sock.prepareIo()
+	c, err := conn.sock.prepareIO()
 	if err != nil {
 		return 0, conn.opErr("write", err)
 	}
@@ -483,7 +485,7 @@ func (conn *HvsockConn) write(b []byte) (int, error) {
 	buf := syscall.WSABuf{Buf: &b[0], Len: uint32(len(b))}
 	var bytes uint32
 	err = syscall.WSASend(conn.sock.handle, &buf, 1, &bytes, 0, &c.o, nil)
-	n, err := conn.sock.asyncIo(c, &conn.sock.writeDeadline, bytes, err)
+	n, err := conn.sock.asyncIO(c, &conn.sock.writeDeadline, bytes, err)
 	if err != nil {
 		var eno windows.Errno
 		if errors.As(err, &eno) {
@@ -503,7 +505,7 @@ func (conn *HvsockConn) IsClosed() bool {
 	return conn.sock.IsClosed()
 }
 
-// shutdown disables sending or receiving on a socket
+// shutdown disables sending or receiving on a socket.
 func (conn *HvsockConn) shutdown(how int) error {
 	if conn.IsClosed() {
 		return socket.ErrSocketClosed

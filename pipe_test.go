@@ -7,14 +7,16 @@ import (
 	"bufio"
 	"bytes"
 	"context"
+	"errors"
 	"io"
 	"net"
-	"os"
 	"sync"
 	"syscall"
 	"testing"
 	"time"
 	"unsafe"
+
+	"golang.org/x/sys/windows"
 )
 
 var testPipeName = `\\.\pipe\winiotestpipe`
@@ -23,7 +25,7 @@ var aLongTimeAgo = time.Unix(1, 0)
 
 func TestDialUnknownFailsImmediately(t *testing.T) {
 	_, err := DialPipe(testPipeName, nil)
-	if err.(*os.PathError).Err != syscall.ENOENT {
+	if !errors.Is(err, syscall.ENOENT) {
 		t.Fatalf("expected ENOENT got %v", err)
 	}
 }
@@ -34,9 +36,9 @@ func TestDialListenerTimesOut(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer l.Close()
-	var d = time.Duration(10 * time.Millisecond)
+	var d = 10 * time.Millisecond
 	_, err = DialPipe(testPipeName, &d)
-	if err != ErrTimeout {
+	if !errors.Is(err, ErrTimeout) {
 		t.Fatalf("expected ErrTimeout, got %v", err)
 	}
 }
@@ -47,10 +49,11 @@ func TestDialContextListenerTimesOut(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer l.Close()
-	var d = time.Duration(10 * time.Millisecond)
-	ctx, _ := context.WithTimeout(context.Background(), d)
+	var d = 10 * time.Millisecond
+	ctx, cancel := context.WithTimeout(context.Background(), d)
+	defer cancel()
 	_, err = DialPipeContext(ctx, testPipeName)
-	if err != context.DeadlineExceeded {
+	if !errors.Is(err, context.DeadlineExceeded) {
 		t.Fatalf("expected context.DeadlineExceeded, got %v", err)
 	}
 }
@@ -70,7 +73,7 @@ func TestDialListenerGetsCancelled(t *testing.T) {
 	time.Sleep(time.Millisecond * 30)
 	cancel()
 	err = <-ch
-	if err != context.Canceled {
+	if !errors.Is(err, context.Canceled) {
 		t.Fatalf("expected context.Canceled, got %v", err)
 	}
 }
@@ -85,7 +88,7 @@ func TestDialAccessDeniedWithRestrictedSD(t *testing.T) {
 	}
 	defer l.Close()
 	_, err = DialPipe(testPipeName, nil)
-	if err.(*os.PathError).Err != syscall.ERROR_ACCESS_DENIED {
+	if !errors.Is(err, syscall.ERROR_ACCESS_DENIED) {
 		t.Fatalf("expected ERROR_ACCESS_DENIED, got %v", err)
 	}
 }
@@ -93,7 +96,7 @@ func TestDialAccessDeniedWithRestrictedSD(t *testing.T) {
 func getConnection(cfg *PipeConfig) (client net.Conn, server net.Conn, err error) {
 	l, err := ListenPipe(testPipeName, cfg)
 	if err != nil {
-		return
+		return nil, nil, err
 	}
 	defer l.Close()
 
@@ -109,18 +112,16 @@ func getConnection(cfg *PipeConfig) (client net.Conn, server net.Conn, err error
 
 	c, err := DialPipe(testPipeName, nil)
 	if err != nil {
-		return
+		return client, server, err
 	}
 
 	r := <-ch
 	if err = r.err; err != nil {
 		c.Close()
-		return
+		return nil, nil, err
 	}
 
-	client = c
-	server = r.c
-	return
+	return c, r.c, nil
 }
 
 func TestReadTimeout(t *testing.T) {
@@ -131,11 +132,11 @@ func TestReadTimeout(t *testing.T) {
 	defer c.Close()
 	defer s.Close()
 
-	c.SetReadDeadline(time.Now().Add(10 * time.Millisecond))
+	_ = c.SetReadDeadline(time.Now().Add(10 * time.Millisecond))
 
 	buf := make([]byte, 10)
 	_, err = c.Read(buf)
-	if err != ErrTimeout {
+	if !errors.Is(err, ErrTimeout) {
 		t.Fatalf("expected ErrTimeout, got %v", err)
 	}
 }
@@ -216,7 +217,7 @@ func TestCloseAbortsListen(t *testing.T) {
 	l.Close()
 
 	err = <-ch
-	if err != ErrPipeListenerClosed {
+	if !errors.Is(err, ErrPipeListenerClosed) {
 		t.Fatalf("expected ErrPipeListenerClosed, got %v", err)
 	}
 }
@@ -275,7 +276,7 @@ func TestCloseWriteEOF(t *testing.T) {
 
 	b := make([]byte, 10)
 	_, err = s.Read(b)
-	if err != io.EOF {
+	if !errors.Is(err, io.EOF) {
 		t.Fatal(err)
 	}
 }
@@ -287,7 +288,7 @@ func TestAcceptAfterCloseFails(t *testing.T) {
 	}
 	l.Close()
 	_, err = l.Accept()
-	if err != ErrPipeListenerClosed {
+	if !errors.Is(err, ErrPipeListenerClosed) {
 		t.Fatalf("expected ErrPipeListenerClosed, got %v", err)
 	}
 }
@@ -299,7 +300,7 @@ func TestDialTimesOutByDefault(t *testing.T) {
 	}
 	defer l.Close()
 	_, err = DialPipe(testPipeName, nil)
-	if err != ErrTimeout {
+	if !errors.Is(err, ErrTimeout) {
 		t.Fatalf("expected ErrTimeout, got %v", err)
 	}
 }
@@ -316,7 +317,8 @@ func TestTimeoutPendingRead(t *testing.T) {
 	go func() {
 		s, err := l.Accept()
 		if err != nil {
-			t.Fatal(err)
+			t.Error(err)
+			return
 		}
 		time.Sleep(1 * time.Second)
 		s.Close()
@@ -337,11 +339,11 @@ func TestTimeoutPendingRead(t *testing.T) {
 	}()
 
 	time.Sleep(100 * time.Millisecond) // make *sure* the pipe is reading before we set the deadline
-	client.SetReadDeadline(aLongTimeAgo)
+	_ = client.SetReadDeadline(aLongTimeAgo)
 
 	select {
 	case err = <-clientErr:
-		if err != ErrTimeout {
+		if !errors.Is(err, ErrTimeout) {
 			t.Fatalf("expected ErrTimeout, got %v", err)
 		}
 	case <-time.After(100 * time.Millisecond):
@@ -363,7 +365,8 @@ func TestTimeoutPendingWrite(t *testing.T) {
 	go func() {
 		s, err := l.Accept()
 		if err != nil {
-			t.Fatal(err)
+			t.Error(err)
+			return
 		}
 		time.Sleep(1 * time.Second)
 		s.Close()
@@ -383,11 +386,11 @@ func TestTimeoutPendingWrite(t *testing.T) {
 	}()
 
 	time.Sleep(100 * time.Millisecond) // make *sure* the pipe is writing before we set the deadline
-	client.SetWriteDeadline(aLongTimeAgo)
+	_ = client.SetWriteDeadline(aLongTimeAgo)
 
 	select {
 	case err = <-clientErr:
-		if err != ErrTimeout {
+		if !errors.Is(err, ErrTimeout) {
 			t.Fatalf("expected ErrTimeout, got %v", err)
 		}
 	case <-time.After(100 * time.Millisecond):
@@ -419,13 +422,14 @@ func TestEchoWithMessaging(t *testing.T) {
 		// server echo
 		conn, e := l.Accept()
 		if e != nil {
-			t.Fatal(e)
+			t.Error(err)
+			return
 		}
 		defer conn.Close()
 
 		time.Sleep(500 * time.Millisecond) // make *sure* we don't begin to read before eof signal is sent
-		io.Copy(conn, conn)
-		conn.(CloseWriter).CloseWrite()
+		_, _ = io.Copy(conn, conn)
+		_ = conn.(CloseWriter).CloseWrite()
 		close(listenerDone)
 	}()
 	timeout := 1 * time.Second
@@ -440,10 +444,12 @@ func TestEchoWithMessaging(t *testing.T) {
 		bytes := make([]byte, 2)
 		n, e := client.Read(bytes)
 		if e != nil {
-			t.Fatal(e)
+			t.Error(err)
+			return
 		}
 		if n != 2 {
-			t.Fatalf("expected 2 bytes, got %v", n)
+			t.Errorf("expected 2 bytes, got %v", n)
+			return
 		}
 		close(clientDone)
 	}()
@@ -459,7 +465,7 @@ func TestEchoWithMessaging(t *testing.T) {
 	if n != 2 {
 		t.Fatalf("expected 2 bytes, got %v", n)
 	}
-	client.(CloseWriter).CloseWrite()
+	_ = client.(CloseWriter).CloseWrite()
 	<-listenerDone
 	<-clientDone
 }
@@ -473,12 +479,13 @@ func TestConnectRace(t *testing.T) {
 	go func() {
 		for {
 			s, err := l.Accept()
-			if err == ErrPipeListenerClosed {
+			if errors.Is(err, ErrPipeListenerClosed) {
 				return
 			}
 
 			if err != nil {
-				t.Fatal(err)
+				t.Error(err)
+				return
 			}
 			s.Close()
 		}
@@ -510,11 +517,13 @@ func TestMessageReadMode(t *testing.T) {
 		defer wg.Done()
 		s, err := l.Accept()
 		if err != nil {
-			t.Fatal(err)
+			t.Error(err)
+			return
 		}
 		_, err = s.Write(msg)
 		if err != nil {
-			t.Fatal(err)
+			t.Error(err)
+			return
 		}
 		s.Close()
 	}()
@@ -528,7 +537,7 @@ func TestMessageReadMode(t *testing.T) {
 	setNamedPipeHandleState := syscall.NewLazyDLL("kernel32.dll").NewProc("SetNamedPipeHandleState")
 
 	p := c.(*win32MessageBytePipe)
-	mode := uint32(cPIPE_READMODE_MESSAGE)
+	mode := uint32(windows.PIPE_READMODE_MESSAGE)
 	if s, _, err := setNamedPipeHandleState.Call(uintptr(p.handle), uintptr(unsafe.Pointer(&mode)), 0, 0); s == 0 {
 		t.Fatal(err)
 	}
@@ -537,7 +546,7 @@ func TestMessageReadMode(t *testing.T) {
 	var vmsg []byte
 	for {
 		n, err := c.Read(ch)
-		if err == io.EOF {
+		if err == io.EOF { //nolint:errorlint
 			break
 		}
 		if err != nil {

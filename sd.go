@@ -4,6 +4,7 @@
 package winio
 
 import (
+	"errors"
 	"syscall"
 	"unsafe"
 
@@ -19,11 +20,6 @@ import (
 //sys localFree(mem uintptr) = LocalFree
 //sys getSecurityDescriptorLength(sd uintptr) (len uint32) = advapi32.GetSecurityDescriptorLength
 
-const (
-	cERROR_NONE_MAPPED = syscall.Errno(1332)
-	cERROR_INVALID_SID = syscall.Errno(1337)
-)
-
 type AccountLookupError struct {
 	Name string
 	Err  error
@@ -34,16 +30,18 @@ func (e *AccountLookupError) Error() string {
 		return "lookup account: empty account name specified"
 	}
 	var s string
-	switch e.Err {
-	case cERROR_INVALID_SID:
+	switch {
+	case errors.Is(e.Err, windows.ERROR_INVALID_SID):
 		s = "the security ID structure is invalid"
-	case cERROR_NONE_MAPPED:
+	case errors.Is(e.Err, windows.ERROR_NONE_MAPPED):
 		s = "not found"
 	default:
 		s = e.Err.Error()
 	}
 	return "lookup account " + e.Name + ": " + s
 }
+
+func (e *AccountLookupError) Unwrap() error { return e.Err }
 
 type SddlConversionError struct {
 	Sddl string
@@ -54,15 +52,19 @@ func (e *SddlConversionError) Error() string {
 	return "convert " + e.Sddl + ": " + e.Err.Error()
 }
 
+func (e *SddlConversionError) Unwrap() error { return e.Err }
+
 // LookupSidByName looks up the SID of an account by name
+//
+//revive:disable-next-line:var-naming SID, not Sid
 func LookupSidByName(name string) (sid string, err error) {
 	if name == "" {
-		return "", &AccountLookupError{name, cERROR_NONE_MAPPED}
+		return "", &AccountLookupError{name, windows.ERROR_NONE_MAPPED}
 	}
 
 	var sidSize, sidNameUse, refDomainSize uint32
 	err = lookupAccountName(nil, name, nil, &sidSize, nil, &refDomainSize, &sidNameUse)
-	if err != nil && err != syscall.ERROR_INSUFFICIENT_BUFFER {
+	if err != nil && err != syscall.ERROR_INSUFFICIENT_BUFFER { //nolint:errorlint // err is Errno
 		return "", &AccountLookupError{name, err}
 	}
 	sidBuffer := make([]byte, sidSize)
@@ -82,9 +84,11 @@ func LookupSidByName(name string) (sid string, err error) {
 }
 
 // LookupNameBySid looks up the name of an account by SID
+//
+//revive:disable-next-line:var-naming SID, not Sid
 func LookupNameBySid(sid string) (name string, err error) {
 	if sid == "" {
-		return "", &AccountLookupError{sid, cERROR_NONE_MAPPED}
+		return "", &AccountLookupError{sid, windows.ERROR_NONE_MAPPED}
 	}
 
 	sidBuffer, err := windows.UTF16PtrFromString(sid)
@@ -100,7 +104,7 @@ func LookupNameBySid(sid string) (name string, err error) {
 
 	var nameSize, refDomainSize, sidNameUse uint32
 	err = lookupAccountSid(nil, sidPtr, nil, &nameSize, nil, &refDomainSize, &sidNameUse)
-	if err != nil && err != windows.ERROR_INSUFFICIENT_BUFFER {
+	if err != nil && err != windows.ERROR_INSUFFICIENT_BUFFER { //nolint:errorlint // err is Errno
 		return "", &AccountLookupError{sid, err}
 	}
 

@@ -3,11 +3,15 @@
 
 package winio
 
-import "testing"
+import (
+	"errors"
+	"testing"
+)
 
 func TestRunWithUnavailablePrivilege(t *testing.T) {
 	err := RunWithPrivilege("SeCreateTokenPrivilege", func() error { return nil })
-	if _, ok := err.(*PrivilegeError); err == nil || !ok {
+	var perr *PrivilegeError
+	if !errors.As(err, &perr) {
 		t.Fatal("expected PrivilegeError")
 	}
 }
