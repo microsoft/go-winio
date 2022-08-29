@@ -42,7 +42,7 @@ issues:
       text: "^line-length-limit: "
       source: "^//(go:generate|sys) "
 
-    # allow unjustified ignores of error checks in defer statments
+    # allow unjustified ignores of error checks in defer statements
     - linters:
         - nolintlint
       text: "^directive `//nolint:errcheck` should provide explanation"
