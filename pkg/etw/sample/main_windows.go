@@ -84,6 +84,11 @@ func main() {
 		return
 	}
 
+	if err := provider.WriteEventString("TestEventString"); err != nil {
+		logrus.Error(err)
+		return
+	}
+
 	if err := providerWithGroup.WriteEvent(
 		"TestEventWithGroup",
 		etw.WithEventOpts(
@@ -104,6 +109,11 @@ func main() {
 				"Item5",
 			})),
 	); err != nil {
+		logrus.Error(err)
+		return
+	}
+
+	if err := providerWithGroup.WriteEventString("TestEventStringWithGroup"); err != nil {
 		logrus.Error(err)
 		return
 	}

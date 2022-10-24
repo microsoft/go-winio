@@ -220,6 +220,21 @@ func (provider *Provider) IsEnabledForLevelAndKeywords(level Level, keywords uin
 	return true
 }
 
+// WriteEventString writes a single ETW event from the provider that contains the string
+// as its data with the field name set to "Message".
+//
+// It is a wrapper around [Provider.WriteEvent], and meant to replace directly calling the
+// [ETW WriteEventString] syscall, which should not be used.
+//
+// Deprecated: Use [Provider.WriteEvent] instead.
+//
+// [ETW WriteEventString]: https://learn.microsoft.com/en-us/windows/win32/api/evntprov/nf-evntprov-eventwritestring#remarks
+func (provider *Provider) WriteEventString(message string) error {
+	opts := []EventOpt{WithLevel(0)}
+	fields := []FieldOpt{StringField("Message", message)}
+	return provider.WriteEvent("", opts, fields)
+}
+
 // WriteEvent writes a single ETW event from the provider. The event is
 // constructed based on the EventOpt and FieldOpt values that are passed as
 // opts.
