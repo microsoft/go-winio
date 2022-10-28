@@ -20,7 +20,6 @@ linters:
     - gofmt # files are gofmt'ed
     - gosec # security
     - nilerr # returns nil even with non-nil error
-    - structcheck # unused struct fields
     - unparam # unused function params
 
 issues:
@@ -93,6 +92,8 @@ linters-settings:
       - name: confusing-naming # we frequently use "Foo()" and "foo()" together
         disabled: true
       - name: flag-parameter # excessive, and a common idiom we use
+        disabled: true
+      - name: unhandled-error # warns over common fmt.Print* and io.Close; rely on errcheck instead
         disabled: true
       # general config
       - name: line-length-limit
