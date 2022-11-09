@@ -14,7 +14,8 @@ import (
 	"strconv"
 )
 
-//go:generate go run golang.org/x/tools/cmd/stringer -type=Variant -trimprefix=Variant -linecomment
+//go:generate go install -v golang.org/x/tools/cmd/stringer@v0.2.0
+//go:generate stringer -type=Variant -trimprefix=Variant -linecomment
 
 // Variant specifies which GUID variant (or "type") of the GUID. It determines
 // how the entirety of the rest of the GUID is interpreted.
