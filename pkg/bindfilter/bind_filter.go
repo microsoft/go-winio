@@ -19,8 +19,8 @@ import (
 )
 
 //go:generate go run github.com/Microsoft/go-winio/tools/mkwinsyscall -output zsyscall_windows.go ./bind_filter.go
-//sys bfSetupFilter(jobHandle windows.Handle, flags uint32, virtRootPath *uint16, virtTargetPath *uint16, virtExceptions **uint16, virtExceptionPathCount uint32) (hr error) = bindfltapi.BfSetupFilter?
-//sys bfRemoveMapping(jobHandle windows.Handle, virtRootPath *uint16)  (hr error) = bindfltapi.BfRemoveMapping?
+//sys bfSetupFilter(jobHandle windows.Handle, flags uint32, virtRootPath string, virtTargetPath string, virtExceptions **uint16, virtExceptionPathCount uint32) (hr error) = bindfltapi.BfSetupFilter?
+//sys bfRemoveMapping(jobHandle windows.Handle, virtRootPath string)  (hr error) = bindfltapi.BfRemoveMapping?
 //sys bfGetMappings(flags uint32, jobHandle windows.Handle, virtRootPath *uint16, sid *windows.SID, bufferSize *uint32, outBuffer uintptr)  (hr error) = bindfltapi.BfGetMappings?
 
 // BfSetupFilter flags. See:
@@ -79,15 +79,6 @@ func ApplyFileBinding(root, source string, readOnly bool) error {
 		source = source + "\\"
 	}
 
-	rootPtr, err := windows.UTF16PtrFromString(root)
-	if err != nil {
-		return err
-	}
-
-	targetPtr, err := windows.UTF16PtrFromString(source)
-	if err != nil {
-		return err
-	}
 	flags := BINDFLT_FLAG_NO_MULTIPLE_TARGETS
 	if readOnly {
 		flags |= BINDFLT_FLAG_READ_ONLY_MAPPING
@@ -97,8 +88,8 @@ func ApplyFileBinding(root, source string, readOnly bool) error {
 	if err := bfSetupFilter(
 		0,
 		flags,
-		rootPtr,
-		targetPtr,
+		root,
+		source,
 		nil,
 		0,
 	); err != nil {
@@ -109,12 +100,7 @@ func ApplyFileBinding(root, source string, readOnly bool) error {
 
 // RemoveFileBinding removes a mount from the root path.
 func RemoveFileBinding(root string) error {
-	rootPtr, err := windows.UTF16PtrFromString(root)
-	if err != nil {
-		return fmt.Errorf("converting path to utf-16: %w", err)
-	}
-
-	if err := bfRemoveMapping(0, rootPtr); err != nil {
+	if err := bfRemoveMapping(0, root); err != nil {
 		return fmt.Errorf("removing file binding: %w", err)
 	}
 	return nil
@@ -254,6 +240,7 @@ func getFinalPath(pth string) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("fetching file handle: %w", err)
 	}
+	defer syscall.CloseHandle(han)
 
 	buf := make([]uint16, 100)
 	var flags uint32 = 0x0

@@ -170,8 +170,6 @@ func TestGetBindMappings(t *testing.T) {
 }
 
 func TestRemoveFileBinding(t *testing.T) {
-	// GetBindMappings will exoand short paths like ADMINI~1 and PROGRA~1 to their
-	// full names. In order to properly match the names later, we expand them here.
 	srcShort := t.TempDir()
 	source, err := getFinalPath(srcShort)
 	if err != nil {
@@ -197,9 +195,9 @@ func TestRemoveFileBinding(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer removeFileBinding(t, destination)
 
 	if _, err := os.Stat(dstFile); err != nil {
+		removeFileBinding(t, destination)
 		t.Fatalf("expected to find %s, but did not", dstFile)
 	}
 

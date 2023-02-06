@@ -62,7 +62,16 @@ func bfGetMappings(flags uint32, jobHandle windows.Handle, virtRootPath *uint16,
 	return
 }
 
-func bfRemoveMapping(jobHandle windows.Handle, virtRootPath *uint16) (hr error) {
+func bfRemoveMapping(jobHandle windows.Handle, virtRootPath string) (hr error) {
+	var _p0 *uint16
+	_p0, hr = syscall.UTF16PtrFromString(virtRootPath)
+	if hr != nil {
+		return
+	}
+	return _bfRemoveMapping(jobHandle, _p0)
+}
+
+func _bfRemoveMapping(jobHandle windows.Handle, virtRootPath *uint16) (hr error) {
 	hr = procBfRemoveMapping.Find()
 	if hr != nil {
 		return
@@ -77,7 +86,21 @@ func bfRemoveMapping(jobHandle windows.Handle, virtRootPath *uint16) (hr error) 
 	return
 }
 
-func bfSetupFilter(jobHandle windows.Handle, flags uint32, virtRootPath *uint16, virtTargetPath *uint16, virtExceptions **uint16, virtExceptionPathCount uint32) (hr error) {
+func bfSetupFilter(jobHandle windows.Handle, flags uint32, virtRootPath string, virtTargetPath string, virtExceptions **uint16, virtExceptionPathCount uint32) (hr error) {
+	var _p0 *uint16
+	_p0, hr = syscall.UTF16PtrFromString(virtRootPath)
+	if hr != nil {
+		return
+	}
+	var _p1 *uint16
+	_p1, hr = syscall.UTF16PtrFromString(virtTargetPath)
+	if hr != nil {
+		return
+	}
+	return _bfSetupFilter(jobHandle, flags, _p0, _p1, virtExceptions, virtExceptionPathCount)
+}
+
+func _bfSetupFilter(jobHandle windows.Handle, flags uint32, virtRootPath *uint16, virtTargetPath *uint16, virtExceptions **uint16, virtExceptionPathCount uint32) (hr error) {
 	hr = procBfSetupFilter.Find()
 	if hr != nil {
 		return
