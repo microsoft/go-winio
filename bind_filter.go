@@ -103,6 +103,7 @@ func ApplyFileBinding(root, source string, readOnly bool) error {
 	return nil
 }
 
+// RemoveFileBinding removes a mount from the root path.
 func RemoveFileBinding(root string) error {
 	rootPtr, err := windows.UTF16PtrFromString(root)
 	if err != nil {
@@ -113,6 +114,62 @@ func RemoveFileBinding(root string) error {
 		return fmt.Errorf("removing file binding: %w", err)
 	}
 	return nil
+}
+
+// GetBindMappings returns a list of bind mappings that have their root on a
+// particular volume. The volumePath parameter can be any path that exists on
+// a volume. For example, if a number of mappings are created in C:\ProgramData\test,
+// to get a list of those mappings, the volumePath parameter would have to be set to
+// C:\ or the VOLUME_NAME_GUID notation of C:\ (\\?\Volume{GUID}\), or any child
+// path that exists.
+func GetBindMappings(volumePath string) ([]BindMapping, error) {
+	rootPtr, err := windows.UTF16PtrFromString(volumePath)
+	if err != nil {
+		return nil, err
+	}
+
+	var flags uint32 = BINDFLT_GET_MAPPINGS_FLAG_VOLUME
+	// allocate a large buffer for results
+	var outBuffSize uint32 = 256 * 1024
+	buf := make([]byte, outBuffSize)
+
+	if err := bfGetMappings(flags, 0, rootPtr, nil, &outBuffSize, uintptr(unsafe.Pointer(&buf[0]))); err != nil {
+		return nil, err
+	}
+
+	if outBuffSize < 12 {
+		return nil, fmt.Errorf("invalid buffer returned")
+	}
+
+	result := buf[:outBuffSize]
+
+	// The first 12 bytes are the three uint32 fields in getMappingsResponseHeader{}
+	headerBuffer := result[:12]
+	// The alternative to using unsafe and casting it to the above defined structures, is to manually
+	// parse the fields. Not too terrible, but not sure it'd worth the trouble.
+	header := *(*getMappingsResponseHeader)(unsafe.Pointer(&headerBuffer[0]))
+
+	if header.MappingCount == 0 {
+		// no mappings
+		return []BindMapping{}, nil
+	}
+
+	mappingsBuffer := result[12 : int(unsafe.Sizeof(mappingEntry{}))*int(header.MappingCount)]
+	// Get a pointer to the first mapping in the slice
+	mappingsPointer := (*mappingEntry)(unsafe.Pointer(&mappingsBuffer[0]))
+	// Get slice of mappings
+	mappings := unsafe.Slice(mappingsPointer, header.MappingCount)
+
+	mappingEntries := make([]BindMapping, header.MappingCount)
+	for i := 0; i < int(header.MappingCount); i++ {
+		bindMapping, err := getBindMappingFromBuffer(result, mappings[i])
+		if err != nil {
+			return nil, fmt.Errorf("fetching bind mappings: %w", err)
+		}
+		mappingEntries[i] = bindMapping
+	}
+
+	return mappingEntries, nil
 }
 
 // mappingEntry holds information about where in the response buffer we can
@@ -270,60 +327,4 @@ func getFileHandle(pth string) (syscall.Handle, error) {
 		return 0, err
 	}
 	return h, nil
-}
-
-// GetBindMappings returns a list of bind mappings that have their root on a
-// particular volume. The volumePath parameter can be any path that exists on
-// a volume. For example, if a number of mappings are created in C:\ProgramData\test,
-// to get a list of those mappings, the volumePath parameter would have to be set to
-// C:\ or the VOLUME_NAME_GUID notation of C:\ (\\?\Volume{GUID}\), or any child
-// path that exists.
-func GetBindMappings(volumePath string) ([]BindMapping, error) {
-	rootPtr, err := windows.UTF16PtrFromString(volumePath)
-	if err != nil {
-		return nil, err
-	}
-
-	var flags uint32 = BINDFLT_GET_MAPPINGS_FLAG_VOLUME
-	// allocate a large buffer for results
-	var outBuffSize uint32 = 256 * 1024
-	buf := make([]byte, outBuffSize)
-
-	if err := bfGetMappings(flags, 0, rootPtr, nil, &outBuffSize, uintptr(unsafe.Pointer(&buf[0]))); err != nil {
-		return nil, err
-	}
-
-	if outBuffSize < 12 {
-		return nil, fmt.Errorf("invalid buffer returned")
-	}
-
-	result := buf[:outBuffSize]
-
-	// The first 12 bytes are the three uint32 fields in getMappingsResponseHeader{}
-	headerBuffer := result[:12]
-	// The alternative to using unsafe and casting it to the above defined structures, is to manually
-	// parse the fields. Not too terrible, but not sure it'd worth the trouble.
-	header := *(*getMappingsResponseHeader)(unsafe.Pointer(&headerBuffer[0]))
-
-	if header.MappingCount == 0 {
-		// no mappings
-		return []BindMapping{}, nil
-	}
-
-	mappingsBuffer := result[12 : int(unsafe.Sizeof(mappingEntry{}))*int(header.MappingCount)]
-	// Get a pointer to the first mapping in the slice
-	mappingsPointer := (*mappingEntry)(unsafe.Pointer(&mappingsBuffer[0]))
-	// Get slice of mappings
-	mappings := unsafe.Slice(mappingsPointer, header.MappingCount)
-
-	mappingEntries := make([]BindMapping, header.MappingCount)
-	for i := 0; i < int(header.MappingCount); i++ {
-		bindMapping, err := getBindMappingFromBuffer(result, mappings[i])
-		if err != nil {
-			return nil, fmt.Errorf("fetching bind mappings: %w", err)
-		}
-		mappingEntries[i] = bindMapping
-	}
-
-	return mappingEntries, nil
 }
