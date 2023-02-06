@@ -20,7 +20,7 @@ import (
 //go:generate go run github.com/Microsoft/go-winio/tools/mkwinsyscall -output zsyscall_windows.go ./bind_filter.go
 //sys bfSetupFilter(jobHandle windows.Handle, flags uint32, virtRootPath string, virtTargetPath string, virtExceptions **uint16, virtExceptionPathCount uint32) (hr error) = bindfltapi.BfSetupFilter?
 //sys bfRemoveMapping(jobHandle windows.Handle, virtRootPath string)  (hr error) = bindfltapi.BfRemoveMapping?
-//sys bfGetMappings(flags uint32, jobHandle windows.Handle, virtRootPath *uint16, sid *windows.SID, bufferSize *uint32, outBuffer uintptr)  (hr error) = bindfltapi.BfGetMappings?
+//sys bfGetMappings(flags uint32, jobHandle windows.Handle, virtRootPath *uint16, sid *windows.SID, bufferSize *uint32, outBuffer *byte)  (hr error) = bindfltapi.BfGetMappings?
 
 // BfSetupFilter flags. See:
 // https://github.com/microsoft/BuildXL/blob/a6dce509f0d4f774255e5fbfb75fa6d5290ed163/Public/Src/Utilities/Native/Processes/Windows/NativeContainerUtilities.cs#L193-L240
@@ -122,7 +122,7 @@ func GetBindMappings(volumePath string) ([]BindMapping, error) {
 	var outBuffSize uint32 = 256 * 1024
 	buf := make([]byte, outBuffSize)
 
-	if err := bfGetMappings(flags, 0, rootPtr, nil, &outBuffSize, uintptr(unsafe.Pointer(&buf[0]))); err != nil {
+	if err := bfGetMappings(flags, 0, rootPtr, nil, &outBuffSize, &buf[0]); err != nil {
 		return nil, err
 	}
 
@@ -239,7 +239,9 @@ func getFinalPath(pth string) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("fetching file handle: %w", err)
 	}
-	defer syscall.CloseHandle(han)
+	defer func() {
+		_ = syscall.CloseHandle(han)
+	}()
 
 	buf := make([]uint16, 100)
 	var flags uint32 = 0x0
