@@ -12,7 +12,6 @@ import (
 	"path/filepath"
 	"strings"
 	"syscall"
-	"unicode/utf16"
 	"unsafe"
 
 	"golang.org/x/sys/windows"
@@ -199,7 +198,7 @@ func decodeEntry(buffer []byte) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("decoding name: %w", err)
 	}
-	return string(utf16.Decode(name)), nil
+	return windows.UTF16ToString(name), nil
 }
 
 func getTargetsFromBuffer(buffer []byte, offset, count int) ([]string, error) {
