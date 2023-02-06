@@ -1,7 +1,7 @@
 //go:build windows
 // +build windows
 
-package winio
+package bindfilter
 
 import (
 	"bytes"
@@ -18,12 +18,15 @@ import (
 	"golang.org/x/sys/windows"
 )
 
+//go:generate go run github.com/Microsoft/go-winio/tools/mkwinsyscall -output zsyscall_windows.go ./bind_filter.go
 //sys bfSetupFilter(jobHandle windows.Handle, flags uint32, virtRootPath *uint16, virtTargetPath *uint16, virtExceptions **uint16, virtExceptionPathCount uint32) (hr error) = bindfltapi.BfSetupFilter?
 //sys bfRemoveMapping(jobHandle windows.Handle, virtRootPath *uint16)  (hr error) = bindfltapi.BfRemoveMapping?
 //sys bfGetMappings(flags uint32, jobHandle windows.Handle, virtRootPath *uint16, sid *windows.SID, bufferSize *uint32, outBuffer uintptr)  (hr error) = bindfltapi.BfGetMappings?
 
 // BfSetupFilter flags. See:
 // https://github.com/microsoft/BuildXL/blob/a6dce509f0d4f774255e5fbfb75fa6d5290ed163/Public/Src/Utilities/Native/Processes/Windows/NativeContainerUtilities.cs#L193-L240
+//
+//nolint:revive // var-naming: ALL_CAPS
 const (
 	BINDFLT_FLAG_READ_ONLY_MAPPING uint32 = 0x00000001
 	// Generates a merged binding, mapping target entries to the virtualization root.
@@ -48,6 +51,7 @@ const (
 	BINDFLT_FLAG_BATCHED_REMOVE_MAPPINGS uint32 = 0x20000000
 )
 
+//nolint:revive // var-naming: ALL_CAPS
 const (
 	BINDFLT_GET_MAPPINGS_FLAG_VOLUME uint32 = 0x00000001
 	BINDFLT_GET_MAPPINGS_FLAG_SILO   uint32 = 0x00000002
@@ -128,7 +132,7 @@ func GetBindMappings(volumePath string) ([]BindMapping, error) {
 		return nil, err
 	}
 
-	var flags uint32 = BINDFLT_GET_MAPPINGS_FLAG_VOLUME
+	flags := BINDFLT_GET_MAPPINGS_FLAG_VOLUME
 	// allocate a large buffer for results
 	var outBuffSize uint32 = 256 * 1024
 	buf := make([]byte, outBuffSize)
@@ -224,7 +228,7 @@ func getTargetsFromBuffer(buffer []byte, offset, count int) ([]string, error) {
 		if len(buffer) < int(tgt.TargetRootOffset)+int(tgt.TargetRootLength) {
 			return nil, fmt.Errorf("invalid buffer")
 		}
-		decoded, err := decodeEntry(buffer[tgt.TargetRootOffset : uint32(tgt.TargetRootOffset)+uint32(tgt.TargetRootLength)])
+		decoded, err := decodeEntry(buffer[tgt.TargetRootOffset : tgt.TargetRootOffset+tgt.TargetRootLength])
 		if err != nil {
 			return nil, fmt.Errorf("decoding name: %w", err)
 		}
@@ -288,7 +292,7 @@ func getBindMappingFromBuffer(buffer []byte, entry mappingEntry) (BindMapping, e
 		return BindMapping{}, fmt.Errorf("invalid buffer")
 	}
 
-	src, err := decodeEntry(buffer[entry.VirtRootOffset : entry.VirtRootOffset+uint32(entry.VirtRootLength)])
+	src, err := decodeEntry(buffer[entry.VirtRootOffset : entry.VirtRootOffset+entry.VirtRootLength])
 	if err != nil {
 		return BindMapping{}, fmt.Errorf("decoding entry: %w", err)
 	}

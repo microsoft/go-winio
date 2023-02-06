@@ -1,7 +1,7 @@
 //go:build windows
 // +build windows
 
-package winio
+package bindfilter
 
 import (
 	"errors"
@@ -23,11 +23,11 @@ func TestApplyFileBinding(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer RemoveFileBinding(destination)
+	defer removeFileBinding(t, destination)
 
 	data := []byte("bind filter test")
 
-	if err := os.WriteFile(srcFile, data, 0755); err != nil {
+	if err := os.WriteFile(srcFile, data, 0600); err != nil {
 		t.Fatal(err)
 	}
 
@@ -51,6 +51,12 @@ func TestApplyFileBinding(t *testing.T) {
 	}
 }
 
+func removeFileBinding(t *testing.T, mountpoint string) {
+	if err := RemoveFileBinding(mountpoint); err != nil {
+		t.Logf("failed to remove file binding from %s: %q", mountpoint, err)
+	}
+}
+
 func TestApplyFileBindingReadOnly(t *testing.T) {
 	source := t.TempDir()
 	destination := t.TempDir()
@@ -62,11 +68,11 @@ func TestApplyFileBindingReadOnly(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer RemoveFileBinding(destination)
+	defer removeFileBinding(t, destination)
 
 	data := []byte("bind filter test")
 
-	if err := os.WriteFile(srcFile, data, 0755); err != nil {
+	if err := os.WriteFile(srcFile, data, 0600); err != nil {
 		t.Fatal(err)
 	}
 
@@ -99,10 +105,11 @@ func TestEnsureOnlyOneTargetCanBeMounted(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	defer RemoveFileBinding(destination)
+	defer removeFileBinding(t, destination)
+
 	err = ApplyFileBinding(destination, secondarySource, false)
 	if err == nil {
-		RemoveFileBinding(destination)
+		removeFileBinding(t, destination)
 		t.Fatalf("we should not be able to mount multiple targets in the same destination")
 	}
 }
@@ -150,7 +157,7 @@ func TestGetBindMappings(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer RemoveFileBinding(destination)
+	defer removeFileBinding(t, destination)
 
 	hasMapping, err := checkSourceIsMountedOnDestination(source, destination)
 	if err != nil {
@@ -177,32 +184,30 @@ func TestRemoveFileBinding(t *testing.T) {
 		t.Fatalf("failed to get long path")
 	}
 
+	fileName := "testFile.txt"
+	srcFile := filepath.Join(source, fileName)
+	dstFile := filepath.Join(destination, fileName)
+	data := []byte("bind filter test")
+
+	if err := os.WriteFile(srcFile, data, 0600); err != nil {
+		t.Fatal(err)
+	}
+
 	err = ApplyFileBinding(destination, source, false)
 	if err != nil {
 		t.Fatal(err)
 	}
+	defer removeFileBinding(t, destination)
 
-	hasMapping, err := checkSourceIsMountedOnDestination(source, destination)
-	if err != nil {
-		RemoveFileBinding(destination)
-		t.Fatal(err)
-	}
-
-	if !hasMapping {
-		RemoveFileBinding(destination)
-		t.Fatalf("expected to find %s mounted on %s, but could not", source, destination)
+	if _, err := os.Stat(dstFile); err != nil {
+		t.Fatalf("expected to find %s, but did not", dstFile)
 	}
 
 	if err := RemoveFileBinding(destination); err != nil {
 		t.Fatal(err)
 	}
 
-	hasMapping, err = checkSourceIsMountedOnDestination(source, destination)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	if hasMapping {
-		t.Fatalf("expected to find %s unmounted from %s, but it seems to still be mounted", source, destination)
+	if _, err := os.Stat(dstFile); err == nil {
+		t.Fatalf("expected %s to be gone, but it not", dstFile)
 	}
 }

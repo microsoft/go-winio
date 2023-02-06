@@ -40,11 +40,10 @@ func errnoErr(e syscall.Errno) error {
 }
 
 var (
-	modadvapi32   = windows.NewLazySystemDLL("advapi32.dll")
-	modbindfltapi = windows.NewLazySystemDLL("bindfltapi.dll")
-	modkernel32   = windows.NewLazySystemDLL("kernel32.dll")
-	modntdll      = windows.NewLazySystemDLL("ntdll.dll")
-	modws2_32     = windows.NewLazySystemDLL("ws2_32.dll")
+	modadvapi32 = windows.NewLazySystemDLL("advapi32.dll")
+	modkernel32 = windows.NewLazySystemDLL("kernel32.dll")
+	modntdll    = windows.NewLazySystemDLL("ntdll.dll")
+	modws2_32   = windows.NewLazySystemDLL("ws2_32.dll")
 
 	procAdjustTokenPrivileges                                = modadvapi32.NewProc("AdjustTokenPrivileges")
 	procConvertSecurityDescriptorToStringSecurityDescriptorW = modadvapi32.NewProc("ConvertSecurityDescriptorToStringSecurityDescriptorW")
@@ -60,9 +59,6 @@ var (
 	procLookupPrivilegeValueW                                = modadvapi32.NewProc("LookupPrivilegeValueW")
 	procOpenThreadToken                                      = modadvapi32.NewProc("OpenThreadToken")
 	procRevertToSelf                                         = modadvapi32.NewProc("RevertToSelf")
-	procBfGetMappings                                        = modbindfltapi.NewProc("BfGetMappings")
-	procBfRemoveMapping                                      = modbindfltapi.NewProc("BfRemoveMapping")
-	procBfSetupFilter                                        = modbindfltapi.NewProc("BfSetupFilter")
 	procBackupRead                                           = modkernel32.NewProc("BackupRead")
 	procBackupWrite                                          = modkernel32.NewProc("BackupWrite")
 	procCancelIoEx                                           = modkernel32.NewProc("CancelIoEx")
@@ -249,51 +245,6 @@ func revertToSelf() (err error) {
 	r1, _, e1 := syscall.Syscall(procRevertToSelf.Addr(), 0, 0, 0, 0)
 	if r1 == 0 {
 		err = errnoErr(e1)
-	}
-	return
-}
-
-func bfGetMappings(flags uint32, jobHandle windows.Handle, virtRootPath *uint16, sid *windows.SID, bufferSize *uint32, outBuffer uintptr) (hr error) {
-	hr = procBfGetMappings.Find()
-	if hr != nil {
-		return
-	}
-	r0, _, _ := syscall.Syscall6(procBfGetMappings.Addr(), 6, uintptr(flags), uintptr(jobHandle), uintptr(unsafe.Pointer(virtRootPath)), uintptr(unsafe.Pointer(sid)), uintptr(unsafe.Pointer(bufferSize)), uintptr(outBuffer))
-	if int32(r0) < 0 {
-		if r0&0x1fff0000 == 0x00070000 {
-			r0 &= 0xffff
-		}
-		hr = syscall.Errno(r0)
-	}
-	return
-}
-
-func bfRemoveMapping(jobHandle windows.Handle, virtRootPath *uint16) (hr error) {
-	hr = procBfRemoveMapping.Find()
-	if hr != nil {
-		return
-	}
-	r0, _, _ := syscall.Syscall(procBfRemoveMapping.Addr(), 2, uintptr(jobHandle), uintptr(unsafe.Pointer(virtRootPath)), 0)
-	if int32(r0) < 0 {
-		if r0&0x1fff0000 == 0x00070000 {
-			r0 &= 0xffff
-		}
-		hr = syscall.Errno(r0)
-	}
-	return
-}
-
-func bfSetupFilter(jobHandle windows.Handle, flags uint32, virtRootPath *uint16, virtTargetPath *uint16, virtExceptions **uint16, virtExceptionPathCount uint32) (hr error) {
-	hr = procBfSetupFilter.Find()
-	if hr != nil {
-		return
-	}
-	r0, _, _ := syscall.Syscall6(procBfSetupFilter.Addr(), 6, uintptr(jobHandle), uintptr(flags), uintptr(unsafe.Pointer(virtRootPath)), uintptr(unsafe.Pointer(virtTargetPath)), uintptr(unsafe.Pointer(virtExceptions)), uintptr(virtExceptionPathCount))
-	if int32(r0) < 0 {
-		if r0&0x1fff0000 == 0x00070000 {
-			r0 &= 0xffff
-		}
-		hr = syscall.Errno(r0)
 	}
 	return
 }

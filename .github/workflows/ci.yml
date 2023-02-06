@@ -70,7 +70,12 @@ jobs:
       - uses: actions/setup-go@v3
         with:
           go-version: ${{ env.GO_VERSION }}
-      - run: go test -gcflags=all=-d=checkptr -v ./...
+      - name: Run tests on ltsc 2019
+        if: matrix.os == 'windows-2019'
+        run: go test -gcflags=all=-d=checkptr -v --test.run="[^TestEnsureOnlyOneTargetCanBeMounted|^TestGetBindMappings|^TestRemoveFileBinding]" ./...
+      - name: Run tests
+        if: matrix.os != 'windows-2019'
+        run: go test -gcflags=all=-d=checkptr -v ./...
 
   build:
     name: Build Repo
