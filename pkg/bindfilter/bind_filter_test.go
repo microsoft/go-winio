@@ -8,8 +8,11 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
+
+	"golang.org/x/sys/windows/registry"
 )
 
 func TestApplyFileBinding(t *testing.T) {
@@ -96,11 +99,19 @@ func TestApplyFileBindingReadOnly(t *testing.T) {
 }
 
 func TestEnsureOnlyOneTargetCanBeMounted(t *testing.T) {
+	version, err := getWindowsBuildNumber()
+	if err != nil {
+		t.Fatalf("couldn't get version number: %s", err)
+	}
+
+	if version <= 17763 {
+		t.Skip("not supported on RS5 or earlier")
+	}
 	source := t.TempDir()
 	secondarySource := t.TempDir()
 	destination := t.TempDir()
 
-	err := ApplyFileBinding(destination, source, false)
+	err = ApplyFileBinding(destination, source, false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -139,6 +150,14 @@ func checkSourceIsMountedOnDestination(src, dst string) (bool, error) {
 }
 
 func TestGetBindMappings(t *testing.T) {
+	version, err := getWindowsBuildNumber()
+	if err != nil {
+		t.Fatalf("couldn't get version number: %s", err)
+	}
+
+	if version <= 17763 {
+		t.Skip("not supported on RS5 or earlier")
+	}
 	// GetBindMappings will exoand short paths like ADMINI~1 and PROGRA~1 to their
 	// full names. In order to properly match the names later, we expand them here.
 	srcShort := t.TempDir()
@@ -198,7 +217,7 @@ func TestRemoveFileBinding(t *testing.T) {
 
 	if _, err := os.Stat(dstFile); err != nil {
 		removeFileBinding(t, destination)
-		t.Fatalf("expected to find %s, but did not", dstFile)
+		t.Fatalf("expected to find %s, but could not", dstFile)
 	}
 
 	if err := RemoveFileBinding(destination); err != nil {
@@ -206,6 +225,23 @@ func TestRemoveFileBinding(t *testing.T) {
 	}
 
 	if _, err := os.Stat(dstFile); err == nil {
-		t.Fatalf("expected %s to be gone, but it not", dstFile)
+		t.Fatalf("expected %s to be gone, but it is not", dstFile)
 	}
+}
+
+func getWindowsBuildNumber() (int, error) {
+	k, err := registry.OpenKey(registry.LOCAL_MACHINE, `SOFTWARE\Microsoft\Windows NT\CurrentVersion`, registry.QUERY_VALUE)
+	if err != nil {
+		return 0, fmt.Errorf("read CurrentVersion reg key: %w", err)
+	}
+	defer k.Close()
+	buildNumStr, _, err := k.GetStringValue("CurrentBuild")
+	if err != nil {
+		return 0, fmt.Errorf("read CurrentBuild reg value: %w", err)
+	}
+	buildNum, err := strconv.Atoi(buildNumStr)
+	if err != nil {
+		return 0, err
+	}
+	return buildNum, nil
 }
