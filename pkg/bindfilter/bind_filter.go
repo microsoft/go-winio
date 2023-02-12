@@ -28,26 +28,9 @@ import (
 //nolint:revive // var-naming: ALL_CAPS
 const (
 	BINDFLT_FLAG_READ_ONLY_MAPPING uint32 = 0x00000001
-	// Generates a merged binding, mapping target entries to the virtualization root.
-	BINDFLT_FLAG_MERGED_BIND_MAPPING uint32 = 0x00000002
-	// Use the binding mapping attached to the mapped-in job object (silo) instead of the default global mapping.
-	BINDFLT_FLAG_USE_CURRENT_SILO_MAPPING uint32 = 0x00000004
-	BINDFLT_FLAG_REPARSE_ON_FILES         uint32 = 0x00000008
-	// Skips checks on file/dir creation inside a non-merged, read-only mapping.
-	// Only usable when READ_ONLY_MAPPING is set.
-	BINDFLT_FLAG_SKIP_SHARING_CHECK uint32 = 0x00000010
-	BINDFLT_FLAG_CLOUD_FILES_ECPS   uint32 = 0x00000020
 	// Tells bindflt to fail mapping with STATUS_INVALID_PARAMETER if a mapping produces
 	// multiple targets.
 	BINDFLT_FLAG_NO_MULTIPLE_TARGETS uint32 = 0x00000040
-	// Turns on caching by asserting that the backing store for name mappings is immutable.
-	BINDFLT_FLAG_IMMUTABLE_BACKING              uint32 = 0x00000080
-	BINDFLT_FLAG_PREVENT_CASE_SENSITIVE_BINDING uint32 = 0x00000100
-	// Tells bindflt to fail with STATUS_OBJECT_PATH_NOT_FOUND when a mapping is being added
-	// but its parent paths (ancestors) have not already been added.
-	BINDFLT_FLAG_EMPTY_VIRT_ROOT         uint32 = 0x00000200
-	BINDFLT_FLAG_NO_REPARSE_ON_ROOT      uint32 = 0x10000000
-	BINDFLT_FLAG_BATCHED_REMOVE_MAPPINGS uint32 = 0x20000000
 )
 
 //nolint:revive // var-naming: ALL_CAPS
