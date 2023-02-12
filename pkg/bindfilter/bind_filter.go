@@ -235,12 +235,12 @@ func getFinalPath(pth string) (string, error) {
 		pth = `\\.\GLOBALROOT` + pth
 	}
 
-	han, err := getFileHandle(pth)
+	han, err := openPath(pth)
 	if err != nil {
 		return "", fmt.Errorf("fetching file handle: %w", err)
 	}
 	defer func() {
-		_ = syscall.CloseHandle(han)
+		_ = windows.CloseHandle(han)
 	}()
 
 	buf := make([]uint16, 100)
@@ -301,22 +301,25 @@ func getBindMappingFromBuffer(buffer []byte, entry mappingEntry) (BindMapping, e
 	}, nil
 }
 
-func getFileHandle(pth string) (syscall.Handle, error) {
-	info, err := os.Lstat(pth)
-	if err != nil {
-		return 0, fmt.Errorf("accessing file: %w", err)
-	}
-	p, err := syscall.UTF16PtrFromString(pth)
+func openPath(path string) (windows.Handle, error) {
+	u16, err := windows.UTF16PtrFromString(path)
 	if err != nil {
 		return 0, err
 	}
-	attrs := uint32(syscall.FILE_FLAG_BACKUP_SEMANTICS)
-	if info.Mode()&os.ModeSymlink != 0 {
-		attrs |= syscall.FILE_FLAG_OPEN_REPARSE_POINT
-	}
-	h, err := syscall.CreateFile(p, 0, 0, nil, syscall.OPEN_EXISTING, attrs, 0)
+	h, err := windows.CreateFile(
+		u16,
+		0,
+		windows.FILE_SHARE_READ|windows.FILE_SHARE_WRITE|windows.FILE_SHARE_DELETE,
+		nil,
+		windows.OPEN_EXISTING,
+		windows.FILE_FLAG_BACKUP_SEMANTICS, // Needed to open a directory handle.
+		0)
 	if err != nil {
-		return 0, err
+		return 0, &os.PathError{
+			Op:   "CreateFile",
+			Path: path,
+			Err:  err,
+		}
 	}
 	return h, nil
 }

@@ -96,6 +96,15 @@ func TestApplyFileBindingReadOnly(t *testing.T) {
 	if !errors.Is(err, os.ErrPermission) {
 		t.Fatalf("expected an access denied error, got: %q", err)
 	}
+
+	// Attempt to write on the read-only mount point.
+	err = os.WriteFile(dstFile, []byte("something else"), 0600)
+	if err == nil {
+		t.Fatalf("should not be able to overwrite a file from a read-only mount")
+	}
+	if !errors.Is(err, os.ErrPermission) {
+		t.Fatalf("expected an access denied error, got: %q", err)
+	}
 }
 
 func TestEnsureOnlyOneTargetCanBeMounted(t *testing.T) {
@@ -158,7 +167,7 @@ func TestGetBindMappings(t *testing.T) {
 	if version <= 17763 {
 		t.Skip("not supported on RS5 or earlier")
 	}
-	// GetBindMappings will exoand short paths like ADMINI~1 and PROGRA~1 to their
+	// GetBindMappings will expand short paths like ADMINI~1 and PROGRA~1 to their
 	// full names. In order to properly match the names later, we expand them here.
 	srcShort := t.TempDir()
 	source, err := getFinalPath(srcShort)
