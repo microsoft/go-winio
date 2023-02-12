@@ -229,7 +229,7 @@ func getFinalPath(pth string) (string, error) {
 	buf := make([]uint16, 100)
 	var flags uint32 = 0x0
 	for {
-		n, err := windows.GetFinalPathNameByHandle(windows.Handle(han), &buf[0], uint32(len(buf)), flags)
+		n, err := windows.GetFinalPathNameByHandle(han, &buf[0], uint32(len(buf)), flags)
 		if err != nil {
 			// if we mounted a volume that does not also have a drive letter assigned, attempting to
 			// fetch the VOLUME_NAME_DOS will fail with os.ErrNotExist. Attempt to get the VOLUME_NAME_GUID.

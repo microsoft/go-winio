@@ -254,3 +254,56 @@ func getWindowsBuildNumber() (int, error) {
 	}
 	return buildNum, nil
 }
+
+func TestGetBindMappingsSymlinks(t *testing.T) {
+	version, err := getWindowsBuildNumber()
+	if err != nil {
+		t.Fatalf("couldn't get version number: %s", err)
+	}
+
+	if version <= 17763 {
+		t.Skip("not supported on RS5 or earlier")
+	}
+
+	srcShort := t.TempDir()
+	sourceNested := filepath.Join(srcShort, "source")
+	if err := os.MkdirAll(sourceNested, 0600); err != nil {
+		t.Fatalf("failed to create folder: %s", err)
+	}
+	simlinkSource := filepath.Join(srcShort, "symlink")
+	if err := os.Symlink(sourceNested, simlinkSource); err != nil {
+		t.Fatalf("failed to create symlink: %s", err)
+	}
+
+	// We'll need the long form of the source folder, as we expect bfSetupFilter()
+	// to resolve the symlink and create a mapping to the actual source the symlink
+	// points to.
+	source, err := getFinalPath(sourceNested)
+	if err != nil {
+		t.Fatalf("failed to get long path")
+	}
+
+	dstShort := t.TempDir()
+	destination, err := getFinalPath(dstShort)
+	if err != nil {
+		t.Fatalf("failed to get long path")
+	}
+
+	// Use the symlink as a source for the mapping.
+	err = ApplyFileBinding(destination, simlinkSource, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer removeFileBinding(t, destination)
+
+	// We expect the mapping to point to the folder the symlink points to, not to the
+	// actual symlink.
+	hasMapping, err := checkSourceIsMountedOnDestination(source, destination)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if !hasMapping {
+		t.Fatalf("expected to find %s mounted on %s, but could not", source, destination)
+	}
+}
