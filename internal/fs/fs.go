@@ -37,7 +37,7 @@ const NullHandle windows.Handle = 0
 // https://learn.microsoft.com/en-us/windows/win32/secauthz/generic-access-rights
 //
 // https://learn.microsoft.com/en-us/windows/win32/fileio/file-access-rights-constants
-type AccessMask uint32
+type AccessMask = windows.ACCESS_MASK
 
 //nolint:revive // SNAKE_CASE is not idiomatic in Go, but aligned with Win32 API.
 const (
@@ -195,10 +195,10 @@ type FileSQSFlag = FileAttribute
 
 //nolint:revive // SNAKE_CASE is not idiomatic in Go, but aligned with Win32 API.
 const ( // from winbase.h
-	SECURITY_ANONYMOUS      FileSQSFlag = (SecurityAnonymous << 16)
-	SECURITY_IDENTIFICATION FileSQSFlag = (SecurityIdentification << 16)
-	SECURITY_IMPERSONATION  FileSQSFlag = (SecurityImpersonation << 16)
-	SECURITY_DELEGATION     FileSQSFlag = (SecurityDelegation << 16)
+	SECURITY_ANONYMOUS      FileSQSFlag = FileSQSFlag(SecurityAnonymous << 16)
+	SECURITY_IDENTIFICATION FileSQSFlag = FileSQSFlag(SecurityIdentification << 16)
+	SECURITY_IMPERSONATION  FileSQSFlag = FileSQSFlag(SecurityImpersonation << 16)
+	SECURITY_DELEGATION     FileSQSFlag = FileSQSFlag(SecurityDelegation << 16)
 
 	SECURITY_CONTEXT_TRACKING FileSQSFlag = 0x00040000
 	SECURITY_EFFECTIVE_ONLY   FileSQSFlag = 0x00080000

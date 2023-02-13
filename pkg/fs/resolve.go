@@ -12,8 +12,8 @@ import (
 	"github.com/Microsoft/go-winio/internal/fs"
 )
 
-// ResolvePath follows symbolic links and returns the resolved path to the file or
-// directory represented by path.
+// ResolvePath returns the final path to a file or directory represented, resolving symlinks,
+// handling mount points, etc.
 // The resolution works by using the Windows API GetFinalPathNameByHandle, which takes a
 // handle and returns the final path to that file.
 //
