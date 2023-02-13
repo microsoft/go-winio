@@ -7,12 +7,12 @@ package main
 import (
 	"bufio"
 	"fmt"
+	"log"
 	"os"
 	"runtime"
 
 	"github.com/Microsoft/go-winio/pkg/etw"
 	"github.com/Microsoft/go-winio/pkg/guid"
-	"github.com/sirupsen/logrus"
 )
 
 func callback(sourceID guid.GUID, state etw.ProviderState, level etw.Level, matchAnyKeyword uint64, matchAllKeyword uint64, filterData uintptr) {
@@ -24,31 +24,28 @@ func main() {
 
 	group, err := guid.FromString("12341234-abcd-abcd-abcd-123412341234")
 	if err != nil {
-		logrus.Error(err)
-		return
+		log.Fatal(err)
 	}
 
 	provider, err := etw.NewProvider("TestProvider", callback)
 
 	if err != nil {
-		logrus.Error(err)
-		return
+		log.Fatal(err)
 	}
 	defer func() {
 		if err := provider.Close(); err != nil {
-			logrus.Error(err)
+			log.Fatal(err)
 		}
 	}()
 
 	providerWithGroup, err := etw.NewProviderWithOptions("TestProviderWithGroup", etw.WithGroup(group), etw.WithCallback(callback))
 
 	if err != nil {
-		logrus.Error(err)
-		return
+		log.Fatal(err)
 	}
 	defer func() {
 		if err := providerWithGroup.Close(); err != nil {
-			logrus.Error(err)
+			log.Fatal(err)
 		}
 	}()
 
@@ -80,8 +77,7 @@ func main() {
 				"Item5",
 			})),
 	); err != nil {
-		logrus.Error(err)
-		return
+		log.Fatal(err)
 	}
 
 	if err := providerWithGroup.WriteEvent(
@@ -104,7 +100,6 @@ func main() {
 				"Item5",
 			})),
 	); err != nil {
-		logrus.Error(err)
-		return
+		log.Fatal(err)
 	}
 }
