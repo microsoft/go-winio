@@ -11,7 +11,7 @@ import (
 //go:generate go run github.com/Microsoft/go-winio/tools/mkwinsyscall -output zsyscall_windows.go fs.go
 
 // https://learn.microsoft.com/en-us/windows/win32/api/fileapi/nf-fileapi-createfilew
-//sys CreateFile(name string, access AccessMask, mode FileShareMode, sa *syscall.SecurityAttributes, createmode FileCreationDisposition, attrs FileAttribute, templatefile windows.Handle) (handle windows.Handle, err error) [failretval==windows.InvalidHandle] = CreateFileW
+//sys CreateFile(name string, access AccessMask, mode FileShareMode, sa *syscall.SecurityAttributes, createmode FileCreationDisposition, attrs FileFlagOrAttribute, templatefile windows.Handle) (handle windows.Handle, err error) [failretval==windows.InvalidHandle] = CreateFileW
 
 const NullHandle windows.Handle = 0
 
@@ -98,17 +98,6 @@ const (
 	STANDARD_RIGHTS_EXECUTE AccessMask = READ_CONTROL
 
 	STANDARD_RIGHTS_ALL AccessMask = 0x001F_0000
-
-	// Other Access
-	// from ntseapi.h
-
-	ACCESS_SYSTEM_SECURITY AccessMask = 0x0100_0000
-	MAXIMUM_ALLOWED        AccessMask = 0x0200_0000
-
-	GENERIC_READ    AccessMask = 0x8000_0000
-	GENERIC_WRITE   AccessMask = 0x4000_0000
-	GENERIC_EXECUTE AccessMask = 0x2000_0000
-	GENERIC_ALL     AccessMask = 0x1000_0000
 )
 
 type FileShareMode uint32
@@ -133,65 +122,30 @@ const (
 	OPEN_EXISTING     FileCreationDisposition = 0x03
 	OPEN_ALWAYS       FileCreationDisposition = 0x04
 	TRUNCATE_EXISTING FileCreationDisposition = 0x05
-
-	// for NtCreateFile
-	// from ntioapi.h
-	//
-	// https://learn.microsoft.com/en-us/windows/win32/api/winternl/nf-winternl-ntcreatefile
-
-	FILE_SUPERSEDE           FileCreationDisposition = 0x00
-	FILE_OPEN                FileCreationDisposition = 0x01
-	FILE_CREATE              FileCreationDisposition = 0x02
-	FILE_OPEN_IF             FileCreationDisposition = 0x03
-	FILE_OVERWRITE           FileCreationDisposition = 0x04
-	FILE_OVERWRITE_IF        FileCreationDisposition = 0x05
-	FILE_MAXIMUM_DISPOSITION FileCreationDisposition = 0x05
-)
-
-// https://learn.microsoft.com/en-us/windows/win32/fileio/file-attribute-constants
-type FileAttribute uint32
-
-//nolint:revive // SNAKE_CASE is not idiomatic in Go, but aligned with Win32 API.
-const ( // from winnt.h
-	FILE_ATTRIBUTE_READONLY            FileAttribute = 0x0000_0001
-	FILE_ATTRIBUTE_HIDDEN              FileAttribute = 0x0000_0002
-	FILE_ATTRIBUTE_SYSTEM              FileAttribute = 0x0000_0004
-	FILE_ATTRIBUTE_DIRECTORY           FileAttribute = 0x0000_0010
-	FILE_ATTRIBUTE_ARCHIVE             FileAttribute = 0x0000_0020
-	FILE_ATTRIBUTE_DEVICE              FileAttribute = 0x0000_0040
-	FILE_ATTRIBUTE_NORMAL              FileAttribute = 0x0000_0080
-	FILE_ATTRIBUTE_TEMPORARY           FileAttribute = 0x0000_0100
-	FILE_ATTRIBUTE_SPARSE_FILE         FileAttribute = 0x0000_0200
-	FILE_ATTRIBUTE_REPARSE_POINT       FileAttribute = 0x0000_0400
-	FILE_ATTRIBUTE_COMPRESSED          FileAttribute = 0x0000_0800
-	FILE_ATTRIBUTE_OFFLINE             FileAttribute = 0x0000_1000
-	FILE_ATTRIBUTE_NOT_CONTENT_INDEXED FileAttribute = 0x0000_2000
-	FILE_ATTRIBUTE_ENCRYPTED           FileAttribute = 0x0000_4000
-	FILE_ATTRIBUTE_INTEGRITY_STREAM    FileAttribute = 0x0000_8000
-	FILE_ATTRIBUTE_VIRTUAL             FileAttribute = 0x0001_0000
-	FILE_ATTRIBUTE_NO_SCRUB_DATA       FileAttribute = 0x0002_0000
 )
 
 // CreateFile and co. take flags or attributes together as one parameter.
 // Define alias until we can use generics to allow both
-type FileFlag = FileAttribute
+
+// https://learn.microsoft.com/en-us/windows/win32/fileio/file-attribute-constants
+type FileFlagOrAttribute uint32
 
 //nolint:revive // SNAKE_CASE is not idiomatic in Go, but aligned with Win32 API.
 const ( // from winnt.h
-	FILE_FLAG_WRITE_THROUGH       FileFlag = 0x8000_0000
-	FILE_FLAG_OVERLAPPED          FileFlag = 0x4000_0000
-	FILE_FLAG_NO_BUFFERING        FileFlag = 0x2000_0000
-	FILE_FLAG_RANDOM_ACCESS       FileFlag = 0x1000_0000
-	FILE_FLAG_SEQUENTIAL_SCAN     FileFlag = 0x0800_0000
-	FILE_FLAG_DELETE_ON_CLOSE     FileFlag = 0x0400_0000
-	FILE_FLAG_BACKUP_SEMANTICS    FileFlag = 0x0200_0000
-	FILE_FLAG_POSIX_SEMANTICS     FileFlag = 0x0100_0000
-	FILE_FLAG_OPEN_REPARSE_POINT  FileFlag = 0x0020_0000
-	FILE_FLAG_OPEN_NO_RECALL      FileFlag = 0x0010_0000
-	FILE_FLAG_FIRST_PIPE_INSTANCE FileFlag = 0x0008_0000
+	FILE_FLAG_WRITE_THROUGH       FileFlagOrAttribute = 0x8000_0000
+	FILE_FLAG_OVERLAPPED          FileFlagOrAttribute = 0x4000_0000
+	FILE_FLAG_NO_BUFFERING        FileFlagOrAttribute = 0x2000_0000
+	FILE_FLAG_RANDOM_ACCESS       FileFlagOrAttribute = 0x1000_0000
+	FILE_FLAG_SEQUENTIAL_SCAN     FileFlagOrAttribute = 0x0800_0000
+	FILE_FLAG_DELETE_ON_CLOSE     FileFlagOrAttribute = 0x0400_0000
+	FILE_FLAG_BACKUP_SEMANTICS    FileFlagOrAttribute = 0x0200_0000
+	FILE_FLAG_POSIX_SEMANTICS     FileFlagOrAttribute = 0x0100_0000
+	FILE_FLAG_OPEN_REPARSE_POINT  FileFlagOrAttribute = 0x0020_0000
+	FILE_FLAG_OPEN_NO_RECALL      FileFlagOrAttribute = 0x0010_0000
+	FILE_FLAG_FIRST_PIPE_INSTANCE FileFlagOrAttribute = 0x0008_0000
 )
 
-type FileSQSFlag = FileAttribute
+type FileSQSFlag = FileFlagOrAttribute
 
 //nolint:revive // SNAKE_CASE is not idiomatic in Go, but aligned with Win32 API.
 const ( // from winbase.h
@@ -199,9 +153,6 @@ const ( // from winbase.h
 	SECURITY_IDENTIFICATION FileSQSFlag = FileSQSFlag(SecurityIdentification << 16)
 	SECURITY_IMPERSONATION  FileSQSFlag = FileSQSFlag(SecurityImpersonation << 16)
 	SECURITY_DELEGATION     FileSQSFlag = FileSQSFlag(SecurityDelegation << 16)
-
-	SECURITY_CONTEXT_TRACKING FileSQSFlag = 0x00040000
-	SECURITY_EFFECTIVE_ONLY   FileSQSFlag = 0x00080000
 
 	SECURITY_SQOS_PRESENT     FileSQSFlag = 0x00100000
 	SECURITY_VALID_SQOS_FLAGS FileSQSFlag = 0x001F0000
