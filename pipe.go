@@ -279,6 +279,7 @@ func makeServerPipeHandle(path string, sd []byte, c *PipeConfig, first bool) (sy
 	}
 	defer localFree(ntPath.Buffer)
 	oa.ObjectName = &ntPath
+	oa.Attributes = windows.OBJ_CASE_INSENSITIVE
 
 	// The security descriptor is only needed for the first pipe.
 	if first {
