@@ -68,9 +68,8 @@ func ResolvePath(path string) (string, error) {
 	// not done, certain paths can only be represented in this format. For instance, "\\?\C:\foo." (with a trailing .)
 	// cannot be written as "C:\foo.", because path normalization will remove the trailing ".".
 	//
-	// We use FILE_NAME_OPENED instead of FILE_NAME_NORMALIZED, as FILE_NAME_NORMALIZED can fail on some
-	// UNC paths based on access restrictions. The additional normalization done is also quite minimal in
-	// most cases.
+	// FILE_NAME_NORMALIZED can fail on some UNC paths based on access restrictions.
+	// Attempt to query with FILE_NAME_NORMALIZED, and then fall back on FILE_NAME_OPENED if access is denied.
 	//
 	// Querying for VOLUME_NAME_DOS first instead of VOLUME_NAME_GUID would yield a "nicer looking" path in some cases.
 	// For instance, it could return "\\?\C:\dir\file.txt" instead of "\\?\Volume{8a25748f-cf34-4ac6-9ee2-c89400e886db}\dir\file.txt".
@@ -85,24 +84,45 @@ func ResolvePath(path string) (string, error) {
 	// - Naming Files, Paths, and Namespaces: https://docs.microsoft.com/en-us/windows/win32/fileio/naming-a-file
 	// - Naming a Volume: https://docs.microsoft.com/en-us/windows/win32/fileio/naming-a-volume
 
-	rPath, err := fs.GetFinalPathNameByHandle(h, fs.FILE_NAME_OPENED|fs.VOLUME_NAME_GUID)
-	if errors.Is(err, windows.ERROR_PATH_NOT_FOUND) {
-		// ERROR_PATH_NOT_FOUND is returned from the VOLUME_NAME_GUID query if the path is a
-		// network share (UNC path). In this case, query for the DOS name instead, then translate
-		// the returned path to make it more palatable to other path functions.
-		rPath, err = fs.GetFinalPathNameByHandle(h, fs.FILE_NAME_OPENED|fs.VOLUME_NAME_DOS)
-		if err != nil {
-			return "", err
+	normalize := true
+	guid := true
+	rPath := ""
+	for i := 1; i <= 4; i++ { // maximum of 4 different cases to try
+		var flags fs.GetFinalPathFlag
+		if normalize {
+			flags |= fs.FILE_NAME_NORMALIZED // nop; for clarity
+		} else {
+			flags |= fs.FILE_NAME_OPENED
 		}
-		if strings.HasPrefix(rPath, `\\?\UNC\`) {
-			// Convert \\?\UNC\server\share -> \\server\share. The \\?\UNC syntax does not work with
-			// some Go filepath functions such as EvalSymlinks. In the future if other components
-			// move away from EvalSymlinks and use GetFinalPathNameByHandle instead, we could remove
-			// this path munging.
-			rPath = `\\` + rPath[len(`\\?\UNC\`):]
+
+		if guid {
+			flags |= fs.VOLUME_NAME_GUID
+		} else {
+			flags |= fs.VOLUME_NAME_DOS // nop; for clarity
 		}
-	} else if err != nil {
-		return "", err
+
+		rPath, err = fs.GetFinalPathNameByHandle(h, flags)
+		switch {
+		case guid && errors.Is(err, windows.ERROR_PATH_NOT_FOUND):
+			// ERROR_PATH_NOT_FOUND is returned from the VOLUME_NAME_GUID query if the path is a
+			// network share (UNC path). In this case, query for the DOS name instead.
+			guid = false
+			continue
+		case normalize && errors.Is(err, windows.ERROR_ACCESS_DENIED):
+			// normalization failed when accessing individual components along path for SMB share
+			normalize = false
+			continue
+		default:
+		}
+		break
 	}
-	return rPath, nil
+
+	if err == nil && strings.HasPrefix(rPath, `\\?\UNC\`) {
+		// Convert \\?\UNC\server\share -> \\server\share. The \\?\UNC syntax does not work with
+		// some Go filepath functions such as EvalSymlinks. In the future if other components
+		// move away from EvalSymlinks and use GetFinalPathNameByHandle instead, we could remove
+		// this path munging.
+		rPath = `\\` + rPath[len(`\\?\UNC\`):]
+	}
+	return rPath, err
 }
