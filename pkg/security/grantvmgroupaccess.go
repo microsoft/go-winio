@@ -29,7 +29,7 @@ type (
 		trustee           trustee
 	}
 
-	//nolint:structcheck,unused // structcheck thinks fields are unused, but the are used to pass data to OS
+	//nolint:structcheck // structcheck thinks fields are unused, but the are used to pass data to OS
 	trustee struct {
 		multipleTrustee          *trustee
 		multipleTrusteeOperation int32

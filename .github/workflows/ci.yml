@@ -4,7 +4,7 @@ on:
   - pull_request
 
 env:
-  GO_VERSION: "1.17"
+  GO_VERSION: "1.18"
 
 jobs:
   lint:
@@ -18,7 +18,7 @@ jobs:
       - name: Run golangci-lint
         uses: golangci/golangci-lint-action@v3
         with:
-          version: v1.50
+          version: v1.52
           args: >-
             --verbose
             --timeout=5m

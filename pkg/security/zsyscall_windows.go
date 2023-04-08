@@ -48,7 +48,7 @@ var (
 )
 
 func getSecurityInfo(handle syscall.Handle, objectType uint32, si uint32, ppsidOwner **uintptr, ppsidGroup **uintptr, ppDacl *uintptr, ppSacl *uintptr, ppSecurityDescriptor *uintptr) (win32err error) {
-	r0, _, _ := syscall.Syscall9(procGetSecurityInfo.Addr(), 8, uintptr(handle), uintptr(objectType), uintptr(si), uintptr(unsafe.Pointer(ppsidOwner)), uintptr(unsafe.Pointer(ppsidGroup)), uintptr(unsafe.Pointer(ppDacl)), uintptr(unsafe.Pointer(ppSacl)), uintptr(unsafe.Pointer(ppSecurityDescriptor)), 0)
+	r0, _, _ := syscall.SyscallN(procGetSecurityInfo.Addr(), uintptr(handle), uintptr(objectType), uintptr(si), uintptr(unsafe.Pointer(ppsidOwner)), uintptr(unsafe.Pointer(ppsidGroup)), uintptr(unsafe.Pointer(ppDacl)), uintptr(unsafe.Pointer(ppSacl)), uintptr(unsafe.Pointer(ppSecurityDescriptor)))
 	if r0 != 0 {
 		win32err = syscall.Errno(r0)
 	}
@@ -56,7 +56,7 @@ func getSecurityInfo(handle syscall.Handle, objectType uint32, si uint32, ppsidO
 }
 
 func setEntriesInAcl(count uintptr, pListOfEEs uintptr, oldAcl uintptr, newAcl *uintptr) (win32err error) {
-	r0, _, _ := syscall.Syscall6(procSetEntriesInAclW.Addr(), 4, uintptr(count), uintptr(pListOfEEs), uintptr(oldAcl), uintptr(unsafe.Pointer(newAcl)), 0, 0)
+	r0, _, _ := syscall.SyscallN(procSetEntriesInAclW.Addr(), uintptr(count), uintptr(pListOfEEs), uintptr(oldAcl), uintptr(unsafe.Pointer(newAcl)))
 	if r0 != 0 {
 		win32err = syscall.Errno(r0)
 	}
@@ -64,7 +64,7 @@ func setEntriesInAcl(count uintptr, pListOfEEs uintptr, oldAcl uintptr, newAcl *
 }
 
 func setSecurityInfo(handle syscall.Handle, objectType uint32, si uint32, psidOwner uintptr, psidGroup uintptr, pDacl uintptr, pSacl uintptr) (win32err error) {
-	r0, _, _ := syscall.Syscall9(procSetSecurityInfo.Addr(), 7, uintptr(handle), uintptr(objectType), uintptr(si), uintptr(psidOwner), uintptr(psidGroup), uintptr(pDacl), uintptr(pSacl), 0, 0)
+	r0, _, _ := syscall.SyscallN(procSetSecurityInfo.Addr(), uintptr(handle), uintptr(objectType), uintptr(si), uintptr(psidOwner), uintptr(psidGroup), uintptr(pDacl), uintptr(pSacl))
 	if r0 != 0 {
 		win32err = syscall.Errno(r0)
 	}

@@ -95,6 +95,8 @@ linters-settings:
         disabled: true
       - name: unhandled-error # warns over common fmt.Print* and io.Close; rely on errcheck instead
         disabled: true
+      - name: comment-spacings # produces false positives on "//nolint:" comments; see https://github.com/mgechev/revive/issues/808
+        disabled: true
       # general config
       - name: line-length-limit
         arguments:
