@@ -9,7 +9,7 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-func fireEvent(name string, value interface{}) {
+func fireEvent(name string, value any) {
 	logrus.WithField("Field", value).Info(name)
 }
 

@@ -403,7 +403,7 @@ func Time(name string, value time.Time) FieldOpt {
 // type. The intent of this is to make it easier to see which types are not
 // supported in traces, so we can evaluate adding support for more types in the
 // future.
-func SmartField(name string, v interface{}) FieldOpt {
+func SmartField(name string, v any) FieldOpt {
 	switch v := v.(type) {
 	case bool:
 		return BoolField(name, v)
