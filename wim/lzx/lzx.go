@@ -489,14 +489,13 @@ func (f *decompressor) readCompressedBlock(start, end uint16, hmain, hlength, ha
 			f.lru[0] = matchoffset
 		}
 
-		if matchoffset <= i && matchlen <= end-i {
-			copyend := i + matchlen
-			for ; i < copyend; i++ {
-				f.window[i] = f.window[i-matchoffset]
-			}
-		} else {
+		if !(matchoffset <= i && matchlen <= end-i) {
 			f.fail(errCorrupt)
 			break
+		}
+		copyend := i + matchlen
+		for ; i < copyend; i++ {
+			f.window[i] = f.window[i-matchoffset]
 		}
 	}
 	return int(i - start), f.err

@@ -176,7 +176,7 @@ func tryDialPipe(ctx context.Context, path *string, access fs.AccessMask) (sysca
 				nil, // security attributes
 				fs.OPEN_EXISTING,
 				fs.FILE_FLAG_OVERLAPPED|fs.SECURITY_SQOS_PRESENT|fs.SECURITY_ANONYMOUS,
-				0, //template file handle
+				0, // template file handle
 			)
 			h := syscall.Handle(wh)
 			if err == nil {

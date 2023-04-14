@@ -15,7 +15,7 @@ const MinWStringCap = 310
 // use *[]uint16 since []uint16 creates an extra allocation where the slice header
 // is copied to heap and then referenced via pointer in the interface header that sync.Pool
 // stores.
-var pathPool = sync.Pool{ //! if go1.18+ adds Pool[T], use that to store []uint16 directly
+var pathPool = sync.Pool{ // if go1.18+ adds Pool[T], use that to store []uint16 directly
 	New: func() interface{} {
 		b := make([]uint16, MinWStringCap)
 		return &b
@@ -108,7 +108,7 @@ func (b *WString) String() string {
 	// Using [windows.UTF16ToString] would require importing "golang.org/x/sys/windows"
 	// and would make this code Windows-only, which makes no sense.
 	// So copy UTF16ToString code into here.
-	//! If other windows-specific code is added, switch to [windows.UTF16ToString]
+	// If other windows-specific code is added, switch to [windows.UTF16ToString]
 
 	s := b.b
 	for i, v := range s {
