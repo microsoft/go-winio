@@ -24,8 +24,8 @@ func eventUnregister(providerHandle providerHandle) (win32err error) {
 func eventWriteTransfer(
 	providerHandle providerHandle,
 	descriptor *eventDescriptor,
-	activityID *windows.GUID,
-	relatedActivityID *windows.GUID,
+	activityID *guid.GUID,
+	relatedActivityID *guid.GUID,
 	dataDescriptorCount uint32,
 	dataDescriptors *eventDataDescriptor) (win32err error) {
 

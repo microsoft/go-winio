@@ -8,6 +8,7 @@ import (
 	"syscall"
 	"unsafe"
 
+	"github.com/Microsoft/go-winio/pkg/guid"
 	"golang.org/x/sys/windows"
 )
 
@@ -42,13 +43,26 @@ func errnoErr(e syscall.Errno) error {
 var (
 	modadvapi32 = windows.NewLazySystemDLL("advapi32.dll")
 
-	procEventRegister       = modadvapi32.NewProc("EventRegister")
-	procEventSetInformation = modadvapi32.NewProc("EventSetInformation")
-	procEventUnregister     = modadvapi32.NewProc("EventUnregister")
-	procEventWriteTransfer  = modadvapi32.NewProc("EventWriteTransfer")
+	procEventActivityIdControl = modadvapi32.NewProc("EventActivityIdControl")
+	procEventRegister          = modadvapi32.NewProc("EventRegister")
+	procEventSetInformation    = modadvapi32.NewProc("EventSetInformation")
+	procEventUnregister        = modadvapi32.NewProc("EventUnregister")
+	procEventWriteTransfer     = modadvapi32.NewProc("EventWriteTransfer")
 )
 
-func eventRegister(providerId *windows.GUID, callback uintptr, callbackContext uintptr, providerHandle *providerHandle) (win32err error) {
+func eventActivityIdControl(code eventActivityIDControlCode, activityID *guid.GUID) (win32err error) {
+	win32err = procEventActivityIdControl.Find()
+	if win32err != nil {
+		return
+	}
+	r0, _, _ := syscall.Syscall(procEventActivityIdControl.Addr(), 2, uintptr(code), uintptr(unsafe.Pointer(activityID)), 0)
+	if r0 != 0 {
+		win32err = syscall.Errno(r0)
+	}
+	return
+}
+
+func eventRegister(providerId *guid.GUID, callback uintptr, callbackContext uintptr, providerHandle *providerHandle) (win32err error) {
 	r0, _, _ := syscall.Syscall6(procEventRegister.Addr(), 4, uintptr(unsafe.Pointer(providerId)), uintptr(callback), uintptr(callbackContext), uintptr(unsafe.Pointer(providerHandle)), 0, 0)
 	if r0 != 0 {
 		win32err = syscall.Errno(r0)
@@ -88,7 +102,7 @@ func eventUnregister_32(providerHandle_low uint32, providerHandle_high uint32) (
 	return
 }
 
-func eventWriteTransfer_64(providerHandle providerHandle, descriptor *eventDescriptor, activityID *windows.GUID, relatedActivityID *windows.GUID, dataDescriptorCount uint32, dataDescriptors *eventDataDescriptor) (win32err error) {
+func eventWriteTransfer_64(providerHandle providerHandle, descriptor *eventDescriptor, activityID *guid.GUID, relatedActivityID *guid.GUID, dataDescriptorCount uint32, dataDescriptors *eventDataDescriptor) (win32err error) {
 	r0, _, _ := syscall.Syscall6(procEventWriteTransfer.Addr(), 6, uintptr(providerHandle), uintptr(unsafe.Pointer(descriptor)), uintptr(unsafe.Pointer(activityID)), uintptr(unsafe.Pointer(relatedActivityID)), uintptr(dataDescriptorCount), uintptr(unsafe.Pointer(dataDescriptors)))
 	if r0 != 0 {
 		win32err = syscall.Errno(r0)
@@ -96,7 +110,7 @@ func eventWriteTransfer_64(providerHandle providerHandle, descriptor *eventDescr
 	return
 }
 
-func eventWriteTransfer_32(providerHandle_low uint32, providerHandle_high uint32, descriptor *eventDescriptor, activityID *windows.GUID, relatedActivityID *windows.GUID, dataDescriptorCount uint32, dataDescriptors *eventDataDescriptor) (win32err error) {
+func eventWriteTransfer_32(providerHandle_low uint32, providerHandle_high uint32, descriptor *eventDescriptor, activityID *guid.GUID, relatedActivityID *guid.GUID, dataDescriptorCount uint32, dataDescriptors *eventDataDescriptor) (win32err error) {
 	r0, _, _ := syscall.Syscall9(procEventWriteTransfer.Addr(), 7, uintptr(providerHandle_low), uintptr(providerHandle_high), uintptr(unsafe.Pointer(descriptor)), uintptr(unsafe.Pointer(activityID)), uintptr(unsafe.Pointer(relatedActivityID)), uintptr(dataDescriptorCount), uintptr(unsafe.Pointer(dataDescriptors)), 0, 0)
 	if r0 != 0 {
 		win32err = syscall.Errno(r0)

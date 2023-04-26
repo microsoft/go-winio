@@ -10,7 +10,6 @@ import (
 	"unicode/utf16"
 
 	"github.com/Microsoft/go-winio/pkg/guid"
-	"golang.org/x/sys/windows"
 )
 
 // Provider represents an ETW event provider. It is identified by a provider
@@ -277,7 +276,17 @@ func (provider *Provider) writeEventRaw(
 	activityID guid.GUID,
 	relatedActivityID guid.GUID,
 	metadataBlobs [][]byte,
-	dataBlobs [][]byte) error {
+	dataBlobs [][]byte,
+) error {
+	// Passing in an empty activity ID will override the thread's activity ID, so set it nil
+	// if no activity ID is specified.
+	//
+	// https://learn.microsoft.com/en-us/windows/win32/api/evntprov/nf-evntprov-eventactivityidcontrol#remarks
+	pActID := (*guid.GUID)(nil)
+	if !activityID.IsEmpty() {
+		pActID = &activityID
+	}
+
 	dataDescriptorCount := uint32(1 + len(metadataBlobs) + len(dataBlobs))
 	dataDescriptors := make([]eventDataDescriptor, 0, dataDescriptorCount)
 
@@ -294,8 +303,8 @@ func (provider *Provider) writeEventRaw(
 
 	return eventWriteTransfer(provider.handle,
 		descriptor,
-		(*windows.GUID)(&activityID),
-		(*windows.GUID)(&relatedActivityID),
+		pActID,
+		&relatedActivityID,
 		dataDescriptorCount,
 		&dataDescriptors[0])
 }

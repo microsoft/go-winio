@@ -40,7 +40,7 @@ func NewProviderWithOptions(name string, options ...ProviderOpt) (provider *Prov
 	provider.ID = opts.id
 	provider.callback = opts.callback
 
-	if err := eventRegister((*windows.GUID)(&provider.ID), globalProviderCallback, uintptr(provider.index), &provider.handle); err != nil {
+	if err := eventRegister(&provider.ID, globalProviderCallback, uintptr(provider.index), &provider.handle); err != nil {
 		return nil, err
 	}
 
