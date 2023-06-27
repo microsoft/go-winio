@@ -11,6 +11,7 @@ import (
 	"net"
 	"os"
 	"runtime"
+	"sync"
 	"time"
 	"unsafe"
 
@@ -297,9 +298,30 @@ type win32PipeListener struct {
 	firstHandle windows.Handle
 	path        string
 	config      PipeConfig
-	acceptCh    chan (chan acceptResponse)
-	closeCh     chan int
-	doneCh      chan int
+
+	// `acceptQueueCh` is a buffered channel (of channels).  Calls to
+	// Accept() will append to this queue to schedule a listener-worker
+	// to create a new named pipe instance in the named pipe file system
+	// (NPFS) and then listen for a connection from a client.
+	//
+	// The resulting connected pipe (or error) will be signalled (back
+	// to `Accept()`) on the channel value's channel.
+	acceptQueueCh chan (chan acceptResponse)
+
+	// `shutdownStartedCh` will be closed to indicate that all listener
+	// workers should shutdown.  `l.Close()` will signal this to begin
+	// a shutdown.
+	shutdownStartedCh chan struct{}
+
+	// `shutdownFinishedCh` will be closed to indicate that `l.listenerRoutine()`
+	// has stopped all of the listener worker threads and has finished the
+	// shutdown.  `l.Close()` must wait for this signal before returning.
+	shutdownFinishedCh chan struct{}
+
+	// `closeMux` is used to create a critical section in `l.Close()` and
+	// coordinate the shutdown and prevent problems if a second thread calls
+	// `l.Close()` while a shutdown is in progress.
+	closeMux sync.Mutex
 }
 
 func makeServerPipeHandle(path string, sd []byte, c *PipeConfig, first bool) (windows.Handle, error) {
@@ -426,45 +448,56 @@ func (l *win32PipeListener) makeConnectedServerPipe() (*win32File, error) {
 			p.Close()
 			p = nil
 		}
-	case <-l.closeCh:
+	case <-l.shutdownStartedCh:
 		// Abort the connect request by closing the handle.
 		p.Close()
 		p = nil
 		err = <-ch
-		if err == nil || err == ErrFileClosed { //nolint:errorlint // err is Errno
+		if err == nil || err == ErrFileClosed || err == windows.ERROR_OPERATION_ABORTED { //nolint:errorlint // err is Errno
 			err = ErrPipeListenerClosed
 		}
 	}
 	return p, err
 }
 
-func (l *win32PipeListener) listenerRoutine() {
-	closed := false
-	for !closed {
+func (l *win32PipeListener) listenerWorker(wg *sync.WaitGroup) {
+	var stop bool
+	for !stop {
 		select {
-		case <-l.closeCh:
-			closed = true
-		case responseCh := <-l.acceptCh:
-			var (
-				p   *win32File
-				err error
-			)
-			for {
-				p, err = l.makeConnectedServerPipe()
-				// If the connection was immediately closed by the client, try
-				// again.
-				if err != windows.ERROR_NO_DATA { //nolint:errorlint // err is Errno
-					break
-				}
-			}
+		case <-l.shutdownStartedCh:
+			stop = true
+		case responseCh := <-l.acceptQueueCh:
+			p, err := l.makeConnectedServerPipe()
 			responseCh <- acceptResponse{p, err}
-			closed = err == ErrPipeListenerClosed //nolint:errorlint // err is Errno
 		}
 	}
+
+	wg.Done()
+}
+
+func (l *win32PipeListener) listenerRoutine(queueSize int) {
+	var wg sync.WaitGroup
+
+	for k := 0; k < queueSize; k++ {
+		wg.Add(1)
+		go l.listenerWorker(&wg)
+	}
+
+	wg.Wait() // for all listenerWorkers to finish.
+
+	// We can assert here that `l.shutdownStartedCh` has been
+	// signalled (since `l.Close()` closed it).
+	//
+	// We might consider draining the `l.acceptQueueCh` and
+	// closing each of the channel instances, but that is not
+	// necessary since the second "select" in `l.Accept()` is
+	// waiting on the `requestCh` and `l.shutdownFinishedCh`.
+	// And we're going to signal the latter in a moment.
+
 	windows.Close(l.firstHandle)
 	l.firstHandle = 0
 	// Notify Close() and Accept() callers that the handle has been closed.
-	close(l.doneCh)
+	close(l.shutdownFinishedCh)
 }
 
 // PipeConfig contain configuration for the pipe listener.
@@ -485,6 +518,19 @@ type PipeConfig struct {
 
 	// OutputBufferSize specifies the size of the output buffer, in bytes.
 	OutputBufferSize int32
+
+	// QueueSize specifies the maximum number of concurrently active pipe server
+	// handles to allow.  This is conceptually similar to the `backlog` argument
+	// to `listen(2)` on Unix systems. Increasing this value reduces the likelyhood
+	// of a connecting client receiving a `windows.ERROR_PIPE_BUSY` error.
+	// (Assuming that the server is written to call `l.Accept()` using a pool of
+	// application worker threads.)
+	//
+	// This value should be larger than your expected client arrival rate so that
+	// there are always a few extra listener worker threads and (more importantly)
+	// unbound server pipes in the kernel, so that a client "CreateFile()" should
+	// not get a busy signal.
+	QueueSize int32
 }
 
 // ListenPipe creates a listener on a Windows named pipe path, e.g. \\.\pipe\mypipe.
@@ -503,19 +549,30 @@ func ListenPipe(path string, c *PipeConfig) (net.Listener, error) {
 			return nil, err
 		}
 	}
+
+	queueSize := int(c.QueueSize)
+	if queueSize < 1 {
+		// Legacy calls will pass 0 since they won't know to set the queue size.
+		// Default to legacy behavior where we never have more than 1 available
+		// unbound pipe and that is only present when an application thread is
+		// blocked in `l.Accept()`.
+		queueSize = 1
+	}
+
 	h, err := makeServerPipeHandle(path, sd, c, true)
 	if err != nil {
 		return nil, err
 	}
 	l := &win32PipeListener{
-		firstHandle: h,
-		path:        path,
-		config:      *c,
-		acceptCh:    make(chan (chan acceptResponse)),
-		closeCh:     make(chan int),
-		doneCh:      make(chan int),
+		firstHandle:        h,
+		path:               path,
+		config:             *c,
+		acceptQueueCh:      make(chan chan acceptResponse, queueSize),
+		shutdownStartedCh:  make(chan struct{}),
+		shutdownFinishedCh: make(chan struct{}),
+		closeMux:           sync.Mutex{},
 	}
-	go l.listenerRoutine()
+	go l.listenerRoutine(queueSize)
 	return l, nil
 }
 
@@ -535,13 +592,44 @@ func connectPipe(p *win32File) error {
 }
 
 func (l *win32PipeListener) Accept() (net.Conn, error) {
+tryAgain:
 	ch := make(chan acceptResponse)
+
 	select {
-	case l.acceptCh <- ch:
-		response := <-ch
-		err := response.err
-		if err != nil {
-			return nil, err
+	case l.acceptQueueCh <- ch:
+		// We have queued a request for a worker thread to listen
+		// for a connection.
+	case <-l.shutdownFinishedCh:
+		// The shutdown completed before we could request a connection.
+		return nil, ErrPipeListenerClosed
+	case <-l.shutdownStartedCh:
+		// The shutdown is already in progress. Don't bother trying to
+		// schedule a new request.
+		return nil, ErrPipeListenerClosed
+	}
+
+	// We queued a request. Now wait for a connection signal or a
+	// shutdown while we were waiting.
+
+	select {
+	case response := <-ch:
+		if response.f == nil && response.err == nil {
+			// The listener worker could close our channel instance
+			// to indicate that the listener is shut down.
+			return nil, ErrPipeListenerClosed
+		}
+		if errors.Is(response.err, ErrPipeListenerClosed) {
+			return nil, ErrPipeListenerClosed
+		}
+		if response.err == windows.ERROR_NO_DATA { //nolint:errorlint // err is Errno
+			// If the connection was immediately closed by the client,
+			// try again (without reporting an error or a dead connection
+			// to the `Accept()` caller).  This avoids spurious
+			// "The pipe is being closed." messages.
+			goto tryAgain
+		}
+		if response.err != nil {
+			return nil, response.err
 		}
 		if l.config.MessageMode {
 			return &win32MessageBytePipe{
@@ -549,17 +637,39 @@ func (l *win32PipeListener) Accept() (net.Conn, error) {
 			}, nil
 		}
 		return &win32Pipe{win32File: response.f, path: l.path}, nil
-	case <-l.doneCh:
+	case <-l.shutdownFinishedCh:
+		// The shutdown started and completed while we were waiting for a
+		// connection.
 		return nil, ErrPipeListenerClosed
+
+		// case <-l.shutdownStartedCh:
+		// We DO NOT watch for `l.shutdownStartedCh` because we need
+		// to keep listening on our local `ch` so that the associated
+		// listener worker can signal it without blocking when throwing
+		// an ErrPipeListenerClosed error.
 	}
 }
 
 func (l *win32PipeListener) Close() error {
+	l.closeMux.Lock()
 	select {
-	case l.closeCh <- 1:
-		<-l.doneCh
-	case <-l.doneCh:
+	case <-l.shutdownFinishedCh:
+		// The shutdown has already completed. Nothing to do.
+	default:
+		select {
+		case <-l.shutdownStartedCh:
+			// The shutdown is in progress. We should not get here because
+			// of the Mutex, but either way, we don't want to race here
+			// and accidentally close `l.shutdownStartedCh` twice.
+		default:
+			// Cause all listener workers to abort.
+			close(l.shutdownStartedCh)
+			// Wait for listenerRoutine to stop the workers and clean up.
+			<-l.shutdownFinishedCh
+		}
 	}
+	l.closeMux.Unlock()
+
 	return nil
 }
 
