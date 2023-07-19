@@ -65,6 +65,7 @@ var (
 	procConnectNamedPipe                                     = modkernel32.NewProc("ConnectNamedPipe")
 	procCreateIoCompletionPort                               = modkernel32.NewProc("CreateIoCompletionPort")
 	procCreateNamedPipeW                                     = modkernel32.NewProc("CreateNamedPipeW")
+	procDisconnectNamedPipe                                  = modkernel32.NewProc("DisconnectNamedPipe")
 	procGetCurrentThread                                     = modkernel32.NewProc("GetCurrentThread")
 	procGetNamedPipeHandleStateW                             = modkernel32.NewProc("GetNamedPipeHandleStateW")
 	procGetNamedPipeInfo                                     = modkernel32.NewProc("GetNamedPipeInfo")
@@ -326,6 +327,14 @@ func _createNamedPipe(name *uint16, flags uint32, pipeMode uint32, maxInstances 
 	r0, _, e1 := syscall.Syscall9(procCreateNamedPipeW.Addr(), 8, uintptr(unsafe.Pointer(name)), uintptr(flags), uintptr(pipeMode), uintptr(maxInstances), uintptr(outSize), uintptr(inSize), uintptr(defaultTimeout), uintptr(unsafe.Pointer(sa)), 0)
 	handle = syscall.Handle(r0)
 	if handle == syscall.InvalidHandle {
+		err = errnoErr(e1)
+	}
+	return
+}
+
+func disconnectNamedPipe(pipe syscall.Handle) (err error) {
+	r1, _, e1 := syscall.Syscall(procDisconnectNamedPipe.Addr(), 1, uintptr(pipe), 0, 0)
+	if r1 == 0 {
 		err = errnoErr(e1)
 	}
 	return
