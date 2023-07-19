@@ -34,6 +34,7 @@ import (
 type PipeConn interface {
 	net.Conn
 	Disconnect() error
+	Flush() error
 }
 
 type ioStatusBlock struct {
