@@ -23,7 +23,7 @@ jobs:
       - name: Run golangci-lint
         uses: golangci/golangci-lint-action@v3
         with:
-          version: v1.52
+          version: v1.53
           args: >-
             --verbose
             --timeout=5m
@@ -73,6 +73,7 @@ jobs:
       - go-generate
     runs-on: ${{ matrix.os }}
     strategy:
+      fail-fast: false
       matrix:
         os: [windows-2019, windows-2022, ubuntu-latest]
     steps:
@@ -88,7 +89,15 @@ jobs:
         run: go install gotest.tools/gotestsum@${{ env.GOTESTSUM_VERSION }}
 
       - name: Test repo
-        run: gotestsum --format standard-verbose --debug -- -gcflags=all=-d=checkptr -v ./...
+        run: gotestsum --format standard-verbose --debug -- -gcflags=all=-d=checkptr -race -v ./...
+
+      # Fuzzing was added in go1.18, so all stable/supported versions of go should support it.
+      # hvsock fuzzing fails on windows 2019, even though tests pass.
+      #
+      # If fuzzing tests are added to different packages, add them here.
+      - name: Fuzz repo
+        if: ${{ matrix.os == 'windows-2022' }}
+        run: gotestsum --format standard-verbose --debug -- -run "^#" -fuzztime 500x -fuzz "FuzzHvSock"
 
   build:
     name: Build Repo

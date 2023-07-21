@@ -223,6 +223,8 @@ func TestCloseAbortsListen(t *testing.T) {
 }
 
 func ensureEOFOnClose(t *testing.T, r io.Reader, w io.Closer) {
+	t.Helper()
+
 	b := make([]byte, 10)
 	w.Close()
 	n, err := r.Read(b)

@@ -14,6 +14,8 @@ import (
 // so we check that the current.AllocationSize is >= expected.AllocationSize.
 // https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-fscc/5afa7f66-619c-48f3-955f-68c4ece704ae
 func checkFileStandardInfo(t *testing.T, current, expected *FileStandardInfo) {
+	t.Helper()
+
 	if current.AllocationSize < expected.AllocationSize {
 		t.Fatalf("FileStandardInfo unexpectedly had AllocationSize %d, expecting >=%d", current.AllocationSize, expected.AllocationSize)
 	}

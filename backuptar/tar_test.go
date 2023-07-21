@@ -17,6 +17,8 @@ import (
 )
 
 func ensurePresent(t *testing.T, m map[string]string, keys ...string) {
+	t.Helper()
+
 	for _, k := range keys {
 		if _, ok := m[k]; !ok {
 			t.Error(k, "not present in tar header")
@@ -25,6 +27,8 @@ func ensurePresent(t *testing.T, m map[string]string, keys ...string) {
 }
 
 func setSparse(t *testing.T, f *os.File) {
+	t.Helper()
+
 	if err := windows.DeviceIoControl(windows.Handle(f.Fd()), windows.FSCTL_SET_SPARSE, nil, 0, nil, 0, nil, nil); err != nil {
 		t.Fatal(err)
 	}
@@ -32,6 +36,8 @@ func setSparse(t *testing.T, f *os.File) {
 
 // compareReaders validates that two readers contain the exact same data.
 func compareReaders(t *testing.T, rActual io.Reader, rExpected io.Reader) {
+	t.Helper()
+
 	const size = 8 * 1024
 	var bufExpected, bufActual [size]byte
 	var readCount int64
@@ -71,6 +77,8 @@ func TestRoundTrip(t *testing.T) {
 	//nolint:gosec // G306: Expect WriteFile permissions to be 0600 or less
 	for name, setup := range map[string]func(*testing.T) string{
 		"normalFile": func(t *testing.T) string {
+			t.Helper()
+
 			path := filepath.Join(t.TempDir(), "foo.txt")
 			if err := os.WriteFile(path, []byte("testing 1 2 3\n"), 0644); err != nil {
 				t.Fatal(err)
@@ -78,6 +86,8 @@ func TestRoundTrip(t *testing.T) {
 			return path
 		},
 		"normalFileEmpty": func(t *testing.T) string {
+			t.Helper()
+
 			path := filepath.Join(t.TempDir(), "foo.txt")
 			f, err := os.OpenFile(path, os.O_CREATE|os.O_WRONLY, 0644)
 			if err != nil {
@@ -87,6 +97,8 @@ func TestRoundTrip(t *testing.T) {
 			return path
 		},
 		"sparseFileEmpty": func(t *testing.T) string {
+			t.Helper()
+
 			path := filepath.Join(t.TempDir(), "foo.txt")
 			f, err := os.OpenFile(path, os.O_CREATE|os.O_WRONLY, 0644)
 			if err != nil {
@@ -97,6 +109,8 @@ func TestRoundTrip(t *testing.T) {
 			return path
 		},
 		"sparseFileWithNoAllocatedRanges": func(t *testing.T) string {
+			t.Helper()
+
 			path := filepath.Join(t.TempDir(), "foo.txt")
 			f, err := os.OpenFile(path, os.O_CREATE|os.O_WRONLY, 0644)
 			if err != nil {
@@ -112,6 +126,8 @@ func TestRoundTrip(t *testing.T) {
 			return path
 		},
 		"sparseFileWithOneAllocatedRange": func(t *testing.T) string {
+			t.Helper()
+
 			path := filepath.Join(t.TempDir(), "foo.txt")
 			f, err := os.OpenFile(path, os.O_CREATE|os.O_WRONLY, 0644)
 			if err != nil {
@@ -125,6 +141,8 @@ func TestRoundTrip(t *testing.T) {
 			return path
 		},
 		"sparseFileWithMultipleAllocatedRanges": func(t *testing.T) string {
+			t.Helper()
+
 			path := filepath.Join(t.TempDir(), "foo.txt")
 			f, err := os.OpenFile(path, os.O_CREATE|os.O_WRONLY, 0644)
 			if err != nil {

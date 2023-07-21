@@ -10,6 +10,8 @@ import (
 )
 
 func mustGUIDFromString(t *testing.T, s string) guid.GUID {
+	t.Helper()
+
 	g, err := guid.FromString(s)
 	if err != nil {
 		t.Fatal(err)

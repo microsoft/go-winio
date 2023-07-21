@@ -37,6 +37,7 @@ func serverListen(u testUtil) (l *HvsockListener, a *HvsockAddr) {
 			u.T.Logf("address collision %v", a)
 			continue
 		}
+		u.T.Logf("listening on %v", a)
 		break
 	}
 	u.Must(err, "could not listen")
@@ -579,9 +580,11 @@ type testUtil struct {
 	T testing.TB
 }
 
-func newUtil(t testing.TB) testUtil {
+func newUtil(tb testing.TB) testUtil {
+	tb.Helper()
+
 	return testUtil{
-		T: t,
+		T: tb,
 	}
 }
 
