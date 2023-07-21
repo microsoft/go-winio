@@ -7,6 +7,8 @@ import (
 )
 
 func mustNewV4(t *testing.T) GUID {
+	t.Helper()
+
 	g, err := NewV4()
 	if err != nil {
 		t.Fatal(err)
@@ -15,6 +17,8 @@ func mustNewV4(t *testing.T) GUID {
 }
 
 func mustNewV5(t *testing.T, namespace GUID, name []byte) GUID {
+	t.Helper()
+
 	g, err := NewV5(namespace, name)
 	if err != nil {
 		t.Fatal(err)
@@ -23,6 +27,8 @@ func mustNewV5(t *testing.T, namespace GUID, name []byte) GUID {
 }
 
 func mustFromString(t *testing.T, s string) GUID {
+	t.Helper()
+
 	g, err := FromString(s)
 	if err != nil {
 		t.Fatal(err)

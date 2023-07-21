@@ -87,6 +87,8 @@ func TestGrantVmGroupAccess(t *testing.T) {
 }
 
 func verifyVMAccountDACLs(t *testing.T, name string, permissions []string) {
+	t.Helper()
+
 	cmd := exec.Command("icacls", name)
 	outb, err := cmd.CombinedOutput()
 	if err != nil {

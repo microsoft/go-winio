@@ -8,14 +8,15 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"strconv"
 	"strings"
 	"testing"
 
-	"golang.org/x/sys/windows/registry"
+	"golang.org/x/sys/windows"
 )
 
 func TestApplyFileBinding(t *testing.T) {
+	requireElevated(t)
+
 	source := t.TempDir()
 	destination := t.TempDir()
 	fileName := "testFile.txt"
@@ -55,12 +56,15 @@ func TestApplyFileBinding(t *testing.T) {
 }
 
 func removeFileBinding(t *testing.T, mountpoint string) {
+	t.Helper()
 	if err := RemoveFileBinding(mountpoint); err != nil {
 		t.Logf("failed to remove file binding from %s: %q", mountpoint, err)
 	}
 }
 
 func TestApplyFileBindingReadOnly(t *testing.T) {
+	requireElevated(t)
+
 	source := t.TempDir()
 	destination := t.TempDir()
 	fileName := "testFile.txt"
@@ -108,19 +112,14 @@ func TestApplyFileBindingReadOnly(t *testing.T) {
 }
 
 func TestEnsureOnlyOneTargetCanBeMounted(t *testing.T) {
-	version, err := getWindowsBuildNumber()
-	if err != nil {
-		t.Fatalf("couldn't get version number: %s", err)
-	}
+	requireElevated(t)
+	requireBuild(t, RS5+1) // support added after RS5
 
-	if version <= 17763 {
-		t.Skip("not supported on RS5 or earlier")
-	}
 	source := t.TempDir()
 	secondarySource := t.TempDir()
 	destination := t.TempDir()
 
-	err = ApplyFileBinding(destination, source, false)
+	err := ApplyFileBinding(destination, source, false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -159,14 +158,9 @@ func checkSourceIsMountedOnDestination(src, dst string) (bool, error) {
 }
 
 func TestGetBindMappings(t *testing.T) {
-	version, err := getWindowsBuildNumber()
-	if err != nil {
-		t.Fatalf("couldn't get version number: %s", err)
-	}
+	requireElevated(t)
+	requireBuild(t, RS5+1) // support added after RS5
 
-	if version <= 17763 {
-		t.Skip("not supported on RS5 or earlier")
-	}
 	// GetBindMappings will expand short paths like ADMINI~1 and PROGRA~1 to their
 	// full names. In order to properly match the names later, we expand them here.
 	srcShort := t.TempDir()
@@ -198,6 +192,8 @@ func TestGetBindMappings(t *testing.T) {
 }
 
 func TestRemoveFileBinding(t *testing.T) {
+	requireElevated(t)
+
 	srcShort := t.TempDir()
 	source, err := getFinalPath(srcShort)
 	if err != nil {
@@ -238,32 +234,9 @@ func TestRemoveFileBinding(t *testing.T) {
 	}
 }
 
-func getWindowsBuildNumber() (int, error) {
-	k, err := registry.OpenKey(registry.LOCAL_MACHINE, `SOFTWARE\Microsoft\Windows NT\CurrentVersion`, registry.QUERY_VALUE)
-	if err != nil {
-		return 0, fmt.Errorf("read CurrentVersion reg key: %w", err)
-	}
-	defer k.Close()
-	buildNumStr, _, err := k.GetStringValue("CurrentBuild")
-	if err != nil {
-		return 0, fmt.Errorf("read CurrentBuild reg value: %w", err)
-	}
-	buildNum, err := strconv.Atoi(buildNumStr)
-	if err != nil {
-		return 0, err
-	}
-	return buildNum, nil
-}
-
 func TestGetBindMappingsSymlinks(t *testing.T) {
-	version, err := getWindowsBuildNumber()
-	if err != nil {
-		t.Fatalf("couldn't get version number: %s", err)
-	}
-
-	if version <= 17763 {
-		t.Skip("not supported on RS5 or earlier")
-	}
+	requireElevated(t)
+	requireBuild(t, RS5+1) // support added after RS5
 
 	srcShort := t.TempDir()
 	sourceNested := filepath.Join(srcShort, "source")
@@ -305,5 +278,25 @@ func TestGetBindMappingsSymlinks(t *testing.T) {
 
 	if !hasMapping {
 		t.Fatalf("expected to find %s mounted on %s, but could not", source, destination)
+	}
+}
+
+func requireElevated(tb testing.TB) {
+	tb.Helper()
+	if !windows.GetCurrentProcessToken().IsElevated() {
+		tb.Skip("requires elevated privileges")
+	}
+}
+
+const RS5 = 17763
+
+//todo: also check that `bindfltapi.dll` exists
+
+// require current build to be >= build
+func requireBuild(tb testing.TB, build uint32) {
+	tb.Helper()
+	_, _, b := windows.RtlGetNtVersionNumbers()
+	if b < build {
+		tb.Skipf("requires build %d+; current build is %d", build, b)
 	}
 }
