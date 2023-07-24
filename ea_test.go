@@ -6,9 +6,10 @@ package winio
 import (
 	"os"
 	"reflect"
-	"syscall"
 	"testing"
 	"unsafe"
+
+	"golang.org/x/sys/windows"
 )
 
 var (
@@ -82,7 +83,7 @@ func Test_SetFileEa(t *testing.T) {
 	}
 	defer os.Remove(f.Name())
 	defer f.Close()
-	ntdll := syscall.MustLoadDLL("ntdll.dll")
+	ntdll := windows.MustLoadDLL("ntdll.dll")
 	ntSetEaFile := ntdll.MustFindProc("NtSetEaFile")
 	var iosb [2]uintptr
 	r, _, _ := ntSetEaFile.Call(f.Fd(),

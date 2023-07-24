@@ -11,7 +11,6 @@ import (
 	"io"
 	"net"
 	"sync"
-	"syscall"
 	"testing"
 	"time"
 	"unsafe"
@@ -25,8 +24,8 @@ var aLongTimeAgo = time.Unix(1, 0)
 
 func TestDialUnknownFailsImmediately(t *testing.T) {
 	_, err := DialPipe(testPipeName, nil)
-	if !errors.Is(err, syscall.ENOENT) {
-		t.Fatalf("expected ENOENT got %v", err)
+	if !errors.Is(err, windows.ERROR_FILE_NOT_FOUND) {
+		t.Fatalf("expected ERROR_FILE_NOT_FOUND got %v", err)
 	}
 }
 
@@ -88,7 +87,7 @@ func TestDialAccessDeniedWithRestrictedSD(t *testing.T) {
 	}
 	defer l.Close()
 	_, err = DialPipe(testPipeName, nil)
-	if !errors.Is(err, syscall.ERROR_ACCESS_DENIED) {
+	if !errors.Is(err, windows.ERROR_ACCESS_DENIED) {
 		t.Fatalf("expected ERROR_ACCESS_DENIED, got %v", err)
 	}
 }
@@ -596,7 +595,7 @@ func TestMessageReadMode(t *testing.T) {
 	}
 	defer c.Close()
 
-	setNamedPipeHandleState := syscall.NewLazyDLL("kernel32.dll").NewProc("SetNamedPipeHandleState")
+	setNamedPipeHandleState := windows.NewLazyDLL("kernel32.dll").NewProc("SetNamedPipeHandleState")
 
 	p := c.(*win32MessageBytePipe)
 	mode := uint32(windows.PIPE_READMODE_MESSAGE)
