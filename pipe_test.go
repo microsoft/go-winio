@@ -413,7 +413,7 @@ func TestDisconnectPipe(t *testing.T) {
 	go func() {
 		s, err := l.Accept()
 		if err != nil {
-			t.Fatal(err)
+			t.Error(err)
 			return
 		}
 		defer func() {
@@ -422,15 +422,18 @@ func TestDisconnectPipe(t *testing.T) {
 		}()
 
 		if _, err := s.Write([]byte(testData)); err != nil {
-			t.Fatal(err)
+			t.Error(err)
+			return
 		}
 
 		if err := s.(PipeConn).Flush(); err != nil {
-			t.Fatal(err)
+			t.Error(err)
+			return
 		}
 
 		if err := s.(PipeConn).Disconnect(); err != nil {
-			t.Fatal(err)
+			t.Error(err)
+			return
 		}
 	}()
 
