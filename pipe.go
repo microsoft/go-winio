@@ -22,6 +22,7 @@ import (
 
 //sys connectNamedPipe(pipe syscall.Handle, o *syscall.Overlapped) (err error) = ConnectNamedPipe
 //sys createNamedPipe(name string, flags uint32, pipeMode uint32, maxInstances uint32, outSize uint32, inSize uint32, defaultTimeout uint32, sa *syscall.SecurityAttributes) (handle syscall.Handle, err error)  [failretval==syscall.InvalidHandle] = CreateNamedPipeW
+//sys disconnectNamedPipe(pipe syscall.Handle) (err error) = DisconnectNamedPipe
 //sys getNamedPipeInfo(pipe syscall.Handle, flags *uint32, outSize *uint32, inSize *uint32, maxInstances *uint32) (err error) = GetNamedPipeInfo
 //sys getNamedPipeHandleState(pipe syscall.Handle, state *uint32, curInstances *uint32, maxCollectionCount *uint32, collectDataTimeout *uint32, userName *uint16, maxUserNameSize uint32) (err error) = GetNamedPipeHandleStateW
 //sys localAlloc(uFlags uint32, length uint32) (ptr uintptr) = LocalAlloc
@@ -29,6 +30,12 @@ import (
 //sys rtlNtStatusToDosError(status ntStatus) (winerr error) = ntdll.RtlNtStatusToDosErrorNoTeb
 //sys rtlDosPathNameToNtPathName(name *uint16, ntName *unicodeString, filePart uintptr, reserved uintptr) (status ntStatus) = ntdll.RtlDosPathNameToNtPathName_U
 //sys rtlDefaultNpAcl(dacl *uintptr) (status ntStatus) = ntdll.RtlDefaultNpAcl
+
+type PipeConn interface {
+	net.Conn
+	Disconnect() error
+	Flush() error
+}
 
 type ioStatusBlock struct {
 	Status, Information uintptr
@@ -80,6 +87,8 @@ type win32Pipe struct {
 	path string
 }
 
+var _ PipeConn = (*win32Pipe)(nil)
+
 type win32MessageBytePipe struct {
 	win32Pipe
 	writeClosed bool
@@ -101,6 +110,10 @@ func (f *win32Pipe) SetDeadline(t time.Time) error {
 		return err
 	}
 	return f.SetWriteDeadline(t)
+}
+
+func (f *win32Pipe) Disconnect() error {
+	return disconnectNamedPipe(f.win32File.handle)
 }
 
 // CloseWrite closes the write side of a message pipe in byte mode.

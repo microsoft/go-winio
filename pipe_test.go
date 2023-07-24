@@ -402,6 +402,66 @@ func TestTimeoutPendingWrite(t *testing.T) {
 	<-serverDone
 }
 
+func TestDisconnectPipe(t *testing.T) {
+	l, err := ListenPipe(testPipeName, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer l.Close()
+
+	const testData = "foo"
+	serverDone := make(chan struct{})
+
+	go func() {
+		s, err := l.Accept()
+		if err != nil {
+			t.Error(err)
+			return
+		}
+		defer func() {
+			s.Close()
+			close(serverDone)
+		}()
+
+		if _, err := s.Write([]byte(testData)); err != nil {
+			t.Error(err)
+			return
+		}
+
+		if err := s.(PipeConn).Flush(); err != nil {
+			t.Error(err)
+			return
+		}
+
+		if err := s.(PipeConn).Disconnect(); err != nil {
+			t.Error(err)
+			return
+		}
+	}()
+
+	client, err := DialPipe(testPipeName, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer client.Close()
+
+	buf := make([]byte, len(testData))
+	if _, err = client.Read(buf); err != nil {
+		t.Fatal(err)
+	}
+
+	dataRead := string(buf)
+	if dataRead != testData {
+		t.Fatalf("incorrect data read %q", dataRead)
+	}
+
+	if _, err = client.Read(buf); err == nil {
+		t.Fatal("read should fail")
+	}
+
+	<-serverDone
+}
+
 type CloseWriter interface {
 	CloseWrite() error
 }
