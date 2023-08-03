@@ -23,12 +23,16 @@ func getWindowsBuildNumber() uint32 {
 }
 
 func makeSymlink(t *testing.T, oldName string, newName string) {
+	t.Helper()
+
 	if err := os.Symlink(oldName, newName); err != nil {
 		t.Fatalf("creating symlink: %s", err)
 	}
 }
 
 func getVolumeGUIDPath(t *testing.T, path string) string {
+	t.Helper()
+
 	h, err := openMetadata(path)
 	if err != nil {
 		t.Fatal(err)
@@ -87,6 +91,8 @@ func formatVHD(vhdHandle windows.Handle) error {
 
 // Creates a VHD with a NTFS volume. Returns the volume path.
 func setupVHDVolume(t *testing.T, vhdPath string) string {
+	t.Helper()
+
 	vhdHandle, err := vhd.CreateVirtualDisk(vhdPath,
 		vhd.VirtualDiskAccessNone, vhd.CreateVirtualDiskFlagNone,
 		&vhd.CreateVirtualDiskParameters{
@@ -122,12 +128,16 @@ func setupVHDVolume(t *testing.T, vhdPath string) string {
 }
 
 func writeFile(t *testing.T, path string, content []byte) {
+	t.Helper()
+
 	if err := os.WriteFile(path, content, 0644); err != nil { //nolint:gosec // test file, can have permissive mode
 		t.Fatal(err)
 	}
 }
 
 func mountVolume(t *testing.T, volumePath string, mountPoint string) {
+	t.Helper()
+
 	// Create the mount point directory.
 	if err := os.Mkdir(mountPoint, 0644); err != nil {
 		t.Fatal(err)
@@ -165,7 +175,7 @@ func mountVolume(t *testing.T, volumePath string, mountPoint string) {
 
 func TestResolvePath(t *testing.T) {
 	if !windows.GetCurrentProcessToken().IsElevated() {
-		t.Fatal("test requires elevated privileges")
+		t.Skip("requires elevated privileges")
 	}
 
 	// Set up some data to be used by the test cases.
