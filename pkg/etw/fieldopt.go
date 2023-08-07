@@ -7,9 +7,10 @@ import (
 	"fmt"
 	"math"
 	"reflect"
-	"syscall"
 	"time"
 	"unsafe"
+
+	"golang.org/x/sys/windows"
 )
 
 // FieldOpt defines the option function type that can be passed to
@@ -397,7 +398,7 @@ func Struct(name string, opts ...FieldOpt) FieldOpt {
 func Time(name string, value time.Time) FieldOpt {
 	return func(em *eventMetadata, ed *eventData) {
 		em.writeField(name, inTypeFileTime, outTypeDateTimeUTC, 0)
-		ed.writeFiletime(syscall.NsecToFiletime(value.UTC().UnixNano()))
+		ed.writeFiletime(windows.NsecToFiletime(value.UTC().UnixNano()))
 	}
 }
 

@@ -6,7 +6,6 @@ package winio
 import (
 	"io"
 	"os"
-	"syscall"
 	"testing"
 
 	"golang.org/x/sys/windows"
@@ -202,7 +201,7 @@ func makeSparseFile() error {
 	}
 	defer f.Close()
 
-	err = syscall.DeviceIoControl(syscall.Handle(f.Fd()), windows.FSCTL_SET_SPARSE, nil, 0, nil, 0, nil, nil)
+	err = windows.DeviceIoControl(windows.Handle(f.Fd()), windows.FSCTL_SET_SPARSE, nil, 0, nil, 0, nil, nil)
 	if err != nil {
 		return err
 	}
