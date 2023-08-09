@@ -377,7 +377,7 @@ func WriteTarFileFromBackupStream(t *tar.Writer, r io.Reader, name string, size 
 // WriteTarFileFromBackupStream.
 func FileInfoFromHeader(hdr *tar.Header) (name string, size int64, fileInfo *winio.FileBasicInfo, err error) {
 	name = hdr.Name
-	if hdr.Typeflag == tar.TypeReg || hdr.Typeflag == tar.TypeRegA {
+	if hdr.Typeflag == tar.TypeReg {
 		size = hdr.Size
 	}
 	fileInfo = &winio.FileBasicInfo{
@@ -468,7 +468,7 @@ func WriteBackupStreamFromTarFile(w io.Writer, t *tar.Reader, hdr *tar.Header) (
 		}
 	}
 
-	if hdr.Typeflag == tar.TypeReg || hdr.Typeflag == tar.TypeRegA {
+	if hdr.Typeflag == tar.TypeReg {
 		bhdr := winio.BackupHeader{
 			Id:   winio.BackupData,
 			Size: hdr.Size,
