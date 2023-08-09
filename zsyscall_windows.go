@@ -48,7 +48,6 @@ var (
 	procAdjustTokenPrivileges              = modadvapi32.NewProc("AdjustTokenPrivileges")
 	procConvertSidToStringSidW             = modadvapi32.NewProc("ConvertSidToStringSidW")
 	procConvertStringSidToSidW             = modadvapi32.NewProc("ConvertStringSidToSidW")
-	procGetSecurityDescriptorLength        = modadvapi32.NewProc("GetSecurityDescriptorLength")
 	procImpersonateSelf                    = modadvapi32.NewProc("ImpersonateSelf")
 	procLookupAccountNameW                 = modadvapi32.NewProc("LookupAccountNameW")
 	procLookupAccountSidW                  = modadvapi32.NewProc("LookupAccountSidW")
@@ -102,12 +101,6 @@ func convertStringSidToSid(str *uint16, sid **byte) (err error) {
 	if r1 == 0 {
 		err = errnoErr(e1)
 	}
-	return
-}
-
-func getSecurityDescriptorLength(sd uintptr) (len uint32) {
-	r0, _, _ := syscall.Syscall(procGetSecurityDescriptorLength.Addr(), 1, uintptr(sd), 0, 0)
-	len = uint32(r0)
 	return
 }
 

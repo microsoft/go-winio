@@ -15,7 +15,6 @@ import (
 //sys lookupAccountSid(systemName *uint16, sid *byte, name *uint16, nameSize *uint32, refDomain *uint16, refDomainSize *uint32, sidNameUse *uint32) (err error) = advapi32.LookupAccountSidW
 //sys convertSidToStringSid(sid *byte, str **uint16) (err error) = advapi32.ConvertSidToStringSidW
 //sys convertStringSidToSid(str *uint16, sid **byte) (err error) = advapi32.ConvertStringSidToSidW
-//sys getSecurityDescriptorLength(sd uintptr) (len uint32) = advapi32.GetSecurityDescriptorLength
 
 type AccountLookupError struct {
 	Name string
@@ -121,7 +120,7 @@ func SddlToSecurityDescriptor(sddl string) ([]byte, error) {
 	if err != nil {
 		return nil, &SddlConversionError{Sddl: sddl, Err: err}
 	}
-	b := unsafe.Slice((*byte)(unsafe.Pointer(sd)), unsafe.Sizeof(windows.SECURITY_DESCRIPTOR{}))
+	b := unsafe.Slice((*byte)(unsafe.Pointer(sd)), sd.Length())
 	return b, nil
 }
 
