@@ -204,7 +204,7 @@ func (s pipeAddress) String() string {
 }
 
 // tryDialPipe attempts to dial the pipe at `path` until `ctx` cancellation or timeout.
-func tryDialPipe(ctx context.Context, path *string, access fs.AccessMask) (windows.Handle, error) {
+func tryDialPipe(ctx context.Context, path *string, access fs.AccessMask, impLevel PipeImpLevel) (windows.Handle, error) {
 	for {
 		select {
 		case <-ctx.Done():
@@ -215,7 +215,7 @@ func tryDialPipe(ctx context.Context, path *string, access fs.AccessMask) (windo
 				0,   // mode
 				nil, // security attributes
 				fs.OPEN_EXISTING,
-				fs.FILE_FLAG_OVERLAPPED|fs.SECURITY_SQOS_PRESENT|fs.SECURITY_ANONYMOUS,
+				fs.FILE_FLAG_OVERLAPPED|fs.SECURITY_SQOS_PRESENT|fs.FileSQSFlag(impLevel),
 				0, // template file handle
 			)
 			if err == nil {
@@ -256,12 +256,30 @@ func DialPipeContext(ctx context.Context, path string) (net.Conn, error) {
 	return DialPipeAccess(ctx, path, uint32(fs.GENERIC_READ|fs.GENERIC_WRITE))
 }
 
+// PipeImpLevel is an enumeration of impersonation levels that may be set
+// when calling DialPipeAccessImpersonation.
+type PipeImpLevel uint32
+
+const (
+	PipeImpLevelAnonymous      = PipeImpLevel(fs.SECURITY_ANONYMOUS)
+	PipeImpLevelIdentification = PipeImpLevel(fs.SECURITY_IDENTIFICATION)
+	PipeImpLevelImpersonation  = PipeImpLevel(fs.SECURITY_IMPERSONATION)
+	PipeImpLevelDelegation     = PipeImpLevel(fs.SECURITY_DELEGATION)
+)
+
 // DialPipeAccess attempts to connect to a named pipe by `path` with `access` until `ctx`
 // cancellation or timeout.
 func DialPipeAccess(ctx context.Context, path string, access uint32) (net.Conn, error) {
+	return DialPipeAccessImpLevel(ctx, path, access, PipeImpLevelAnonymous)
+}
+
+// DialPipeAccessImpLevel attempts to connect to a named pipe by `path` with
+// `access` at `impLevel` until `ctx` cancellation or timeout. The other
+// DialPipe* implementations use PipeImpLevelAnonymous.
+func DialPipeAccessImpLevel(ctx context.Context, path string, access uint32, impLevel PipeImpLevel) (net.Conn, error) {
 	var err error
 	var h windows.Handle
-	h, err = tryDialPipe(ctx, &path, fs.AccessMask(access))
+	h, err = tryDialPipe(ctx, &path, fs.AccessMask(access), impLevel)
 	if err != nil {
 		return nil, err
 	}
