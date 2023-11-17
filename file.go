@@ -147,6 +147,22 @@ func (f *win32File) closeHandle() {
 // Close closes a win32File.
 func (f *win32File) Close() error {
 	f.closeHandle()
+	if f.readDeadline.channel != nil {
+		close(f.readDeadline.channel)
+		f.readDeadline.channel = nil
+	}
+	if f.readDeadline.timer != nil {
+		f.readDeadline.timer.Stop()
+		f.readDeadline.timer = nil
+	}
+	if f.writeDeadline.channel != nil {
+		close(f.writeDeadline.channel)
+		f.writeDeadline.channel = nil
+	}
+	if f.writeDeadline.timer != nil {
+		f.writeDeadline.timer.Stop()
+		f.writeDeadline.timer = nil
+	}
 	return nil
 }
 
@@ -311,6 +327,8 @@ func (d *deadlineHandler) set(deadline time.Time) error {
 	select {
 	case <-d.channel:
 		d.channelLock.Lock()
+		close(d.channel)
+		d.channel = nil
 		d.channel = make(chan struct{})
 		d.channelLock.Unlock()
 	default:
@@ -323,11 +341,16 @@ func (d *deadlineHandler) set(deadline time.Time) error {
 	timeoutIO := func() {
 		d.timedout.setTrue()
 		close(d.channel)
+		d.channel = nil
 	}
 
 	now := time.Now()
 	duration := deadline.Sub(now)
 	if deadline.After(now) {
+		if d.timer != nil {
+			d.timer.Stop()
+			d.timer = nil
+		}
 		// Deadline is in the future, set a timer to wait
 		d.timer = time.AfterFunc(duration, timeoutIO)
 	} else {
