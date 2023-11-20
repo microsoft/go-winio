@@ -196,10 +196,18 @@ func newHVSocket() (*win32File, error) {
 // ListenHvsock listens for connections on the specified hvsock address.
 func ListenHvsock(addr *HvsockAddr) (_ *HvsockListener, err error) {
 	l := &HvsockListener{addr: *addr}
-	sock, err := newHVSocket()
+
+	var sock *win32File
+	sock, err = newHVSocket()
 	if err != nil {
 		return nil, l.opErr("listen", err)
 	}
+	defer func() {
+		if err != nil {
+			_ = sock.Close()
+		}
+	}()
+
 	sa := addr.raw()
 	err = socket.Bind(sock.handle, &sa)
 	if err != nil {

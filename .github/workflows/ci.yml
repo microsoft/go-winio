@@ -13,12 +13,15 @@ jobs:
     runs-on: windows-2019
     steps:
       - name: Checkout
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
+        with:
+          show-progress: false
 
       - name: Install go
         uses: actions/setup-go@v4
         with:
           go-version: ${{ env.GO_VERSION }}
+          cache: false
 
       - name: Run golangci-lint
         uses: golangci/golangci-lint-action@v3
@@ -37,12 +40,17 @@ jobs:
     runs-on: windows-2019
     steps:
       - name: Checkout
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
+        with:
+          show-progress: false
 
       - name: Install go
         uses: actions/setup-go@v4
         with:
           go-version: ${{ env.GO_VERSION }}
+          # don't really need to cache Go packages, since go generate doesn't require much.
+          # otherwise, the cache used in the `test` stage will be (basically) empty.
+          cache: false
 
       - name: Run go generate
         shell: pwsh
@@ -78,26 +86,32 @@ jobs:
         os: [windows-2019, windows-2022, ubuntu-latest]
     steps:
       - name: Checkout
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
+        with:
+          show-progress: false
 
       - name: Install go
         uses: actions/setup-go@v4
         with:
           go-version: ${{ env.GO_VERSION }}
 
+      # avoid needing to download packages during test runs
+      - name: Pre-fill Module Cache
+        run: go mod download -x
+
       - name: Install gotestsum
         run: go install gotest.tools/gotestsum@${{ env.GOTESTSUM_VERSION }}
 
+      # TODO: until https://github.com/golang/go/issues/64028 is backported, skip `TestResolvePath`.
+      # Functionality is unchanged, but `filepath.EvalSymlinks` cannot handle `\\?\Volume{...}\` prefixes.
       - name: Test repo
-        run: gotestsum --format standard-verbose --debug -- -gcflags=all=-d=checkptr -race -v ./...
+        run: gotestsum --format standard-verbose --debug -- -gcflags=all=-d=checkptr -race -v -skip "^TestResolvePath$" ./...
 
-      # Fuzzing was added in go1.18, so all stable/supported versions of go should support it.
-      # hvsock fuzzing fails on windows 2019, even though tests pass.
-      #
-      # If fuzzing tests are added to different packages, add them here.
-      - name: Fuzz repo
-        if: ${{ matrix.os == 'windows-2022' }}
-        run: gotestsum --format standard-verbose --debug -- -run "^#" -fuzztime 500x -fuzz "FuzzHvSock"
+      # !NOTE:
+      # Fuzzing cannot be run across multiple packages, (ie, `go -fuzz "^Fuzz" ./...` fails).
+      # If new fuzzing tests are added, exec additional runs for each package.
+      - name: Fuzz root package
+        run: gotestsum --format standard-verbose --debug -- -run "^#" -fuzztime 1m -fuzz "^Fuzz"
 
   build:
     name: Build Repo
@@ -106,7 +120,9 @@ jobs:
     runs-on: "windows-2019"
     steps:
       - name: Checkout
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
+        with:
+          show-progress: false
 
       - name: Install go
         uses: actions/setup-go@v4

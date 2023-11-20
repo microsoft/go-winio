@@ -25,8 +25,18 @@ func getWindowsBuildNumber() uint32 {
 func makeSymlink(t *testing.T, oldName string, newName string) {
 	t.Helper()
 
+	t.Logf("make symlink: %s -> %s", oldName, newName)
+
+	if _, err := os.Lstat(oldName); err != nil {
+		t.Fatalf("could not open file %q: %v", oldName, err)
+	}
+
 	if err := os.Symlink(oldName, newName); err != nil {
 		t.Fatalf("creating symlink: %s", err)
+	}
+
+	if _, err := os.Lstat(newName); err != nil {
+		t.Fatalf("could not open file %q: %v", newName, err)
 	}
 }
 
@@ -209,14 +219,18 @@ func TestResolvePath(t *testing.T) {
 		{filepath.Join(dir, "lnk4"), filepath.Join(volumePathVHD2, "data.txt"), "symlink to volume with mount point"},
 	} {
 		t.Run(tc.description, func(t *testing.T) {
+			t.Logf("resolving: %s -> %s", tc.input, tc.expected)
+
 			actual, err := ResolvePath(tc.input)
 			if err != nil {
-				t.Fatalf("resolvePath should return no error, but %v", err)
+				t.Fatalf("ResolvePath should return no error, but: %v", err)
 			}
 			if actual != tc.expected {
 				t.Fatalf("expected %v but got %v", tc.expected, actual)
 			}
+
 			// Make sure EvalSymlinks works with the resolved path, as an extra safety measure.
+			t.Logf("filepath.EvalSymlinks(%s)", actual)
 			p, err := filepath.EvalSymlinks(actual)
 			if err != nil {
 				t.Fatalf("EvalSymlinks should return no error, but %v", err)
