@@ -453,8 +453,6 @@ func (l *win32PipeListener) makeConnectedServerPipe() (*win32File, error) {
 			err = ErrPipeListenerClosed
 		}
 	}
-	close(ch)
-	ch = nil
 	return p, err
 }
 

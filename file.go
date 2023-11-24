@@ -327,8 +327,6 @@ func (d *deadlineHandler) set(deadline time.Time) error {
 	select {
 	case <-d.channel:
 		d.channelLock.Lock()
-		close(d.channel)
-		d.channel = nil
 		d.channel = make(chan struct{})
 		d.channelLock.Unlock()
 	default:
@@ -341,16 +339,11 @@ func (d *deadlineHandler) set(deadline time.Time) error {
 	timeoutIO := func() {
 		d.timedout.setTrue()
 		close(d.channel)
-		d.channel = nil
 	}
 
 	now := time.Now()
 	duration := deadline.Sub(now)
 	if deadline.After(now) {
-		if d.timer != nil {
-			d.timer.Stop()
-			d.timer = nil
-		}
 		// Deadline is in the future, set a timer to wait
 		d.timer = time.AfterFunc(duration, timeoutIO)
 	} else {
