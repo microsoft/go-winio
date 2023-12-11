@@ -19,8 +19,8 @@ func TestGetFSTypeOfKnownDrive(t *testing.T) {
 
 func TestGetFSTypeOfInvalidPath(t *testing.T) {
 	_, err := GetFileSystemType("7:\\")
-	if !errors.Is(err, ErrInvalidPath) {
-		t.Fatalf("Expected `ErrInvalidPath`, got %v", err)
+	if !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("Expected `os.ErrNotExist`, got %v", err)
 	}
 }
 
