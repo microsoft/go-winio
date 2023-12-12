@@ -18,7 +18,7 @@ jobs:
           show-progress: false
 
       - name: Install go
-        uses: actions/setup-go@v4
+        uses: actions/setup-go@v5
         with:
           go-version: ${{ env.GO_VERSION }}
           cache: false
@@ -45,7 +45,7 @@ jobs:
           show-progress: false
 
       - name: Install go
-        uses: actions/setup-go@v4
+        uses: actions/setup-go@v5
         with:
           go-version: ${{ env.GO_VERSION }}
           # don't really need to cache Go packages, since go generate doesn't require much.
@@ -91,7 +91,7 @@ jobs:
           show-progress: false
 
       - name: Install go
-        uses: actions/setup-go@v4
+        uses: actions/setup-go@v5
         with:
           go-version: ${{ env.GO_VERSION }}
 
@@ -102,10 +102,8 @@ jobs:
       - name: Install gotestsum
         run: go install gotest.tools/gotestsum@${{ env.GOTESTSUM_VERSION }}
 
-      # TODO: until https://github.com/golang/go/issues/64028 is backported, skip `TestResolvePath`.
-      # Functionality is unchanged, but `filepath.EvalSymlinks` cannot handle `\\?\Volume{...}\` prefixes.
       - name: Test repo
-        run: gotestsum --format standard-verbose --debug -- -gcflags=all=-d=checkptr -race -v -skip "^TestResolvePath$" ./...
+        run: gotestsum --format standard-verbose --debug -- -gcflags=all=-d=checkptr -race -v ./...
 
       # !NOTE:
       # Fuzzing cannot be run across multiple packages, (ie, `go -fuzz "^Fuzz" ./...` fails).
@@ -125,7 +123,7 @@ jobs:
           show-progress: false
 
       - name: Install go
-        uses: actions/setup-go@v4
+        uses: actions/setup-go@v5
         with:
           go-version: ${{ env.GO_VERSION }}
 
