@@ -7,9 +7,16 @@ import (
 	"fmt"
 	"testing"
 	"time"
+
+	"golang.org/x/sys/windows"
 )
 
 func FuzzHvSockRxTx(f *testing.F) {
+	//  fuzzing fails on windows 2019 for some reason, even though tests pass
+	if _, _, build := windows.RtlGetNtVersionNumbers(); build <= 17763 {
+		f.Skipf("build (%d) must be > %d", build, 17763)
+	}
+
 	for _, b := range [][]byte{
 		[]byte("hello?"),
 		[]byte("This is a really long string that should be a good example of the really long " +

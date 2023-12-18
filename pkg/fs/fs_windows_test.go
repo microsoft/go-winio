@@ -18,7 +18,9 @@ func TestGetFSTypeOfKnownDrive(t *testing.T) {
 }
 
 func TestGetFSTypeOfInvalidPath(t *testing.T) {
-	_, err := GetFileSystemType("7:\\")
+	// [filepath.VolumeName] doesn't mandate that the drive letters matches [a-zA-Z].
+	// Instead, use non-character drive.
+	_, err := GetFileSystemType(`No:\`)
 	if !errors.Is(err, ErrInvalidPath) {
 		t.Fatalf("Expected `ErrInvalidPath`, got %v", err)
 	}
