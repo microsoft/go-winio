@@ -6,6 +6,7 @@ package winio
 import (
 	"os"
 	"testing"
+	"unsafe"
 
 	"golang.org/x/sys/windows"
 )
@@ -130,4 +131,50 @@ func TestGetFileStandardInfo_Directory(t *testing.T) {
 		t.Fatal(err)
 	}
 	checkFileStandardInfo(t, info, expectedFileInfo)
+}
+
+// TestFileInfoStructAlignment checks that the alignment of Go fileinfo structs
+// match what is expected by the Windows API.
+func TestFileInfoStructAlignment(t *testing.T) {
+	//nolint:revive // SNAKE_CASE is not idiomatic in Go, but aligned with Win32 API.
+	const (
+		exampleLARGE_INTEGER uint64 = 0
+		exampleULONGLONG     uint64 = 0
+	)
+	tests := []struct {
+		name              string
+		actualAlign       uintptr
+		actualSize        uintptr
+		winName           string
+		expectedAlignment uintptr
+	}{
+		{
+			// alignedFileBasicInfo is passed to the Windows API rather than FileBasicInfo.
+			"alignedFileBasicInfo", unsafe.Alignof(alignedFileBasicInfo{}), unsafe.Sizeof(alignedFileBasicInfo{}),
+			// https://learn.microsoft.com/en-us/windows/win32/api/winbase/ns-winbase-file_basic_info
+			"FILE_BASIC_INFO", unsafe.Alignof(exampleLARGE_INTEGER),
+		},
+		{
+			"FileStandardInfo", unsafe.Alignof(FileStandardInfo{}), unsafe.Sizeof(FileStandardInfo{}),
+			// https://learn.microsoft.com/en-us/windows/win32/api/winbase/ns-winbase-file_standard_info
+			"FILE_STANDARD_INFO", unsafe.Alignof(exampleLARGE_INTEGER),
+		},
+		{
+			"FileIDInfo", unsafe.Alignof(FileIDInfo{}), unsafe.Sizeof(FileIDInfo{}),
+			// https://learn.microsoft.com/en-us/windows/win32/api/winbase/ns-winbase-file_id_info
+			"FILE_ID_INFO", unsafe.Alignof(exampleULONGLONG),
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if tt.actualAlign != tt.expectedAlignment {
+				t.Errorf("alignment mismatch: actual %d, expected %d", tt.actualAlign, tt.expectedAlignment)
+			}
+			if r := tt.actualSize % tt.expectedAlignment; r != 0 {
+				t.Errorf(
+					"size is not a multiple of alignment: size %% alignment (%d %% %d) is %d, expected 0",
+					tt.actualSize, tt.expectedAlignment, r)
+			}
+		})
+	}
 }
