@@ -138,31 +138,36 @@ func TestGetFileStandardInfo_Directory(t *testing.T) {
 func TestFileInfoStructAlignment(t *testing.T) {
 	//nolint:revive // SNAKE_CASE is not idiomatic in Go, but aligned with Win32 API.
 	const (
-		exampleLARGE_INTEGER uint64 = 0
-		exampleULONGLONG     uint64 = 0
+		// The alignment of various types, as named in the Windows APIs. When
+		// deciding on an expectedAlignment for a struct's test case, use the
+		// type of the largest field in the struct as written in the Windows
+		// docs. This is intended to help reviewers by allowing them to first
+		// check that a new align* const is correct, then independently check
+		// that the test case is correct, rather than all at once.
+		alignLARGE_INTEGER = unsafe.Alignof(uint64(0))
+		alignULONGLONG     = unsafe.Alignof(uint64(0))
 	)
 	tests := []struct {
 		name              string
 		actualAlign       uintptr
 		actualSize        uintptr
-		winName           string
 		expectedAlignment uintptr
 	}{
 		{
 			// alignedFileBasicInfo is passed to the Windows API rather than FileBasicInfo.
 			"alignedFileBasicInfo", unsafe.Alignof(alignedFileBasicInfo{}), unsafe.Sizeof(alignedFileBasicInfo{}),
 			// https://learn.microsoft.com/en-us/windows/win32/api/winbase/ns-winbase-file_basic_info
-			"FILE_BASIC_INFO", unsafe.Alignof(exampleLARGE_INTEGER),
+			alignLARGE_INTEGER,
 		},
 		{
 			"FileStandardInfo", unsafe.Alignof(FileStandardInfo{}), unsafe.Sizeof(FileStandardInfo{}),
 			// https://learn.microsoft.com/en-us/windows/win32/api/winbase/ns-winbase-file_standard_info
-			"FILE_STANDARD_INFO", unsafe.Alignof(exampleLARGE_INTEGER),
+			alignLARGE_INTEGER,
 		},
 		{
 			"FileIDInfo", unsafe.Alignof(FileIDInfo{}), unsafe.Sizeof(FileIDInfo{}),
 			// https://learn.microsoft.com/en-us/windows/win32/api/winbase/ns-winbase-file_id_info
-			"FILE_ID_INFO", unsafe.Alignof(exampleULONGLONG),
+			alignULONGLONG,
 		},
 	}
 	for _, tt := range tests {
