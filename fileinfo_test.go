@@ -4,6 +4,7 @@ import (
 	"io/ioutil"
 	"os"
 	"testing"
+	"unsafe"
 
 	"golang.org/x/sys/windows"
 )
@@ -131,4 +132,55 @@ func TestGetFileStandardInfo_Directory(t *testing.T) {
 		t.Fatal(err)
 	}
 	checkFileStandardInfo(t, info, expectedFileInfo)
+}
+
+// TestFileInfoStructAlignment checks that the alignment of Go fileinfo structs
+// match what is expected by the Windows API.
+func TestFileInfoStructAlignment(t *testing.T) {
+	//nolint:revive // SNAKE_CASE is not idiomatic in Go, but aligned with Win32 API.
+	const (
+		// The alignment of various types, as named in the Windows APIs. When
+		// deciding on an expectedAlignment for a struct's test case, use the
+		// type of the largest field in the struct as written in the Windows
+		// docs. This is intended to help reviewers by allowing them to first
+		// check that a new align* const is correct, then independently check
+		// that the test case is correct, rather than all at once.
+		alignLARGE_INTEGER = unsafe.Alignof(uint64(0))
+		alignULONGLONG     = unsafe.Alignof(uint64(0))
+	)
+	tests := []struct {
+		name              string
+		actualAlign       uintptr
+		actualSize        uintptr
+		expectedAlignment uintptr
+	}{
+		{
+			// alignedFileBasicInfo is passed to the Windows API rather than FileBasicInfo.
+			"alignedFileBasicInfo", unsafe.Alignof(alignedFileBasicInfo{}), unsafe.Sizeof(alignedFileBasicInfo{}),
+			// https://learn.microsoft.com/en-us/windows/win32/api/winbase/ns-winbase-file_basic_info
+			alignLARGE_INTEGER,
+		},
+		{
+			"FileStandardInfo", unsafe.Alignof(FileStandardInfo{}), unsafe.Sizeof(FileStandardInfo{}),
+			// https://learn.microsoft.com/en-us/windows/win32/api/winbase/ns-winbase-file_standard_info
+			alignLARGE_INTEGER,
+		},
+		{
+			"FileIDInfo", unsafe.Alignof(FileIDInfo{}), unsafe.Sizeof(FileIDInfo{}),
+			// https://learn.microsoft.com/en-us/windows/win32/api/winbase/ns-winbase-file_id_info
+			alignULONGLONG,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if tt.actualAlign != tt.expectedAlignment {
+				t.Errorf("alignment mismatch: actual %d, expected %d", tt.actualAlign, tt.expectedAlignment)
+			}
+			if r := tt.actualSize % tt.expectedAlignment; r != 0 {
+				t.Errorf(
+					"size is not a multiple of alignment: size %% alignment (%d %% %d) is %d, expected 0",
+					tt.actualSize, tt.expectedAlignment, r)
+			}
+		})
+	}
 }
