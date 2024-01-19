@@ -370,7 +370,12 @@ func makeServerPipeHandle(path string, sd []byte, c *PipeConfig, first bool) (wi
 		}
 	}
 
-	typ := uint32(windows.FILE_PIPE_REJECT_REMOTE_CLIENTS)
+	var typ uint32
+	if c.AllowRemoteClients {
+		typ = uint32(windows.FILE_PIPE_ACCEPT_REMOTE_CLIENTS)
+	} else {
+		typ = uint32(windows.FILE_PIPE_REJECT_REMOTE_CLIENTS)
+	}
 	if c.MessageMode {
 		typ |= windows.FILE_PIPE_MESSAGE_TYPE
 	}
@@ -503,6 +508,10 @@ type PipeConfig struct {
 
 	// OutputBufferSize specifies the size of the output buffer, in bytes.
 	OutputBufferSize int32
+
+	// AllowRemoteClients determines whether the pipe is allowed to be used remotely (i.e. connect
+	// to named pipe via SMB share)
+	AllowRemoteClients bool
 }
 
 // ListenPipe creates a listener on a Windows named pipe path, e.g. \\.\pipe\mypipe.
