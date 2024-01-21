@@ -220,7 +220,7 @@ func (g GUID) MarshalText() ([]byte, error) {
 	return []byte(g.String()), nil
 }
 
-// UnmarshalText takes the textual representation of a GUID, and unmarhals it
+// UnmarshalText takes the textual representation of a GUID, and unmarshals it
 // into this GUID.
 func (g *GUID) UnmarshalText(text []byte) error {
 	g2, err := FromString(string(text))
@@ -230,3 +230,9 @@ func (g *GUID) UnmarshalText(text []byte) error {
 	*g = g2
 	return nil
 }
+
+// hopefully this saves on allocating a new GUID per g.Empty() call
+var empty GUID
+
+// IsEmpty returns if the GUID is equal to 00000000-0000-0000-0000-000000000000
+func (g *GUID) IsEmpty() bool { return *g == empty }

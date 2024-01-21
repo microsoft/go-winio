@@ -53,6 +53,7 @@ var (
 	winio          = flag.Bool("winio", false, `import this package ("github.com/Microsoft/go-winio")`)
 	utf16          = flag.Bool("utf16", true, "encode string arguments as UTF-16 for syscalls not ending in 'A' or 'W'")
 	sortdecls      = flag.Bool("sort", true, "sort DLL and function declarations")
+	extraImports   = flag.String("imports", "", "comma separated list of additional `packages` to import")
 )
 
 func trim(s string) string {
@@ -873,6 +874,12 @@ func (src *Source) Generate(w io.Writer) error {
 	if packageName != "syscall" {
 		src.Import("syscall")
 	}
+	if *extraImports != "" {
+		for _, pkg := range strings.Split(*extraImports, ",") {
+			src.ExternalImport(pkg)
+		}
+	}
+
 	funcMap := template.FuncMap{
 		"packagename": packagename,
 		"syscalldot":  syscalldot,

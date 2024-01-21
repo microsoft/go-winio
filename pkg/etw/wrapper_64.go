@@ -6,7 +6,6 @@ package etw
 
 import (
 	"github.com/Microsoft/go-winio/pkg/guid"
-	"golang.org/x/sys/windows"
 )
 
 func eventUnregister(providerHandle providerHandle) (win32err error) {
@@ -16,8 +15,8 @@ func eventUnregister(providerHandle providerHandle) (win32err error) {
 func eventWriteTransfer(
 	providerHandle providerHandle,
 	descriptor *eventDescriptor,
-	activityID *windows.GUID,
-	relatedActivityID *windows.GUID,
+	activityID *guid.GUID,
+	relatedActivityID *guid.GUID,
 	dataDescriptorCount uint32,
 	dataDescriptors *eventDataDescriptor) (win32err error) {
 	return eventWriteTransfer_64(
