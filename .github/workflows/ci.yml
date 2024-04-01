@@ -6,11 +6,12 @@ on:
 env:
   GO_VERSION: "oldstable"
   GOTESTSUM_VERSION: "latest"
+  GOLANGCILINT_VERSION: "latest"
 
 jobs:
   lint:
     name: Lint
-    runs-on: windows-2019
+    runs-on: windows-2022
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -24,9 +25,9 @@ jobs:
           cache: false
 
       - name: Run golangci-lint
-        uses: golangci/golangci-lint-action@v3
+        uses: golangci/golangci-lint-action@v4
         with:
-          version: v1.53
+          version: ${{ env.GOLANGCILINT_VERSION }}
           args: >-
             --verbose
             --timeout=5m
@@ -37,7 +38,7 @@ jobs:
 
   go-generate:
     name: Go Generate
-    runs-on: windows-2019
+    runs-on: windows-2022
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -103,7 +104,19 @@ jobs:
         run: go install gotest.tools/gotestsum@${{ env.GOTESTSUM_VERSION }}
 
       - name: Test repo
-        run: gotestsum --format standard-verbose --debug -- -gcflags=all=-d=checkptr -race -v ./...
+        shell: pwsh
+        run: |
+          # `go test -race` requires mingw on windows, and there is some weirdness on windows 2019
+          # which causes tests to fail with `"exit status 0xc0000139"`.
+          # Even trying to update mingw with choco still fails.
+          #
+          # see: https://go.dev/doc/articles/race_detector#Requirements
+
+          if ( '${{ matrix.os }}' -ne 'windows-2019' ) {
+            $race = '-race'
+          }
+
+          gotestsum --format standard-verbose --debug -- -gcflags=all=-d=checkptr $race -v ./...
 
       # !NOTE:
       # Fuzzing cannot be run across multiple packages, (ie, `go -fuzz "^Fuzz" ./...` fails).
@@ -115,7 +128,7 @@ jobs:
     name: Build Repo
     needs:
       - test
-    runs-on: "windows-2019"
+    runs-on: "windows-2022"
     steps:
       - name: Checkout
         uses: actions/checkout@v4

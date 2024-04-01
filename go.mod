@@ -1,6 +1,6 @@
 module github.com/Microsoft/go-winio
 
-go 1.17
+go 1.21
 
 require (
 	github.com/sirupsen/logrus v1.9.3

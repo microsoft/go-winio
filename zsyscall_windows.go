@@ -33,9 +33,6 @@ func errnoErr(e syscall.Errno) error {
 	case errnoERROR_IO_PENDING:
 		return errERROR_IO_PENDING
 	}
-	// TODO: add more here, after collecting data on the common
-	// error values see on Windows. (perhaps when running
-	// all.bat?)
 	return e
 }
 
@@ -80,7 +77,7 @@ func adjustTokenPrivileges(token windows.Token, releaseAll bool, input *byte, ou
 	if releaseAll {
 		_p0 = 1
 	}
-	r0, _, e1 := syscall.Syscall6(procAdjustTokenPrivileges.Addr(), 6, uintptr(token), uintptr(_p0), uintptr(unsafe.Pointer(input)), uintptr(outputSize), uintptr(unsafe.Pointer(output)), uintptr(unsafe.Pointer(requiredSize)))
+	r0, _, e1 := syscall.SyscallN(procAdjustTokenPrivileges.Addr(), uintptr(token), uintptr(_p0), uintptr(unsafe.Pointer(input)), uintptr(outputSize), uintptr(unsafe.Pointer(output)), uintptr(unsafe.Pointer(requiredSize)))
 	success = r0 != 0
 	if true {
 		err = errnoErr(e1)
@@ -89,7 +86,7 @@ func adjustTokenPrivileges(token windows.Token, releaseAll bool, input *byte, ou
 }
 
 func convertSidToStringSid(sid *byte, str **uint16) (err error) {
-	r1, _, e1 := syscall.Syscall(procConvertSidToStringSidW.Addr(), 2, uintptr(unsafe.Pointer(sid)), uintptr(unsafe.Pointer(str)), 0)
+	r1, _, e1 := syscall.SyscallN(procConvertSidToStringSidW.Addr(), uintptr(unsafe.Pointer(sid)), uintptr(unsafe.Pointer(str)))
 	if r1 == 0 {
 		err = errnoErr(e1)
 	}
@@ -97,7 +94,7 @@ func convertSidToStringSid(sid *byte, str **uint16) (err error) {
 }
 
 func convertStringSidToSid(str *uint16, sid **byte) (err error) {
-	r1, _, e1 := syscall.Syscall(procConvertStringSidToSidW.Addr(), 2, uintptr(unsafe.Pointer(str)), uintptr(unsafe.Pointer(sid)), 0)
+	r1, _, e1 := syscall.SyscallN(procConvertStringSidToSidW.Addr(), uintptr(unsafe.Pointer(str)), uintptr(unsafe.Pointer(sid)))
 	if r1 == 0 {
 		err = errnoErr(e1)
 	}
@@ -105,7 +102,7 @@ func convertStringSidToSid(str *uint16, sid **byte) (err error) {
 }
 
 func impersonateSelf(level uint32) (err error) {
-	r1, _, e1 := syscall.Syscall(procImpersonateSelf.Addr(), 1, uintptr(level), 0, 0)
+	r1, _, e1 := syscall.SyscallN(procImpersonateSelf.Addr(), uintptr(level))
 	if r1 == 0 {
 		err = errnoErr(e1)
 	}
@@ -122,7 +119,7 @@ func lookupAccountName(systemName *uint16, accountName string, sid *byte, sidSiz
 }
 
 func _lookupAccountName(systemName *uint16, accountName *uint16, sid *byte, sidSize *uint32, refDomain *uint16, refDomainSize *uint32, sidNameUse *uint32) (err error) {
-	r1, _, e1 := syscall.Syscall9(procLookupAccountNameW.Addr(), 7, uintptr(unsafe.Pointer(systemName)), uintptr(unsafe.Pointer(accountName)), uintptr(unsafe.Pointer(sid)), uintptr(unsafe.Pointer(sidSize)), uintptr(unsafe.Pointer(refDomain)), uintptr(unsafe.Pointer(refDomainSize)), uintptr(unsafe.Pointer(sidNameUse)), 0, 0)
+	r1, _, e1 := syscall.SyscallN(procLookupAccountNameW.Addr(), uintptr(unsafe.Pointer(systemName)), uintptr(unsafe.Pointer(accountName)), uintptr(unsafe.Pointer(sid)), uintptr(unsafe.Pointer(sidSize)), uintptr(unsafe.Pointer(refDomain)), uintptr(unsafe.Pointer(refDomainSize)), uintptr(unsafe.Pointer(sidNameUse)))
 	if r1 == 0 {
 		err = errnoErr(e1)
 	}
@@ -130,7 +127,7 @@ func _lookupAccountName(systemName *uint16, accountName *uint16, sid *byte, sidS
 }
 
 func lookupAccountSid(systemName *uint16, sid *byte, name *uint16, nameSize *uint32, refDomain *uint16, refDomainSize *uint32, sidNameUse *uint32) (err error) {
-	r1, _, e1 := syscall.Syscall9(procLookupAccountSidW.Addr(), 7, uintptr(unsafe.Pointer(systemName)), uintptr(unsafe.Pointer(sid)), uintptr(unsafe.Pointer(name)), uintptr(unsafe.Pointer(nameSize)), uintptr(unsafe.Pointer(refDomain)), uintptr(unsafe.Pointer(refDomainSize)), uintptr(unsafe.Pointer(sidNameUse)), 0, 0)
+	r1, _, e1 := syscall.SyscallN(procLookupAccountSidW.Addr(), uintptr(unsafe.Pointer(systemName)), uintptr(unsafe.Pointer(sid)), uintptr(unsafe.Pointer(name)), uintptr(unsafe.Pointer(nameSize)), uintptr(unsafe.Pointer(refDomain)), uintptr(unsafe.Pointer(refDomainSize)), uintptr(unsafe.Pointer(sidNameUse)))
 	if r1 == 0 {
 		err = errnoErr(e1)
 	}
@@ -147,7 +144,7 @@ func lookupPrivilegeDisplayName(systemName string, name *uint16, buffer *uint16,
 }
 
 func _lookupPrivilegeDisplayName(systemName *uint16, name *uint16, buffer *uint16, size *uint32, languageId *uint32) (err error) {
-	r1, _, e1 := syscall.Syscall6(procLookupPrivilegeDisplayNameW.Addr(), 5, uintptr(unsafe.Pointer(systemName)), uintptr(unsafe.Pointer(name)), uintptr(unsafe.Pointer(buffer)), uintptr(unsafe.Pointer(size)), uintptr(unsafe.Pointer(languageId)), 0)
+	r1, _, e1 := syscall.SyscallN(procLookupPrivilegeDisplayNameW.Addr(), uintptr(unsafe.Pointer(systemName)), uintptr(unsafe.Pointer(name)), uintptr(unsafe.Pointer(buffer)), uintptr(unsafe.Pointer(size)), uintptr(unsafe.Pointer(languageId)))
 	if r1 == 0 {
 		err = errnoErr(e1)
 	}
@@ -164,7 +161,7 @@ func lookupPrivilegeName(systemName string, luid *uint64, buffer *uint16, size *
 }
 
 func _lookupPrivilegeName(systemName *uint16, luid *uint64, buffer *uint16, size *uint32) (err error) {
-	r1, _, e1 := syscall.Syscall6(procLookupPrivilegeNameW.Addr(), 4, uintptr(unsafe.Pointer(systemName)), uintptr(unsafe.Pointer(luid)), uintptr(unsafe.Pointer(buffer)), uintptr(unsafe.Pointer(size)), 0, 0)
+	r1, _, e1 := syscall.SyscallN(procLookupPrivilegeNameW.Addr(), uintptr(unsafe.Pointer(systemName)), uintptr(unsafe.Pointer(luid)), uintptr(unsafe.Pointer(buffer)), uintptr(unsafe.Pointer(size)))
 	if r1 == 0 {
 		err = errnoErr(e1)
 	}
@@ -186,7 +183,7 @@ func lookupPrivilegeValue(systemName string, name string, luid *uint64) (err err
 }
 
 func _lookupPrivilegeValue(systemName *uint16, name *uint16, luid *uint64) (err error) {
-	r1, _, e1 := syscall.Syscall(procLookupPrivilegeValueW.Addr(), 3, uintptr(unsafe.Pointer(systemName)), uintptr(unsafe.Pointer(name)), uintptr(unsafe.Pointer(luid)))
+	r1, _, e1 := syscall.SyscallN(procLookupPrivilegeValueW.Addr(), uintptr(unsafe.Pointer(systemName)), uintptr(unsafe.Pointer(name)), uintptr(unsafe.Pointer(luid)))
 	if r1 == 0 {
 		err = errnoErr(e1)
 	}
@@ -198,7 +195,7 @@ func openThreadToken(thread windows.Handle, accessMask uint32, openAsSelf bool, 
 	if openAsSelf {
 		_p0 = 1
 	}
-	r1, _, e1 := syscall.Syscall6(procOpenThreadToken.Addr(), 4, uintptr(thread), uintptr(accessMask), uintptr(_p0), uintptr(unsafe.Pointer(token)), 0, 0)
+	r1, _, e1 := syscall.SyscallN(procOpenThreadToken.Addr(), uintptr(thread), uintptr(accessMask), uintptr(_p0), uintptr(unsafe.Pointer(token)))
 	if r1 == 0 {
 		err = errnoErr(e1)
 	}
@@ -206,7 +203,7 @@ func openThreadToken(thread windows.Handle, accessMask uint32, openAsSelf bool, 
 }
 
 func revertToSelf() (err error) {
-	r1, _, e1 := syscall.Syscall(procRevertToSelf.Addr(), 0, 0, 0, 0)
+	r1, _, e1 := syscall.SyscallN(procRevertToSelf.Addr())
 	if r1 == 0 {
 		err = errnoErr(e1)
 	}
@@ -226,7 +223,7 @@ func backupRead(h windows.Handle, b []byte, bytesRead *uint32, abort bool, proce
 	if processSecurity {
 		_p2 = 1
 	}
-	r1, _, e1 := syscall.Syscall9(procBackupRead.Addr(), 7, uintptr(h), uintptr(unsafe.Pointer(_p0)), uintptr(len(b)), uintptr(unsafe.Pointer(bytesRead)), uintptr(_p1), uintptr(_p2), uintptr(unsafe.Pointer(context)), 0, 0)
+	r1, _, e1 := syscall.SyscallN(procBackupRead.Addr(), uintptr(h), uintptr(unsafe.Pointer(_p0)), uintptr(len(b)), uintptr(unsafe.Pointer(bytesRead)), uintptr(_p1), uintptr(_p2), uintptr(unsafe.Pointer(context)))
 	if r1 == 0 {
 		err = errnoErr(e1)
 	}
@@ -246,7 +243,7 @@ func backupWrite(h windows.Handle, b []byte, bytesWritten *uint32, abort bool, p
 	if processSecurity {
 		_p2 = 1
 	}
-	r1, _, e1 := syscall.Syscall9(procBackupWrite.Addr(), 7, uintptr(h), uintptr(unsafe.Pointer(_p0)), uintptr(len(b)), uintptr(unsafe.Pointer(bytesWritten)), uintptr(_p1), uintptr(_p2), uintptr(unsafe.Pointer(context)), 0, 0)
+	r1, _, e1 := syscall.SyscallN(procBackupWrite.Addr(), uintptr(h), uintptr(unsafe.Pointer(_p0)), uintptr(len(b)), uintptr(unsafe.Pointer(bytesWritten)), uintptr(_p1), uintptr(_p2), uintptr(unsafe.Pointer(context)))
 	if r1 == 0 {
 		err = errnoErr(e1)
 	}
@@ -254,7 +251,7 @@ func backupWrite(h windows.Handle, b []byte, bytesWritten *uint32, abort bool, p
 }
 
 func cancelIoEx(file windows.Handle, o *windows.Overlapped) (err error) {
-	r1, _, e1 := syscall.Syscall(procCancelIoEx.Addr(), 2, uintptr(file), uintptr(unsafe.Pointer(o)), 0)
+	r1, _, e1 := syscall.SyscallN(procCancelIoEx.Addr(), uintptr(file), uintptr(unsafe.Pointer(o)))
 	if r1 == 0 {
 		err = errnoErr(e1)
 	}
@@ -262,7 +259,7 @@ func cancelIoEx(file windows.Handle, o *windows.Overlapped) (err error) {
 }
 
 func connectNamedPipe(pipe windows.Handle, o *windows.Overlapped) (err error) {
-	r1, _, e1 := syscall.Syscall(procConnectNamedPipe.Addr(), 2, uintptr(pipe), uintptr(unsafe.Pointer(o)), 0)
+	r1, _, e1 := syscall.SyscallN(procConnectNamedPipe.Addr(), uintptr(pipe), uintptr(unsafe.Pointer(o)))
 	if r1 == 0 {
 		err = errnoErr(e1)
 	}
@@ -270,7 +267,7 @@ func connectNamedPipe(pipe windows.Handle, o *windows.Overlapped) (err error) {
 }
 
 func createIoCompletionPort(file windows.Handle, port windows.Handle, key uintptr, threadCount uint32) (newport windows.Handle, err error) {
-	r0, _, e1 := syscall.Syscall6(procCreateIoCompletionPort.Addr(), 4, uintptr(file), uintptr(port), uintptr(key), uintptr(threadCount), 0, 0)
+	r0, _, e1 := syscall.SyscallN(procCreateIoCompletionPort.Addr(), uintptr(file), uintptr(port), uintptr(key), uintptr(threadCount))
 	newport = windows.Handle(r0)
 	if newport == 0 {
 		err = errnoErr(e1)
@@ -288,7 +285,7 @@ func createNamedPipe(name string, flags uint32, pipeMode uint32, maxInstances ui
 }
 
 func _createNamedPipe(name *uint16, flags uint32, pipeMode uint32, maxInstances uint32, outSize uint32, inSize uint32, defaultTimeout uint32, sa *windows.SecurityAttributes) (handle windows.Handle, err error) {
-	r0, _, e1 := syscall.Syscall9(procCreateNamedPipeW.Addr(), 8, uintptr(unsafe.Pointer(name)), uintptr(flags), uintptr(pipeMode), uintptr(maxInstances), uintptr(outSize), uintptr(inSize), uintptr(defaultTimeout), uintptr(unsafe.Pointer(sa)), 0)
+	r0, _, e1 := syscall.SyscallN(procCreateNamedPipeW.Addr(), uintptr(unsafe.Pointer(name)), uintptr(flags), uintptr(pipeMode), uintptr(maxInstances), uintptr(outSize), uintptr(inSize), uintptr(defaultTimeout), uintptr(unsafe.Pointer(sa)))
 	handle = windows.Handle(r0)
 	if handle == windows.InvalidHandle {
 		err = errnoErr(e1)
@@ -297,7 +294,7 @@ func _createNamedPipe(name *uint16, flags uint32, pipeMode uint32, maxInstances 
 }
 
 func disconnectNamedPipe(pipe windows.Handle) (err error) {
-	r1, _, e1 := syscall.Syscall(procDisconnectNamedPipe.Addr(), 1, uintptr(pipe), 0, 0)
+	r1, _, e1 := syscall.SyscallN(procDisconnectNamedPipe.Addr(), uintptr(pipe))
 	if r1 == 0 {
 		err = errnoErr(e1)
 	}
@@ -305,13 +302,13 @@ func disconnectNamedPipe(pipe windows.Handle) (err error) {
 }
 
 func getCurrentThread() (h windows.Handle) {
-	r0, _, _ := syscall.Syscall(procGetCurrentThread.Addr(), 0, 0, 0, 0)
+	r0, _, _ := syscall.SyscallN(procGetCurrentThread.Addr())
 	h = windows.Handle(r0)
 	return
 }
 
 func getNamedPipeHandleState(pipe windows.Handle, state *uint32, curInstances *uint32, maxCollectionCount *uint32, collectDataTimeout *uint32, userName *uint16, maxUserNameSize uint32) (err error) {
-	r1, _, e1 := syscall.Syscall9(procGetNamedPipeHandleStateW.Addr(), 7, uintptr(pipe), uintptr(unsafe.Pointer(state)), uintptr(unsafe.Pointer(curInstances)), uintptr(unsafe.Pointer(maxCollectionCount)), uintptr(unsafe.Pointer(collectDataTimeout)), uintptr(unsafe.Pointer(userName)), uintptr(maxUserNameSize), 0, 0)
+	r1, _, e1 := syscall.SyscallN(procGetNamedPipeHandleStateW.Addr(), uintptr(pipe), uintptr(unsafe.Pointer(state)), uintptr(unsafe.Pointer(curInstances)), uintptr(unsafe.Pointer(maxCollectionCount)), uintptr(unsafe.Pointer(collectDataTimeout)), uintptr(unsafe.Pointer(userName)), uintptr(maxUserNameSize))
 	if r1 == 0 {
 		err = errnoErr(e1)
 	}
@@ -319,7 +316,7 @@ func getNamedPipeHandleState(pipe windows.Handle, state *uint32, curInstances *u
 }
 
 func getNamedPipeInfo(pipe windows.Handle, flags *uint32, outSize *uint32, inSize *uint32, maxInstances *uint32) (err error) {
-	r1, _, e1 := syscall.Syscall6(procGetNamedPipeInfo.Addr(), 5, uintptr(pipe), uintptr(unsafe.Pointer(flags)), uintptr(unsafe.Pointer(outSize)), uintptr(unsafe.Pointer(inSize)), uintptr(unsafe.Pointer(maxInstances)), 0)
+	r1, _, e1 := syscall.SyscallN(procGetNamedPipeInfo.Addr(), uintptr(pipe), uintptr(unsafe.Pointer(flags)), uintptr(unsafe.Pointer(outSize)), uintptr(unsafe.Pointer(inSize)), uintptr(unsafe.Pointer(maxInstances)))
 	if r1 == 0 {
 		err = errnoErr(e1)
 	}
@@ -327,7 +324,7 @@ func getNamedPipeInfo(pipe windows.Handle, flags *uint32, outSize *uint32, inSiz
 }
 
 func getQueuedCompletionStatus(port windows.Handle, bytes *uint32, key *uintptr, o **ioOperation, timeout uint32) (err error) {
-	r1, _, e1 := syscall.Syscall6(procGetQueuedCompletionStatus.Addr(), 5, uintptr(port), uintptr(unsafe.Pointer(bytes)), uintptr(unsafe.Pointer(key)), uintptr(unsafe.Pointer(o)), uintptr(timeout), 0)
+	r1, _, e1 := syscall.SyscallN(procGetQueuedCompletionStatus.Addr(), uintptr(port), uintptr(unsafe.Pointer(bytes)), uintptr(unsafe.Pointer(key)), uintptr(unsafe.Pointer(o)), uintptr(timeout))
 	if r1 == 0 {
 		err = errnoErr(e1)
 	}
@@ -335,7 +332,7 @@ func getQueuedCompletionStatus(port windows.Handle, bytes *uint32, key *uintptr,
 }
 
 func setFileCompletionNotificationModes(h windows.Handle, flags uint8) (err error) {
-	r1, _, e1 := syscall.Syscall(procSetFileCompletionNotificationModes.Addr(), 2, uintptr(h), uintptr(flags), 0)
+	r1, _, e1 := syscall.SyscallN(procSetFileCompletionNotificationModes.Addr(), uintptr(h), uintptr(flags))
 	if r1 == 0 {
 		err = errnoErr(e1)
 	}
@@ -343,25 +340,25 @@ func setFileCompletionNotificationModes(h windows.Handle, flags uint8) (err erro
 }
 
 func ntCreateNamedPipeFile(pipe *windows.Handle, access ntAccessMask, oa *objectAttributes, iosb *ioStatusBlock, share ntFileShareMode, disposition ntFileCreationDisposition, options ntFileOptions, typ uint32, readMode uint32, completionMode uint32, maxInstances uint32, inboundQuota uint32, outputQuota uint32, timeout *int64) (status ntStatus) {
-	r0, _, _ := syscall.Syscall15(procNtCreateNamedPipeFile.Addr(), 14, uintptr(unsafe.Pointer(pipe)), uintptr(access), uintptr(unsafe.Pointer(oa)), uintptr(unsafe.Pointer(iosb)), uintptr(share), uintptr(disposition), uintptr(options), uintptr(typ), uintptr(readMode), uintptr(completionMode), uintptr(maxInstances), uintptr(inboundQuota), uintptr(outputQuota), uintptr(unsafe.Pointer(timeout)), 0)
+	r0, _, _ := syscall.SyscallN(procNtCreateNamedPipeFile.Addr(), uintptr(unsafe.Pointer(pipe)), uintptr(access), uintptr(unsafe.Pointer(oa)), uintptr(unsafe.Pointer(iosb)), uintptr(share), uintptr(disposition), uintptr(options), uintptr(typ), uintptr(readMode), uintptr(completionMode), uintptr(maxInstances), uintptr(inboundQuota), uintptr(outputQuota), uintptr(unsafe.Pointer(timeout)))
 	status = ntStatus(r0)
 	return
 }
 
 func rtlDefaultNpAcl(dacl *uintptr) (status ntStatus) {
-	r0, _, _ := syscall.Syscall(procRtlDefaultNpAcl.Addr(), 1, uintptr(unsafe.Pointer(dacl)), 0, 0)
+	r0, _, _ := syscall.SyscallN(procRtlDefaultNpAcl.Addr(), uintptr(unsafe.Pointer(dacl)))
 	status = ntStatus(r0)
 	return
 }
 
 func rtlDosPathNameToNtPathName(name *uint16, ntName *unicodeString, filePart uintptr, reserved uintptr) (status ntStatus) {
-	r0, _, _ := syscall.Syscall6(procRtlDosPathNameToNtPathName_U.Addr(), 4, uintptr(unsafe.Pointer(name)), uintptr(unsafe.Pointer(ntName)), uintptr(filePart), uintptr(reserved), 0, 0)
+	r0, _, _ := syscall.SyscallN(procRtlDosPathNameToNtPathName_U.Addr(), uintptr(unsafe.Pointer(name)), uintptr(unsafe.Pointer(ntName)), uintptr(filePart), uintptr(reserved))
 	status = ntStatus(r0)
 	return
 }
 
 func rtlNtStatusToDosError(status ntStatus) (winerr error) {
-	r0, _, _ := syscall.Syscall(procRtlNtStatusToDosErrorNoTeb.Addr(), 1, uintptr(status), 0, 0)
+	r0, _, _ := syscall.SyscallN(procRtlNtStatusToDosErrorNoTeb.Addr(), uintptr(status))
 	if r0 != 0 {
 		winerr = syscall.Errno(r0)
 	}
@@ -373,7 +370,7 @@ func wsaGetOverlappedResult(h windows.Handle, o *windows.Overlapped, bytes *uint
 	if wait {
 		_p0 = 1
 	}
-	r1, _, e1 := syscall.Syscall6(procWSAGetOverlappedResult.Addr(), 5, uintptr(h), uintptr(unsafe.Pointer(o)), uintptr(unsafe.Pointer(bytes)), uintptr(_p0), uintptr(unsafe.Pointer(flags)), 0)
+	r1, _, e1 := syscall.SyscallN(procWSAGetOverlappedResult.Addr(), uintptr(h), uintptr(unsafe.Pointer(o)), uintptr(unsafe.Pointer(bytes)), uintptr(_p0), uintptr(unsafe.Pointer(flags)))
 	if r1 == 0 {
 		err = errnoErr(e1)
 	}

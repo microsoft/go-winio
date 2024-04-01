@@ -33,9 +33,6 @@ func errnoErr(e syscall.Errno) error {
 	case errnoERROR_IO_PENDING:
 		return errERROR_IO_PENDING
 	}
-	// TODO: add more here, after collecting data on the common
-	// error values see on Windows. (perhaps when running
-	// all.bat?)
 	return e
 }
 
@@ -51,7 +48,7 @@ func hcsFormatWritableLayerVhd(handle windows.Handle) (hr error) {
 	if hr != nil {
 		return
 	}
-	r0, _, _ := syscall.Syscall(procHcsFormatWritableLayerVhd.Addr(), 1, uintptr(handle), 0, 0)
+	r0, _, _ := syscall.SyscallN(procHcsFormatWritableLayerVhd.Addr(), uintptr(handle))
 	if int32(r0) < 0 {
 		if r0&0x1fff0000 == 0x00070000 {
 			r0 &= 0xffff
@@ -66,7 +63,7 @@ func hcsGetLayerVhdMountPath(vhdHandle windows.Handle, mountPath **uint16) (hr e
 	if hr != nil {
 		return
 	}
-	r0, _, _ := syscall.Syscall(procHcsGetLayerVhdMountPath.Addr(), 2, uintptr(vhdHandle), uintptr(unsafe.Pointer(mountPath)), 0)
+	r0, _, _ := syscall.SyscallN(procHcsGetLayerVhdMountPath.Addr(), uintptr(vhdHandle), uintptr(unsafe.Pointer(mountPath)))
 	if int32(r0) < 0 {
 		if r0&0x1fff0000 == 0x00070000 {
 			r0 &= 0xffff

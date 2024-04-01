@@ -57,7 +57,11 @@ func clientServer(u testUtil) (cl, sv *HvsockConn, _ *HvsockAddr) {
 		if err != nil {
 			return fmt.Errorf("listener accept: %w", err)
 		}
-		sv = conn.(*HvsockConn)
+		var ok bool
+		sv, ok = conn.(*HvsockConn)
+		if !ok {
+			return fmt.Errorf("expected connection type %T; got %T", new(HvsockConn), conn)
+		}
 		if err := l.Close(); err != nil {
 			return err
 		}
@@ -109,7 +113,10 @@ func TestHvSockListenerAddresses(t *testing.T) {
 	u := newUtil(t)
 	l, addr := serverListen(u)
 
-	la := (l.Addr()).(*HvsockAddr)
+	la, ok := (l.Addr()).(*HvsockAddr)
+	if !ok {
+		t.Fatalf("expected type %T; got %T", new(HvsockAddr), l.Addr())
+	}
 	u.Assert(*la == *addr, fmt.Sprintf("give: %v; want: %v", la, addr))
 
 	ra := rawHvsockAddr{}
@@ -123,10 +130,22 @@ func TestHvSockAddresses(t *testing.T) {
 	u := newUtil(t)
 	cl, sv, addr := clientServer(u)
 
-	sra := (sv.RemoteAddr()).(*HvsockAddr)
-	sla := (sv.LocalAddr()).(*HvsockAddr)
-	cra := (cl.RemoteAddr()).(*HvsockAddr)
-	cla := (cl.LocalAddr()).(*HvsockAddr)
+	sra, ok := (sv.RemoteAddr()).(*HvsockAddr)
+	if !ok {
+		t.Fatalf("expected type %T; got %T", new(HvsockAddr), sv.RemoteAddr())
+	}
+	sla, ok := (sv.LocalAddr()).(*HvsockAddr)
+	if !ok {
+		t.Fatalf("expected type %T; got %T", new(HvsockAddr), sv.LocalAddr())
+	}
+	cra, ok := (cl.RemoteAddr()).(*HvsockAddr)
+	if !ok {
+		t.Fatalf("expected type %T; got %T", new(HvsockAddr), cl.RemoteAddr())
+	}
+	cla, ok := (cl.LocalAddr()).(*HvsockAddr)
+	if !ok {
+		t.Fatalf("expected type %T; got %T", new(HvsockAddr), cl.LocalAddr())
+	}
 
 	t.Run("Info", func(t *testing.T) {
 		tests := []struct {
@@ -322,7 +341,10 @@ func TestHvSockCloseReadWriteListener(t *testing.T) {
 		}
 		defer c.Close()
 
-		hv := c.(*HvsockConn)
+		hv, ok := c.(*HvsockConn)
+		if !ok {
+			t.Fatalf("expected type %T; got %T", new(HvsockConn), c)
+		}
 		//
 		// test CloseWrite()
 		//
