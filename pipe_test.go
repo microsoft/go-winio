@@ -597,7 +597,10 @@ func TestMessageReadMode(t *testing.T) {
 
 	setNamedPipeHandleState := windows.NewLazyDLL("kernel32.dll").NewProc("SetNamedPipeHandleState")
 
-	p := c.(*win32MessageBytePipe)
+	p, ok := c.(*win32MessageBytePipe)
+	if !ok {
+		t.Fatalf("expected type %T; got %T", new(win32MessageBytePipe), c)
+	}
 	mode := uint32(windows.PIPE_READMODE_MESSAGE)
 	if s, _, err := setNamedPipeHandleState.Call(uintptr(p.handle), uintptr(unsafe.Pointer(&mode)), 0, 0); s == 0 {
 		t.Fatal(err)

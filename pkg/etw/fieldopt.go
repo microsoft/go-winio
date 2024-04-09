@@ -507,7 +507,7 @@ func SmartField(name string, v interface{}) FieldOpt {
 		case reflect.Float32:
 			return SmartField(name, float32(rv.Float()))
 		case reflect.Float64:
-			return SmartField(name, float64(rv.Float())) //nolint:unconvert // make look consistent
+			return SmartField(name, float64(rv.Float()))
 		case reflect.String:
 			return SmartField(name, rv.String())
 		case reflect.Struct:

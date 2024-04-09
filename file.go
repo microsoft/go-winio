@@ -21,23 +21,6 @@ import (
 //sys setFileCompletionNotificationModes(h windows.Handle, flags uint8) (err error) = SetFileCompletionNotificationModes
 //sys wsaGetOverlappedResult(h windows.Handle, o *windows.Overlapped, bytes *uint32, wait bool, flags *uint32) (err error) = ws2_32.WSAGetOverlappedResult
 
-//todo (go1.19): switch to [atomic.Bool]
-
-type atomicBool int32
-
-func (b *atomicBool) isSet() bool { return atomic.LoadInt32((*int32)(b)) != 0 }
-func (b *atomicBool) setFalse()   { atomic.StoreInt32((*int32)(b), 0) }
-func (b *atomicBool) setTrue()    { atomic.StoreInt32((*int32)(b), 1) }
-
-//revive:disable-next-line:predeclared Keep "new" to maintain consistency with "atomic" pkg
-func (b *atomicBool) swap(new bool) bool {
-	var newInt int32
-	if new {
-		newInt = 1
-	}
-	return atomic.SwapInt32((*int32)(b), newInt) == 1
-}
-
 var (
 	ErrFileClosed = errors.New("file has already been closed")
 	ErrTimeout    = &timeoutError{}
@@ -81,7 +64,7 @@ type win32File struct {
 	handle        windows.Handle
 	wg            sync.WaitGroup
 	wgLock        sync.RWMutex
-	closing       atomicBool
+	closing       atomic.Bool
 	socket        bool
 	readDeadline  deadlineHandler
 	writeDeadline deadlineHandler
@@ -92,7 +75,7 @@ type deadlineHandler struct {
 	channel     timeoutChan
 	channelLock sync.RWMutex
 	timer       *time.Timer
-	timedout    atomicBool
+	timedout    atomic.Bool
 }
 
 // makeWin32File makes a new win32File from an existing file handle.
@@ -131,7 +114,7 @@ func NewOpenFile(h windows.Handle) (io.ReadWriteCloser, error) {
 func (f *win32File) closeHandle() {
 	f.wgLock.Lock()
 	// Atomically set that we are closing, releasing the resources only once.
-	if !f.closing.swap(true) {
+	if !f.closing.Swap(true) {
 		f.wgLock.Unlock()
 		// cancel all IO and wait for it to complete
 		_ = cancelIoEx(f.handle, nil)
@@ -152,14 +135,14 @@ func (f *win32File) Close() error {
 
 // IsClosed checks if the file has been closed.
 func (f *win32File) IsClosed() bool {
-	return f.closing.isSet()
+	return f.closing.Load()
 }
 
 // prepareIO prepares for a new IO operation.
 // The caller must call f.wg.Done() when the IO is finished, prior to Close() returning.
 func (f *win32File) prepareIO() (*ioOperation, error) {
 	f.wgLock.RLock()
-	if f.closing.isSet() {
+	if f.closing.Load() {
 		f.wgLock.RUnlock()
 		return nil, ErrFileClosed
 	}
@@ -193,7 +176,7 @@ func (f *win32File) asyncIO(c *ioOperation, d *deadlineHandler, bytes uint32, er
 		return int(bytes), err
 	}
 
-	if f.closing.isSet() {
+	if f.closing.Load() {
 		_ = cancelIoEx(f.handle, &c.o)
 	}
 
@@ -209,7 +192,7 @@ func (f *win32File) asyncIO(c *ioOperation, d *deadlineHandler, bytes uint32, er
 	case r = <-c.ch:
 		err = r.err
 		if err == windows.ERROR_OPERATION_ABORTED { //nolint:errorlint // err is Errno
-			if f.closing.isSet() {
+			if f.closing.Load() {
 				err = ErrFileClosed
 			}
 		} else if err != nil && f.socket {
@@ -242,7 +225,7 @@ func (f *win32File) Read(b []byte) (int, error) {
 	}
 	defer f.wg.Done()
 
-	if f.readDeadline.timedout.isSet() {
+	if f.readDeadline.timedout.Load() {
 		return 0, ErrTimeout
 	}
 
@@ -256,9 +239,8 @@ func (f *win32File) Read(b []byte) (int, error) {
 		return 0, io.EOF
 	} else if err == windows.ERROR_BROKEN_PIPE { //nolint:errorlint // err is Errno
 		return 0, io.EOF
-	} else {
-		return n, err
 	}
+	return n, err
 }
 
 // Write writes to a file handle.
@@ -269,7 +251,7 @@ func (f *win32File) Write(b []byte) (int, error) {
 	}
 	defer f.wg.Done()
 
-	if f.writeDeadline.timedout.isSet() {
+	if f.writeDeadline.timedout.Load() {
 		return 0, ErrTimeout
 	}
 
@@ -306,7 +288,7 @@ func (d *deadlineHandler) set(deadline time.Time) error {
 		}
 		d.timer = nil
 	}
-	d.timedout.setFalse()
+	d.timedout.Store(false)
 
 	select {
 	case <-d.channel:
@@ -321,7 +303,7 @@ func (d *deadlineHandler) set(deadline time.Time) error {
 	}
 
 	timeoutIO := func() {
-		d.timedout.setTrue()
+		d.timedout.Store(true)
 		close(d.channel)
 	}
 

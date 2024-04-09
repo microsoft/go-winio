@@ -33,9 +33,6 @@ func errnoErr(e syscall.Errno) error {
 	case errnoERROR_IO_PENDING:
 		return errERROR_IO_PENDING
 	}
-	// TODO: add more here, after collecting data on the common
-	// error values see on Windows. (perhaps when running
-	// all.bat?)
 	return e
 }
 
@@ -48,7 +45,7 @@ var (
 )
 
 func enumProcesses(pids *uint32, bufferSize uint32, retBufferSize *uint32) (err error) {
-	r1, _, e1 := syscall.Syscall(procK32EnumProcesses.Addr(), 3, uintptr(unsafe.Pointer(pids)), uintptr(bufferSize), uintptr(unsafe.Pointer(retBufferSize)))
+	r1, _, e1 := syscall.SyscallN(procK32EnumProcesses.Addr(), uintptr(unsafe.Pointer(pids)), uintptr(bufferSize), uintptr(unsafe.Pointer(retBufferSize)))
 	if r1 == 0 {
 		err = errnoErr(e1)
 	}
@@ -56,7 +53,7 @@ func enumProcesses(pids *uint32, bufferSize uint32, retBufferSize *uint32) (err 
 }
 
 func getProcessMemoryInfo(process handle, memCounters *ProcessMemoryCountersEx, size uint32) (err error) {
-	r1, _, e1 := syscall.Syscall(procK32GetProcessMemoryInfo.Addr(), 3, uintptr(process), uintptr(unsafe.Pointer(memCounters)), uintptr(size))
+	r1, _, e1 := syscall.SyscallN(procK32GetProcessMemoryInfo.Addr(), uintptr(process), uintptr(unsafe.Pointer(memCounters)), uintptr(size))
 	if r1 == 0 {
 		err = errnoErr(e1)
 	}
@@ -64,7 +61,7 @@ func getProcessMemoryInfo(process handle, memCounters *ProcessMemoryCountersEx, 
 }
 
 func queryFullProcessImageName(process handle, flags uint32, buffer *uint16, bufferSize *uint32) (err error) {
-	r1, _, e1 := syscall.Syscall6(procQueryFullProcessImageNameW.Addr(), 4, uintptr(process), uintptr(flags), uintptr(unsafe.Pointer(buffer)), uintptr(unsafe.Pointer(bufferSize)), 0, 0)
+	r1, _, e1 := syscall.SyscallN(procQueryFullProcessImageNameW.Addr(), uintptr(process), uintptr(flags), uintptr(unsafe.Pointer(buffer)), uintptr(unsafe.Pointer(bufferSize)))
 	if r1 == 0 {
 		err = errnoErr(e1)
 	}
