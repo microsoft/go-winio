@@ -5,12 +5,11 @@ package security
 
 import (
 	"os"
+	"os/exec"
 	"path/filepath"
 	"regexp"
 	"strings"
 	"testing"
-
-	exec "golang.org/x/sys/execabs"
 )
 
 const (
