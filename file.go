@@ -130,6 +130,22 @@ func (f *win32File) closeHandle() {
 // Close closes a win32File.
 func (f *win32File) Close() error {
 	f.closeHandle()
+	if f.readDeadline.channel != nil {
+		close(f.readDeadline.channel)
+		f.readDeadline.channel = nil
+	}
+	if f.readDeadline.timer != nil {
+		f.readDeadline.timer.Stop()
+		f.readDeadline.timer = nil
+	}
+	if f.writeDeadline.channel != nil {
+		close(f.writeDeadline.channel)
+		f.writeDeadline.channel = nil
+	}
+	if f.writeDeadline.timer != nil {
+		f.writeDeadline.timer.Stop()
+		f.writeDeadline.timer = nil
+	}
 	return nil
 }
 
