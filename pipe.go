@@ -573,9 +573,11 @@ func (l *win32PipeListener) Accept() (net.Conn, error) {
 
 func (l *win32PipeListener) Close() error {
 	select {
-	case l.closeCh <- 1:
-		<-l.doneCh
 	case <-l.doneCh:
+	case <-l.closeCh:
+	default:
+		close(l.closeCh)
+		<-l.doneCh
 	}
 	return nil
 }
