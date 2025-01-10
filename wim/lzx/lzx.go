@@ -100,7 +100,7 @@ func (f *decompressor) ensureAtLeast(n int) error {
 	}
 	n, err := io.ReadAtLeast(f.r, f.b[f.bv-f.bo:], n)
 	if err != nil {
-		if err == io.EOF { //nolint:errorlint
+		if err == io.EOF {
 			err = io.ErrUnexpectedEOF
 		} else {
 			f.fail(err)
@@ -117,7 +117,7 @@ func (f *decompressor) ensureAtLeast(n int) error {
 // Otherwise, on error, it sets f.err.
 func (f *decompressor) feed() bool {
 	err := f.ensureAtLeast(2)
-	if err == io.ErrUnexpectedEOF { //nolint:errorlint // returns io.ErrUnexpectedEOF by contract
+	if err == io.ErrUnexpectedEOF {
 		return false
 	}
 	f.c |= (uint32(f.b[f.bo+1])<<8 | uint32(f.b[f.bo])) << (16 - f.nbits)
@@ -153,28 +153,28 @@ func buildTable(codelens []byte) *huffman {
 	// Determine the number of codes of each length, and the
 	// maximum length.
 	var count [maxTreePathLen + 1]uint
-	var max byte
+	var clMax byte
 	for _, cl := range codelens {
 		count[cl]++
-		if max < cl {
-			max = cl
+		if clMax < cl {
+			clMax = cl
 		}
 	}
 
-	if max == 0 {
+	if clMax == 0 {
 		return &huffman{}
 	}
 
 	// Determine the first code of each length.
 	var first [maxTreePathLen + 1]uint
 	code := uint(0)
-	for i := byte(1); i <= max; i++ {
+	for i := byte(1); i <= clMax; i++ {
 		code <<= 1
 		first[i] = code
 		code += count[i]
 	}
 
-	if code != 1<<max {
+	if code != 1<<clMax {
 		return nil
 	}
 
@@ -182,14 +182,14 @@ func buildTable(codelens []byte) *huffman {
 	// put all possible suffixes for the code into the table, too.
 	// For max > tablebits, split long codes into additional tables
 	// of suffixes of max-tablebits length.
-	h := &huffman{maxbits: max}
-	if max > tablebits {
+	h := &huffman{maxbits: clMax}
+	if clMax > tablebits {
 		core := first[tablebits+1] / 2 // Number of codes that fit without extra tables
 		nextra := 1<<tablebits - core  // Number of extra entries
 		h.extra = make([][]uint16, nextra)
 		for code := core; code < 1<<tablebits; code++ {
 			h.table[code] = uint16(code - core)
-			h.extra[code-core] = make([]uint16, 1<<(max-tablebits))
+			h.extra[code-core] = make([]uint16, 1<<(clMax-tablebits))
 		}
 	}
 
@@ -206,8 +206,8 @@ func buildTable(codelens []byte) *huffman {
 			} else {
 				prefix := code >> (cl - tablebits)
 				suffix := code & (1<<(cl-tablebits) - 1)
-				extendedCode := suffix << (max - cl)
-				for j := uint(0); j < 1<<(max-cl); j++ {
+				extendedCode := suffix << (clMax - cl)
+				for j := uint(0); j < 1<<(clMax-cl); j++ {
 					h.extra[h.table[prefix]][extendedCode+j] = v
 				}
 			}

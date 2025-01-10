@@ -608,7 +608,7 @@ func (u testUtil) Wait(ch <-chan struct{}, d time.Duration, msgs ...string) {
 	case <-ch:
 	case <-t.C:
 		u.T.Helper()
-		u.T.Fatalf(msgJoin(msgs, "timed out after %v"), d)
+		u.T.Fatal(msgJoin(msgs, fmt.Sprintf("timed out after %v", d)))
 	}
 }
 
@@ -619,7 +619,7 @@ func (u testUtil) WaitErr(ch <-chan error, d time.Duration, msgs ...string) {
 	case err := <-ch:
 		if err != nil {
 			u.T.Helper()
-			u.T.Fatalf(msgJoin(msgs, "%v"), err)
+			u.T.Fatalf(msgJoin(msgs, err.Error()))
 		}
 	case <-t.C:
 		u.T.Helper()
@@ -632,7 +632,7 @@ func (u testUtil) Assert(b bool, msgs ...string) {
 		return
 	}
 	u.T.Helper()
-	u.T.Fatalf(msgJoin(msgs, "failed assertion"))
+	u.T.Fatal(msgJoin(msgs, "failed assertion"))
 }
 
 func (u testUtil) Is(err, target error, msgs ...string) {
@@ -640,7 +640,7 @@ func (u testUtil) Is(err, target error, msgs ...string) {
 		return
 	}
 	u.T.Helper()
-	u.T.Fatalf(msgJoin(msgs, "got error %q; wanted %q"), err, target)
+	u.T.Fatal(msgJoin(msgs, fmt.Sprintf("got error %q; wanted %q", err, target)))
 }
 
 func (u testUtil) Must(err error, msgs ...string) {
@@ -648,7 +648,7 @@ func (u testUtil) Must(err error, msgs ...string) {
 		return
 	}
 	u.T.Helper()
-	u.T.Fatalf(msgJoin(msgs, "%v"), err)
+	u.T.Fatal(msgJoin(msgs, err.Error()))
 }
 
 // Check stops execution if testing failed in another go-routine.
