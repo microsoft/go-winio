@@ -576,6 +576,7 @@ func (l *win32PipeListener) Close() error {
 	select {
 	case <-l.doneCh:
 	case <-l.closeCh:
+		<-l.doneCh
 	default:
 		close(l.closeCh)
 		<-l.doneCh
