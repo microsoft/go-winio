@@ -647,7 +647,7 @@ func TestListenConnectRace(t *testing.T) {
 }
 
 func TestCloseRace(t *testing.T) {
-	for i := 0; i < 200 && !t.Failed(); i++ {
+	for i := 0; i < 1000 && !t.Failed(); i++ {
 		l, err := ListenPipe(testPipeName, &PipeConfig{MessageMode: true})
 		if err != nil {
 			t.Fatal(err)
