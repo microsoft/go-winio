@@ -10,6 +10,7 @@ import (
 	"net"
 	"os"
 	"runtime"
+	"sync"
 	"time"
 	"unsafe"
 
@@ -315,6 +316,7 @@ type win32PipeListener struct {
 	path        string
 	config      PipeConfig
 	acceptCh    chan (chan acceptResponse)
+	closeOnce   sync.Once
 	closeCh     chan struct{}
 	doneCh      chan struct{}
 }
@@ -572,14 +574,10 @@ func (l *win32PipeListener) Accept() (net.Conn, error) {
 }
 
 func (l *win32PipeListener) Close() error {
-	select {
-	case <-l.doneCh:
-	case <-l.closeCh:
-		<-l.doneCh
-	default:
+	l.closeOnce.Do(func() {
 		close(l.closeCh)
-		<-l.doneCh
-	}
+	})
+	<-l.doneCh
 	return nil
 }
 
