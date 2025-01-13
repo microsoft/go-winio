@@ -315,8 +315,8 @@ type win32PipeListener struct {
 	path        string
 	config      PipeConfig
 	acceptCh    chan (chan acceptResponse)
-	closeCh     chan int
-	doneCh      chan int
+	closeCh     chan struct{}
+	doneCh      chan struct{}
 }
 
 func makeServerPipeHandle(path string, sd []byte, c *PipeConfig, first bool) (windows.Handle, error) {
@@ -529,8 +529,8 @@ func ListenPipe(path string, c *PipeConfig) (net.Listener, error) {
 		path:        path,
 		config:      *c,
 		acceptCh:    make(chan (chan acceptResponse)),
-		closeCh:     make(chan int),
-		doneCh:      make(chan int),
+		closeCh:     make(chan struct{}),
+		doneCh:      make(chan struct{}),
 	}
 	go l.listenerRoutine()
 	return l, nil
