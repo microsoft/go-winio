@@ -643,6 +643,8 @@ func TestListenConnectRace(t *testing.T) {
 			s.Close()
 		}
 		wg.Wait()
+
+		t.Logf("iteration %d", i)
 	}
 }
 
@@ -683,5 +685,7 @@ func TestCloseRace(t *testing.T) {
 		}
 		_ = c.Close()
 		_ = l.Close()
+
+		t.Logf("iteration %d", i)
 	}
 }
