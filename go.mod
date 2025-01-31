@@ -2,8 +2,6 @@ module github.com/Microsoft/go-winio
 
 go 1.22.0
 
-toolchain go1.22.10
-
 require (
 	github.com/sirupsen/logrus v1.9.3
 	golang.org/x/sys v0.29.0
