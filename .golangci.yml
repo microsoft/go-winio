@@ -72,6 +72,9 @@ linters-settings:
   nolintlint:
     require-explanation: true
     require-specific: true
+  gosec:
+    excludes:
+      - G115 # G115: integer overflow conversion; TODO: currently too many (false) positives in generated code that need to be verified
   revive:
     # revive is more configurable than static check, so likely the preferred alternative to static-check
     # (once the perf issue is solved: https://github.com/golangci/golangci-lint/issues/2997)
