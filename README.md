@@ -40,7 +40,7 @@ Our CI uses the DCO Github app to ensure that all commits in a given PR are sign
 ### Linting
 
 Code must pass a linting stage, which uses [`golangci-lint`][lint].
-The linting settings are stored in [`.golangci.yaml`](./.golangci.yaml), and can be run
+The linting settings are stored in [`.golangci.yml`](./.golangci.yml), and can be run
 automatically with VSCode by adding the following to your workspace or folder settings:
 
 ```json
@@ -80,8 +80,8 @@ Thanks to [natefinch][natefinch] for the inspiration for this library.
 See [npipe](https://github.com/natefinch/npipe) for another named pipe implementation.
 
 [lint]: https://golangci-lint.run/
-[lint-ide]: https://golangci-lint.run/usage/integrations/#editor-integration
-[lint-install]: https://golangci-lint.run/usage/install/#local-installation
+[lint-ide]: https://golangci-lint.run/docs/welcome/integrations/
+[lint-install]: https://golangci-lint.run/docs/welcome/install/
 
 [git-commit-s]: https://git-scm.com/docs/git-commit#Documentation/git-commit.txt--s
 [git-rebase-s]: https://git-scm.com/docs/git-rebase#Documentation/git-rebase.txt---signoff
