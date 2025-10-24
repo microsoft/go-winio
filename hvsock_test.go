@@ -437,7 +437,7 @@ func TestHvSockCloseReadWriteDial(t *testing.T) {
 
 		n, err = c.Read(b)
 		if n != 0 {
-			return fmt.Errorf("server did not get EOF")
+			return errors.New("server did not get EOF")
 		}
 		if !errors.Is(err, io.EOF) {
 			return errors.New("server did not get EOF")
@@ -632,7 +632,7 @@ func (u testUtil) Assert(b bool, msgs ...string) {
 		return
 	}
 	u.T.Helper()
-	u.T.Fatalf(msgJoin(msgs, "failed assertion"))
+	u.T.Fatal(msgJoin(msgs, "failed assertion"))
 }
 
 func (u testUtil) Is(err, target error, msgs ...string) {

@@ -1,5 +1,4 @@
 //go:build windows
-// +build windows
 
 // Shows a sample usage of the ETW logging package.
 package main

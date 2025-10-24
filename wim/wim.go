@@ -1,5 +1,4 @@
 //go:build windows || linux
-// +build windows linux
 
 // Package wim implements a WIM file parser.
 //
