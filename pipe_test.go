@@ -7,6 +7,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"net"
 	"sync"
@@ -14,6 +15,7 @@ import (
 	"time"
 	"unsafe"
 
+	"github.com/Microsoft/go-winio/internal/fs"
 	"golang.org/x/sys/windows"
 )
 
@@ -643,5 +645,228 @@ func TestListenConnectRace(t *testing.T) {
 			s.Close()
 		}
 		wg.Wait()
+	}
+}
+
+// Repeat some of the above tests with `PipeConfig.QueueSize` set
+// to verify that we have the same client semantics (timeouts and
+// etc.) when we have more than one listener worker.  And that
+// `l.Close()` shuts down the pipe as expected.  There are no calls
+// to `l.Accept()`, so all of the `DialPipe()` calls should behave
+// the same as the original tests.
+
+func TestDialListenerTimesOutQueueSize(t *testing.T) {
+	cfg := PipeConfig{
+		QueueSize: 5,
+	}
+	l, err := ListenPipe(testPipeName, &cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer l.Close()
+	var d = 10 * time.Millisecond
+	_, err = DialPipe(testPipeName, &d)
+	if !errors.Is(err, ErrTimeout) {
+		t.Fatalf("expected ErrTimeout, got %v", err)
+	}
+}
+
+func TestDialContextListenerTimesOutQueueSize(t *testing.T) {
+	cfg := PipeConfig{
+		QueueSize: 5,
+	}
+	l, err := ListenPipe(testPipeName, &cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer l.Close()
+	var d = 10 * time.Millisecond
+	ctx, cancel := context.WithTimeout(context.Background(), d)
+	defer cancel()
+	_, err = DialPipeContext(ctx, testPipeName)
+	if !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatalf("expected context.DeadlineExceeded, got %v", err)
+	}
+}
+
+func TestDialListenerGetsCancelledQueueSize(t *testing.T) {
+	cfg := PipeConfig{
+		QueueSize: 5,
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	l, err := ListenPipe(testPipeName, &cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ch := make(chan error)
+	defer l.Close()
+	go func(ctx context.Context, ch chan error) {
+		_, err := DialPipeContext(ctx, testPipeName)
+		ch <- err
+	}(ctx, ch)
+	time.Sleep(time.Millisecond * 30)
+	cancel()
+	err = <-ch
+	if !errors.Is(err, context.Canceled) {
+		t.Fatalf("expected context.Canceled, got %v", err)
+	}
+}
+
+// tryRawDialPipe is a minimal version of `tryDialPipe()` without
+// any of the timeout, cancel, or automatic retry-when-busy logic.
+// It just asks the OS to try to open a raw client pipe.
+//
+// We want this to be as fast as possible and similar to what
+// clients in other languages (like "C") would be doing.
+func tryRawDialPipe(path string, access fs.AccessMask) (windows.Handle, error) {
+	h, err := fs.CreateFile(path,
+		access,
+		0,   // mode
+		nil, // security attributes
+		fs.OPEN_EXISTING,
+		fs.FILE_FLAG_OVERLAPPED|fs.SECURITY_SQOS_PRESENT|fs.SECURITY_ANONYMOUS,
+		0, // template file handle
+	)
+	return h, err
+}
+
+// startAcceptPool creates a pool of "application" threads to accept
+// and process pipe connections from clients.
+//
+// The `poolSize` gives the maximum number of concurrent `Accept()`
+// calls that are open.  The `poolSize` should (probably) be equal
+// to or greater than the pipe layer `queueSize`.  The oldest
+// `queueSize` of the `Accept()` calls will be mapped (randomly)
+// to a listener worker instance (by nature of the buffered accept
+// channel).
+//
+// If the `poolSize` is less than the `queueSize` the pipe layer
+// will not be able to efficiently use the larger queue and worker
+// threads (because of accept channel blocking).
+func startAcceptPool(t *testing.T, poolSize int, wgJoin *sync.WaitGroup,
+	wgReady *sync.WaitGroup, l net.Listener) {
+	t.Helper()
+
+	for k := 0; k < poolSize; k++ {
+		wgJoin.Add(1)
+		wgReady.Add(1)
+		go func() {
+			defer wgJoin.Done()
+			wgReady.Done()
+
+			finished := false
+			for !finished {
+				s, err := l.Accept()
+				if err == nil {
+					// A real server application would either process
+					// this connection or dispatch it to some business
+					// logic to actually do something before looping
+					// to accept another connection.
+					s.Close()
+				} else if errors.Is(err, ErrPipeListenerClosed) {
+					finished = true
+				} else {
+					t.Error(err)
+					finished = true
+				}
+			}
+		}()
+	}
+}
+
+// rapidlyDial is a stress test to rapidly create (and close) a
+// series of client pipes and return statistics.
+//
+// We don't complain about pipe busy errors here because we cannot
+// completely eliminate them (even with multiple listener workers).
+func rapidlyDial(nrAttempts int) (nrOK int, nrBusy int, nrOther int) {
+	for j := 0; j < nrAttempts; j++ {
+		time.Sleep(10 * time.Microsecond) // just enough to let another thread run.
+		h, err := tryRawDialPipe(testPipeName, fs.GENERIC_READ|fs.GENERIC_WRITE)
+		if err == nil {
+			windows.Close(h)
+			nrOK++
+		} else if err == windows.ERROR_PIPE_BUSY { //nolint:errorlint // err is Errno
+			nrBusy++
+		} else {
+			nrOther++
+		}
+	}
+
+	return nrOK, nrBusy, nrOther
+}
+
+func tryConnectionStress(t *testing.T, queueSize int, poolSize int, nrAttempts int) (nrOK int, nrBusy int, nrOther int) {
+	t.Helper()
+
+	cfg := PipeConfig{
+		QueueSize: int32(queueSize),
+	}
+	l, err := ListenPipe(testPipeName, &cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var wgJoin sync.WaitGroup
+	var wgReady sync.WaitGroup
+	startAcceptPool(t, poolSize, &wgJoin, &wgReady, l)
+
+	// Wait for the accept pool to get started before we let
+	// clients try to hit it.  This is more to model a real
+	// long-runing server that would boot up and then start
+	// accepting connections from multiple client processes.
+	//
+	// Another way to say that is that it doesn't do any good
+	// to blast thru 1000 client attempts before the accept
+	// pool and/or the underlying pipe listener workers have
+	// started (because of cooperative scheduling quirks).
+	wgReady.Wait()
+
+	nrOK, nrBusy, nrOther = rapidlyDial(nrAttempts)
+
+	l.Close()
+	wgJoin.Wait()
+
+	return nrOK, nrBusy, nrOther
+}
+
+func TestStressAcceptPool(t *testing.T) {
+	var tests = []struct {
+		qs int
+		ps int
+		na int
+	}{
+		// A queue size of zero (or 1) is the legacy behavior
+		// where there is at most 1 unbound server pipe in the
+		// file system.  The pool size doesn't really matter
+		// because the (ps - qs - 1) Accept() instances will
+		// be blocked on the channel.
+		{0, 1, 100},
+		{0, 5, 100},
+
+		// Larger queue sizes enable at most `qs` unbound
+		// server pipes in the file system.  Actually, because
+		// the pipe code waits for the arrival of an Accept()
+		// call before creating a new unbound pipe, the file
+		// system will have at most `min(qs,ps)` unbound pipes.
+		// So the {5,1,...} should behave like the {0,1,...}
+		// but with a bit more thread overhead.
+		{5, 1, 100},
+
+		// Why we are here cases.  We should be able to hit the
+		// server hard and never get a busy signal.  We don't
+		// assert that because it is still theoretically possible,
+		// but should now be very unlikely.
+		{5, 5, 100},
+		{5, 10, 100},
+		{10, 20, 1000},
+	}
+
+	for _, ti := range tests {
+		nrOK, nrBusy, nrOther := tryConnectionStress(t, ti.qs, ti.ps, ti.na)
+		name := fmt.Sprintf("case[qs %d][ps %d][na %d]", ti.qs, ti.ps, ti.na)
+		fmt.Printf("%s: [nrOK %d][nrBusy %d][nrOther %d]\n", name, nrOK, nrBusy, nrOther)
+		if nrOther > 0 {
+			t.Errorf("%s: unexpected Accept() errors", name)
+		}
 	}
 }
