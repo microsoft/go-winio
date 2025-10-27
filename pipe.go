@@ -10,6 +10,7 @@ import (
 	"net"
 	"os"
 	"runtime"
+	"sync"
 	"time"
 	"unsafe"
 
@@ -315,8 +316,9 @@ type win32PipeListener struct {
 	path        string
 	config      PipeConfig
 	acceptCh    chan (chan acceptResponse)
-	closeCh     chan int
-	doneCh      chan int
+	closeOnce   sync.Once
+	closeCh     chan struct{}
+	doneCh      chan struct{}
 }
 
 func makeServerPipeHandle(path string, sd []byte, c *PipeConfig, first bool) (windows.Handle, error) {
@@ -529,8 +531,8 @@ func ListenPipe(path string, c *PipeConfig) (net.Listener, error) {
 		path:        path,
 		config:      *c,
 		acceptCh:    make(chan (chan acceptResponse)),
-		closeCh:     make(chan int),
-		doneCh:      make(chan int),
+		closeCh:     make(chan struct{}),
+		doneCh:      make(chan struct{}),
 	}
 	go l.listenerRoutine()
 	return l, nil
@@ -572,11 +574,10 @@ func (l *win32PipeListener) Accept() (net.Conn, error) {
 }
 
 func (l *win32PipeListener) Close() error {
-	select {
-	case l.closeCh <- 1:
-		<-l.doneCh
-	case <-l.doneCh:
-	}
+	l.closeOnce.Do(func() {
+		close(l.closeCh)
+	})
+	<-l.doneCh
 	return nil
 }
 
