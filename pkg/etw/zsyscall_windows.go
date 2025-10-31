@@ -53,16 +53,24 @@ func eventRegister(providerId *windows.GUID, callback uintptr, callbackContext u
 	return
 }
 
-func eventSetInformation_64(providerHandle providerHandle, class eventInfoClass, information uintptr, length uint32) (win32err error) {
-	r0, _, _ := syscall.SyscallN(procEventSetInformation.Addr(), uintptr(providerHandle), uintptr(class), uintptr(information), uintptr(length))
+func eventSetInformation_64(providerHandle providerHandle, class eventInfoClass, information []byte) (win32err error) {
+	var _p0 *byte
+	if len(information) > 0 {
+		_p0 = &information[0]
+	}
+	r0, _, _ := syscall.SyscallN(procEventSetInformation.Addr(), uintptr(providerHandle), uintptr(class), uintptr(unsafe.Pointer(_p0)), uintptr(len(information)))
 	if r0 != 0 {
 		win32err = syscall.Errno(r0)
 	}
 	return
 }
 
-func eventSetInformation_32(providerHandle_low uint32, providerHandle_high uint32, class eventInfoClass, information uintptr, length uint32) (win32err error) {
-	r0, _, _ := syscall.SyscallN(procEventSetInformation.Addr(), uintptr(providerHandle_low), uintptr(providerHandle_high), uintptr(class), uintptr(information), uintptr(length))
+func eventSetInformation_32(providerHandle_low uint32, providerHandle_high uint32, class eventInfoClass, information []byte) (win32err error) {
+	var _p0 *byte
+	if len(information) > 0 {
+		_p0 = &information[0]
+	}
+	r0, _, _ := syscall.SyscallN(procEventSetInformation.Addr(), uintptr(providerHandle_low), uintptr(providerHandle_high), uintptr(class), uintptr(unsafe.Pointer(_p0)), uintptr(len(information)))
 	if r0 != 0 {
 		win32err = syscall.Errno(r0)
 	}
