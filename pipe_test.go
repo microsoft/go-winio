@@ -643,5 +643,49 @@ func TestListenConnectRace(t *testing.T) {
 			s.Close()
 		}
 		wg.Wait()
+
+		t.Logf("iteration %d", i)
+	}
+}
+
+func TestCloseRace(t *testing.T) {
+	for i := 0; i < 1000 && !t.Failed(); i++ {
+		l, err := ListenPipe(testPipeName, &PipeConfig{MessageMode: true})
+		if err != nil {
+			t.Fatal(err)
+		}
+		go func() {
+			for {
+				c, err := l.Accept()
+				if err != nil {
+					return
+				}
+				b, err := io.ReadAll(c)
+				if err != nil {
+					t.Error(err)
+					return
+				}
+				_, _ = c.Write(b)
+				_ = c.Close()
+			}
+		}()
+
+		c, err := DialPipe(testPipeName, nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err = c.Write([]byte("hello")); err != nil {
+			t.Fatal(err)
+		}
+		if err := c.(CloseWriter).CloseWrite(); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := io.ReadAll(c); err != nil {
+			t.Fatal(err)
+		}
+		_ = c.Close()
+		_ = l.Close()
+
+		t.Logf("iteration %d", i)
 	}
 }
