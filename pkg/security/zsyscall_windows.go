@@ -52,8 +52,8 @@ func getSecurityInfo(handle windows.Handle, objectType uint32, si uint32, ppsidO
 	return
 }
 
-func setEntriesInAcl(count uintptr, pListOfEEs uintptr, oldAcl uintptr, newAcl *uintptr) (win32err error) {
-	r0, _, _ := syscall.SyscallN(procSetEntriesInAclW.Addr(), uintptr(count), uintptr(pListOfEEs), uintptr(oldAcl), uintptr(unsafe.Pointer(newAcl)))
+func setEntriesInAcl(count uintptr, pListOfEEs *explicitAccess, oldAcl uintptr, newAcl *uintptr) (win32err error) {
+	r0, _, _ := syscall.SyscallN(procSetEntriesInAclW.Addr(), uintptr(count), uintptr(unsafe.Pointer(pListOfEEs)), uintptr(oldAcl), uintptr(unsafe.Pointer(newAcl)))
 	if r0 != 0 {
 		win32err = syscall.Errno(r0)
 	}

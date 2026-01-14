@@ -5,7 +5,6 @@ package security
 import (
 	"fmt"
 	"os"
-	"unsafe"
 
 	"golang.org/x/sys/windows"
 )
@@ -33,7 +32,7 @@ type (
 		multipleTrusteeOperation int32
 		trusteeForm              trusteeForm
 		trusteeType              trusteeType
-		name                     uintptr
+		name                     *windows.SID
 	}
 )
 
@@ -153,13 +152,13 @@ func generateDACLWithAcesAdded(name string, isDir bool, origDACL uintptr) (uintp
 			trustee: trustee{
 				trusteeForm: trusteeFormIsSID,
 				trusteeType: trusteeTypeWellKnownGroup,
-				name:        uintptr(unsafe.Pointer(sid)),
+				name:        sid,
 			},
 		},
 	}
 
 	modifiedDACL := uintptr(0)
-	if err := setEntriesInAcl(uintptr(uint32(1)), uintptr(unsafe.Pointer(&eaArray[0])), origDACL, &modifiedDACL); err != nil {
+	if err := setEntriesInAcl(uintptr(uint32(1)), &eaArray[0], origDACL, &modifiedDACL); err != nil {
 		return 0, fmt.Errorf("%s SetEntriesInAcl %s: %w", gvmga, name, err)
 	}
 
