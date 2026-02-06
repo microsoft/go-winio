@@ -120,7 +120,7 @@ func (f *win32File) closeHandle() {
 		f.wg.Wait()
 		// at this point, no new IO can start
 		if f.socket {
-			windows.Closesocket(f.handle)
+			_ = windows.Closesocket(f.handle)
 		} else {
 			windows.Close(f.handle)
 		}
