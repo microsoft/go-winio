@@ -68,17 +68,29 @@ func DecodeReparsePointData(tag uint32, b []byte) (*ReparsePoint, error) {
 }
 
 func decodeWindowsReparsePointData(b []byte, isMountPoint bool) (*ReparsePoint, error) {
-	nameOffset := 8 + binary.LittleEndian.Uint16(b[4:6])
+	nameOffset := 8 + binary.LittleEndian.Uint16(b[0:2])
 	if !isMountPoint {
 		nameOffset += 4
 	}
-	nameLength := binary.LittleEndian.Uint16(b[6:8])
+	nameLength := binary.LittleEndian.Uint16(b[2:4])
 	name := make([]uint16, nameLength/2)
 	err := binary.Read(bytes.NewReader(b[nameOffset:nameOffset+nameLength]), binary.LittleEndian, &name)
 	if err != nil {
 		return nil, err
 	}
-	return &ReparsePoint{Target: string(utf16.Decode(name)), IsMountPoint: isMountPoint, IsLxSymlink: false}, nil
+	target := string(utf16.Decode(name))
+	// SubstituteName uses NT path prefixes; convert back to Win32 form.
+	if strings.HasPrefix(target, `\??\UNC\`) {
+		target = `\\` + target[8:]
+	} else if strings.HasPrefix(target, `\??\`) {
+		rest := target[4:]
+		if len(rest) >= 2 && isDriveLetter(rest[0]) && rest[1] == ':' {
+			target = rest
+		} else {
+			target = `\\?\` + rest
+		}
+	}
+	return &ReparsePoint{Target: target, IsMountPoint: isMountPoint, IsLxSymlink: false}, nil
 }
 
 func decodeLxReparsePointData(b []byte) (*ReparsePoint, error) {
