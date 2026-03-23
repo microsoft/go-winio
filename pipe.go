@@ -179,7 +179,7 @@ func (f *win32MessageBytePipe) Read(b []byte) (int, error) {
 	}
 	n, err := f.win32File.Read(b)
 	switch err {
-	case io.EOF: //nolint:errorlint
+	case io.EOF: //nolint:errorlint // error is not wrapped.
 		// If this was the result of a zero-byte read, then
 		// it is possible that the read was due to a zero-size
 		// message. Since we are simulating CloseWrite with a
