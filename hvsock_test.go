@@ -30,7 +30,7 @@ func randHvsockAddr() *HvsockAddr {
 
 func serverListen(u testUtil) (l *HvsockListener, a *HvsockAddr) {
 	var err error
-	for i := 0; i < 3; i++ {
+	for range 3 {
 		a = randHvsockAddr()
 		l, err = ListenHvsock(a)
 		if errors.Is(err, windows.WSAEADDRINUSE) {
@@ -274,7 +274,7 @@ func TestHvSockReadTooSmall(t *testing.T) {
 		defer c.Close()
 
 		b := make([]byte, 16)
-		ss := ""
+		var ss strings.Builder
 		for {
 			n, err := c.Read(b)
 			if errors.Is(err, io.EOF) {
@@ -283,11 +283,11 @@ func TestHvSockReadTooSmall(t *testing.T) {
 			if err != nil {
 				return fmt.Errorf("server rx: %w", err)
 			}
-			ss += string(b[:n])
+			ss.WriteString(string(b[:n]))
 		}
 
-		if ss != s {
-			return fmt.Errorf("got %q, wanted: %q", ss, s)
+		if ss.String() != s {
+			return fmt.Errorf("got %q, wanted: %q", ss.String(), s)
 		}
 		return nil
 	})
@@ -504,8 +504,7 @@ func TestHvSockCloseReadWriteDial(t *testing.T) {
 
 func TestHvSockDialNoTimeout(t *testing.T) {
 	u := newUtil(t)
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	ctx := t.Context()
 	ch := u.Go(func() error {
 		addr := randHvsockAddr()
 		cl, err := Dial(ctx, addr)

@@ -284,7 +284,7 @@ func (f *decompressor) readTree(lens []byte) error {
 			if i+zeroes > len(lens) {
 				return errCorrupt
 			}
-			for j := 0; j < zeroes; j++ {
+			for j := range zeroes {
 				lens[i+j] = 0
 			}
 			i += zeroes
@@ -293,7 +293,7 @@ func (f *decompressor) readTree(lens []byte) error {
 			if i+zeroes > len(lens) {
 				return errCorrupt
 			}
-			for j := 0; j < zeroes; j++ {
+			for j := range zeroes {
 				lens[i+j] = 0
 			}
 			i += zeroes
@@ -307,7 +307,7 @@ func (f *decompressor) readTree(lens []byte) error {
 				return errCorrupt
 			}
 			l := (lens[i] + 17 - c) % 17
-			for j := 0; j < same; j++ {
+			for j := range same {
 				lens[i+j] = l
 			}
 			i += same

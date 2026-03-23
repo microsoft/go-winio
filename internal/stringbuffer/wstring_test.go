@@ -28,7 +28,7 @@ func Test_BufferCapacity(t *testing.T) {
 
 func Test_BufferFree(t *testing.T) {
 	// make sure free-ing doesn't set pooled buffer to nil as well
-	for i := 0; i < 256; i++ {
+	for range 256 {
 		// try allocating and freeing repeatedly since pool does not guarantee item reuse
 		b := NewWString()
 		b.Free()

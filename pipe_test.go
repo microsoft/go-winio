@@ -551,7 +551,7 @@ func TestConnectRace(t *testing.T) {
 		}
 	}()
 
-	for i := 0; i < 1000; i++ {
+	for range 1000 {
 		c, err := DialPipe(testPipeName, nil)
 		if err != nil {
 			t.Fatal(err)
