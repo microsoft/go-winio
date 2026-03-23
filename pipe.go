@@ -178,14 +178,15 @@ func (f *win32MessageBytePipe) Read(b []byte) (int, error) {
 		return 0, io.EOF
 	}
 	n, err := f.win32File.Read(b)
-	if err == io.EOF { //nolint:errorlint
+	switch err {
+	case io.EOF: //nolint:errorlint
 		// If this was the result of a zero-byte read, then
 		// it is possible that the read was due to a zero-size
 		// message. Since we are simulating CloseWrite with a
 		// zero-byte message, ensure that all future Read() calls
 		// also return EOF.
 		f.readEOF = true
-	} else if err == windows.ERROR_MORE_DATA { //nolint:errorlint // err is Errno
+	case windows.ERROR_MORE_DATA: //nolint:errorlint // err is Errno
 		// ERROR_MORE_DATA indicates that the pipe's read mode is message mode
 		// and the message still has more bytes. Treat this as a success, since
 		// this package presents all named pipes as byte streams.

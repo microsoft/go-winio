@@ -165,8 +165,8 @@ func (p *Param) TmpVarCode() string {
 
 // TmpVarReadbackCode returns source code for reading back the temp variable into the original variable.
 func (p *Param) TmpVarReadbackCode() string {
-	switch {
-	case p.Type == tBoolPtr:
+	switch p.Type {
+	case tBoolPtr:
 		return fmt.Sprintf("*%s = %s != 0", p.Name, p.tmpVar())
 	default:
 		return ""
