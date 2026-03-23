@@ -303,7 +303,7 @@ func (r *Rets) useLongHandleErrorCode(retvar string) string {
 	}`
 	cond := retvar + " == 0"
 	if r.FailCond != "" {
-		cond = strings.Replace(r.FailCond, "failretval", retvar, 1)
+		cond = strings.ReplaceAll(r.FailCond, "failretval", retvar)
 	}
 	return fmt.Sprintf(code, cond)
 }
@@ -858,7 +858,7 @@ func (src *Source) Generate(w io.Writer) error {
 				return syscalldot() + "NewLazyDLL(" + arg + ")"
 			}
 			if strings.HasPrefix(dll, "api_") || strings.HasPrefix(dll, "ext_") {
-				arg = strings.Replace(arg, "_", "-", -1)
+				arg = strings.ReplaceAll(arg, "_", "-")
 			}
 			switch pkgtype {
 			case pkgStd:
