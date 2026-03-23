@@ -186,7 +186,7 @@ func (f *win32MessageBytePipe) Read(b []byte) (int, error) {
 		// zero-byte message, ensure that all future Read() calls
 		// also return EOF.
 		f.readEOF = true
-	case windows.ERROR_MORE_DATA: //nolint:errorlint // err is Errno
+	case windows.ERROR_MORE_DATA:
 		// ERROR_MORE_DATA indicates that the pipe's read mode is message mode
 		// and the message still has more bytes. Treat this as a success, since
 		// this package presents all named pipes as byte streams.

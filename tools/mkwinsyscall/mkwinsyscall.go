@@ -708,7 +708,7 @@ func (src *Source) ParseFile(path string) error {
 	if err == nil {
 		defer file.Close()
 		return src.parseFile(file)
-	} else if !(errors.Is(err, os.ErrNotExist) || errors.Is(err, windows.ERROR_INVALID_NAME)) {
+	} else if !errors.Is(err, os.ErrNotExist) && !errors.Is(err, windows.ERROR_INVALID_NAME) {
 		return err
 	}
 
@@ -743,7 +743,7 @@ func (src *Source) parseFile(file *os.File) error {
 			continue
 		}
 		t = t[5:]
-		if !(t[0] == ' ' || t[0] == '\t') {
+		if t[0] != ' ' && t[0] != '\t' {
 			continue
 		}
 		f, err := newFn(t[1:])
