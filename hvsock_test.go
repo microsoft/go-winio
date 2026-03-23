@@ -533,7 +533,7 @@ func TestHvSockDialDeadline(t *testing.T) {
 	cl, err := d.Dial(context.Background(), addr)
 	if err == nil {
 		cl.Close()
-		t.Fatalf("dial should not have finished")
+		t.Fatal("dial should not have finished")
 	}
 	u.Is(err, context.DeadlineExceeded, "dial did not exceed deadline")
 }
@@ -550,7 +550,7 @@ func TestHvSockDialContext(t *testing.T) {
 	cl, err := d.Dial(ctx, addr)
 	if err == nil {
 		cl.Close()
-		t.Fatalf("dial should not have finished")
+		t.Fatal("dial should not have finished")
 	}
 	u.Is(err, context.Canceled, "dial was not canceled")
 }

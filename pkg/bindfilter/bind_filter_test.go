@@ -94,7 +94,7 @@ func TestApplyFileBindingReadOnly(t *testing.T) {
 	// Attempt to remove the file on the mount point
 	err = os.Remove(dstFile)
 	if err == nil {
-		t.Fatalf("should not be able to remove a file from a read-only mount")
+		t.Fatal("should not be able to remove a file from a read-only mount")
 	}
 	if !errors.Is(err, os.ErrPermission) {
 		t.Fatalf("expected an access denied error, got: %q", err)
@@ -103,7 +103,7 @@ func TestApplyFileBindingReadOnly(t *testing.T) {
 	// Attempt to write on the read-only mount point.
 	err = os.WriteFile(dstFile, []byte("something else"), 0600)
 	if err == nil {
-		t.Fatalf("should not be able to overwrite a file from a read-only mount")
+		t.Fatal("should not be able to overwrite a file from a read-only mount")
 	}
 	if !errors.Is(err, os.ErrPermission) {
 		t.Fatalf("expected an access denied error, got: %q", err)
@@ -128,7 +128,7 @@ func TestEnsureOnlyOneTargetCanBeMounted(t *testing.T) {
 	err = ApplyFileBinding(destination, secondarySource, false)
 	if err == nil {
 		removeFileBinding(t, destination)
-		t.Fatalf("we should not be able to mount multiple targets in the same destination")
+		t.Fatal("we should not be able to mount multiple targets in the same destination")
 	}
 }
 
@@ -165,13 +165,13 @@ func TestGetBindMappings(t *testing.T) {
 	srcShort := t.TempDir()
 	source, err := getFinalPath(srcShort)
 	if err != nil {
-		t.Fatalf("failed to get long path")
+		t.Fatal("failed to get long path")
 	}
 
 	dstShort := t.TempDir()
 	destination, err := getFinalPath(dstShort)
 	if err != nil {
-		t.Fatalf("failed to get long path")
+		t.Fatal("failed to get long path")
 	}
 
 	err = ApplyFileBinding(destination, source, false)
@@ -196,13 +196,13 @@ func TestRemoveFileBinding(t *testing.T) {
 	srcShort := t.TempDir()
 	source, err := getFinalPath(srcShort)
 	if err != nil {
-		t.Fatalf("failed to get long path")
+		t.Fatal("failed to get long path")
 	}
 
 	dstShort := t.TempDir()
 	destination, err := getFinalPath(dstShort)
 	if err != nil {
-		t.Fatalf("failed to get long path")
+		t.Fatal("failed to get long path")
 	}
 
 	fileName := "testFile.txt"
@@ -252,13 +252,13 @@ func TestGetBindMappingsSymlinks(t *testing.T) {
 	// points to.
 	source, err := getFinalPath(sourceNested)
 	if err != nil {
-		t.Fatalf("failed to get long path")
+		t.Fatal("failed to get long path")
 	}
 
 	dstShort := t.TempDir()
 	destination, err := getFinalPath(dstShort)
 	if err != nil {
-		t.Fatalf("failed to get long path")
+		t.Fatal("failed to get long path")
 	}
 
 	// Use the symlink as a source for the mapping.

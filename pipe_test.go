@@ -347,7 +347,7 @@ func TestTimeoutPendingRead(t *testing.T) {
 			t.Fatalf("expected ErrTimeout, got %v", err)
 		}
 	case <-time.After(100 * time.Millisecond):
-		t.Fatalf("timed out while waiting for read to cancel")
+		t.Fatal("timed out while waiting for read to cancel")
 		<-clientErr
 	}
 	<-serverDone
@@ -394,7 +394,7 @@ func TestTimeoutPendingWrite(t *testing.T) {
 			t.Fatalf("expected ErrTimeout, got %v", err)
 		}
 	case <-time.After(100 * time.Millisecond):
-		t.Fatalf("timed out while waiting for write to cancel")
+		t.Fatal("timed out while waiting for write to cancel")
 		<-clientErr
 	}
 	<-serverDone
