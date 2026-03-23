@@ -343,7 +343,7 @@ func makeServerPipeHandle(path string, sd []byte, c *PipeConfig, first bool) (wi
 	// The security descriptor is only needed for the first pipe.
 	if first {
 		if sd != nil {
-			//todo: does `sdb` need to be allocated on the heap, or can go allocate it?
+			// todo: does `sdb` need to be allocated on the heap, or can go allocate it?
 			l := uint32(len(sd))
 			sdb, err := windows.LocalAlloc(0, l)
 			if err != nil {

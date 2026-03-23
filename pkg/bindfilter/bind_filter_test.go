@@ -289,7 +289,7 @@ func requireElevated(tb testing.TB) {
 
 const RS5 = 17763
 
-//todo: also check that `bindfltapi.dll` exists
+// todo: also check that `bindfltapi.dll` exists
 
 // require current build to be >= build
 func requireBuild(tb testing.TB, build uint32) {
