@@ -55,6 +55,8 @@ const (
 )
 
 // eventDescriptor represents various metadata for an ETW event.
+//
+//nolint:unused,nolintlint // only used on Windows.
 type eventDescriptor struct {
 	id      uint16
 	version uint8
@@ -67,6 +69,8 @@ type eventDescriptor struct {
 
 // newEventDescriptor returns an EventDescriptor initialized for use with
 // TraceLogging.
+//
+//nolint:unused,nolintlint // only used on Windows.
 func newEventDescriptor() *eventDescriptor {
 	// Standard TraceLogging events default to the TraceLogging channel, and
 	// verbose level.
