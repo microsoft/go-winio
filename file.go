@@ -3,6 +3,7 @@
 package winio
 
 import (
+	"context"
 	"io"
 	"os"
 	"runtime"
@@ -25,13 +26,28 @@ import (
 // Deprecated: use [os.ErrClosed] instead.
 var ErrFileClosed = os.ErrClosed
 
-var ErrTimeout = &timeoutError{}
+// ErrTimeout is returned when an I/O operation exceeds its deadline.
+//
+// It matches both [context.DeadlineExceeded] and [os.ErrDeadlineExceeded]
+// with [errors.Is].
+var ErrTimeout error = &timeoutError{}
 
+// timeoutError preserves the historical "i/o timeout" error while matching
+// both context.DeadlineExceeded and os.ErrDeadlineExceeded through errors.Is.
+// This mirrors the behavior of net.errTimeout:
+// https://github.com/golang/go/blob/go1.27.1/src/net/net.go
+//
+// TODO: consider replacing ErrTimeout with os.ErrDeadlineExceeded if os.ErrDeadlineExceeded is changed to match context.DeadlineExceeded.
 type timeoutError struct{}
 
 func (*timeoutError) Error() string   { return "i/o timeout" }
 func (*timeoutError) Timeout() bool   { return true }
 func (*timeoutError) Temporary() bool { return true }
+func (*timeoutError) Unwrap() error   { return os.ErrDeadlineExceeded }
+
+func (*timeoutError) Is(err error) bool {
+	return err == context.DeadlineExceeded
+}
 
 type timeoutChan chan struct{}
 
