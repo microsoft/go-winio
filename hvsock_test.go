@@ -504,10 +504,9 @@ func TestHvSockCloseReadWriteDial(t *testing.T) {
 
 func TestHvSockDialNoTimeout(t *testing.T) {
 	u := newUtil(t)
-	ctx := t.Context()
 	ch := u.Go(func() error {
 		addr := randHvsockAddr()
-		cl, err := Dial(ctx, addr)
+		cl, err := Dial(context.Background(), addr)
 		if err == nil {
 			cl.Close()
 		}
