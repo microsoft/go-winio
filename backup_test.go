@@ -20,7 +20,7 @@ func TestMain(m *testing.M) {
 	testFileName = f.Name()
 	f.Close()
 	defer os.Remove(testFileName)
-	os.Exit(m.Run())
+	m.Run()
 }
 
 func makeTestFile(makeADS bool) error {

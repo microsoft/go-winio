@@ -61,7 +61,7 @@ func TestWindowsSymlinkNotLx(t *testing.T) {
 
 	// Verify it's NOT an LX symlink
 	if decoded.IsLxSymlink {
-		t.Errorf("Windows symlink incorrectly marked as LX symlink")
+		t.Error("Windows symlink incorrectly marked as LX symlink")
 	}
 }
 
@@ -87,7 +87,7 @@ func TestLxSymlinkEmptyTarget(t *testing.T) {
 		t.Errorf("Target mismatch: got %q, want %q", decoded.Target, original.Target)
 	}
 	if !decoded.IsLxSymlink {
-		t.Errorf("IsLxSymlink should be true")
+		t.Error("IsLxSymlink should be true")
 	}
 }
 
@@ -113,7 +113,7 @@ func TestLxSymlinkRelativePath(t *testing.T) {
 		t.Errorf("Target mismatch: got %q, want %q", decoded.Target, original.Target)
 	}
 	if !decoded.IsLxSymlink {
-		t.Errorf("IsLxSymlink should be true")
+		t.Error("IsLxSymlink should be true")
 	}
 }
 
@@ -139,7 +139,7 @@ func TestLxSymlinkSpecialCharacters(t *testing.T) {
 		t.Errorf("Target mismatch: got %q, want %q", decoded.Target, original.Target)
 	}
 	if !decoded.IsLxSymlink {
-		t.Errorf("IsLxSymlink should be true")
+		t.Error("IsLxSymlink should be true")
 	}
 }
 

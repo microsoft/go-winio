@@ -347,7 +347,7 @@ func TestTimeoutPendingRead(t *testing.T) {
 			t.Fatalf("expected ErrTimeout, got %v", err)
 		}
 	case <-time.After(100 * time.Millisecond):
-		t.Fatalf("timed out while waiting for read to cancel")
+		t.Fatal("timed out while waiting for read to cancel")
 		<-clientErr
 	}
 	<-serverDone
@@ -394,7 +394,7 @@ func TestTimeoutPendingWrite(t *testing.T) {
 			t.Fatalf("expected ErrTimeout, got %v", err)
 		}
 	case <-time.After(100 * time.Millisecond):
-		t.Fatalf("timed out while waiting for write to cancel")
+		t.Fatal("timed out while waiting for write to cancel")
 		<-clientErr
 	}
 	<-serverDone
@@ -551,7 +551,7 @@ func TestConnectRace(t *testing.T) {
 		}
 	}()
 
-	for i := 0; i < 1000; i++ {
+	for range 1000 {
 		c, err := DialPipe(testPipeName, nil)
 		if err != nil {
 			t.Fatal(err)

@@ -30,7 +30,7 @@ func randHvsockAddr() *HvsockAddr {
 
 func serverListen(u testUtil) (l *HvsockListener, a *HvsockAddr) {
 	var err error
-	for i := 0; i < 3; i++ {
+	for range 3 {
 		a = randHvsockAddr()
 		l, err = ListenHvsock(a)
 		if errors.Is(err, windows.WSAEADDRINUSE) {
@@ -274,7 +274,7 @@ func TestHvSockReadTooSmall(t *testing.T) {
 		defer c.Close()
 
 		b := make([]byte, 16)
-		ss := ""
+		var ss strings.Builder
 		for {
 			n, err := c.Read(b)
 			if errors.Is(err, io.EOF) {
@@ -283,11 +283,11 @@ func TestHvSockReadTooSmall(t *testing.T) {
 			if err != nil {
 				return fmt.Errorf("server rx: %w", err)
 			}
-			ss += string(b[:n])
+			ss.WriteString(string(b[:n]))
 		}
 
-		if ss != s {
-			return fmt.Errorf("got %q, wanted: %q", ss, s)
+		if ss.String() != s {
+			return fmt.Errorf("got %q, wanted: %q", ss.String(), s)
 		}
 		return nil
 	})
@@ -504,11 +504,9 @@ func TestHvSockCloseReadWriteDial(t *testing.T) {
 
 func TestHvSockDialNoTimeout(t *testing.T) {
 	u := newUtil(t)
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
 	ch := u.Go(func() error {
 		addr := randHvsockAddr()
-		cl, err := Dial(ctx, addr)
+		cl, err := Dial(context.Background(), addr)
 		if err == nil {
 			cl.Close()
 		}
@@ -534,7 +532,7 @@ func TestHvSockDialDeadline(t *testing.T) {
 	cl, err := d.Dial(context.Background(), addr)
 	if err == nil {
 		cl.Close()
-		t.Fatalf("dial should not have finished")
+		t.Fatal("dial should not have finished")
 	}
 	u.Is(err, context.DeadlineExceeded, "dial did not exceed deadline")
 }
@@ -551,7 +549,7 @@ func TestHvSockDialContext(t *testing.T) {
 	cl, err := d.Dial(ctx, addr)
 	if err == nil {
 		cl.Close()
-		t.Fatalf("dial should not have finished")
+		t.Fatal("dial should not have finished")
 	}
 	u.Is(err, context.Canceled, "dial was not canceled")
 }

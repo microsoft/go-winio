@@ -1,4 +1,4 @@
-//go:build windows && go1.18
+//go:build windows
 
 package winio
 

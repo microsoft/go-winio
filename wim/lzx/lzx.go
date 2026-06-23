@@ -230,7 +230,7 @@ func (f *decompressor) getCode(h *huffman) uint16 {
 		// are, since entries with all possible suffixes were
 		// added to the table.
 		c := h.table[f.c>>(32-tablebits)]
-		if !(c >= 1<<lenshift) {
+		if c < 1<<lenshift {
 			// The code is not in c.
 			c = h.extra[c][f.c<<tablebits>>(32-(h.maxbits-tablebits))]
 		}
@@ -284,7 +284,7 @@ func (f *decompressor) readTree(lens []byte) error {
 			if i+zeroes > len(lens) {
 				return errCorrupt
 			}
-			for j := 0; j < zeroes; j++ {
+			for j := range zeroes {
 				lens[i+j] = 0
 			}
 			i += zeroes
@@ -293,7 +293,7 @@ func (f *decompressor) readTree(lens []byte) error {
 			if i+zeroes > len(lens) {
 				return errCorrupt
 			}
-			for j := 0; j < zeroes; j++ {
+			for j := range zeroes {
 				lens[i+j] = 0
 			}
 			i += zeroes
@@ -307,7 +307,7 @@ func (f *decompressor) readTree(lens []byte) error {
 				return errCorrupt
 			}
 			l := (lens[i] + 17 - c) % 17
-			for j := 0; j < same; j++ {
+			for j := range same {
 				lens[i+j] = l
 			}
 			i += same
@@ -489,7 +489,7 @@ func (f *decompressor) readCompressedBlock(start, end uint16, hmain, hlength, ha
 			f.lru[0] = matchoffset
 		}
 
-		if !(matchoffset <= i && matchlen <= end-i) {
+		if matchoffset > i || matchlen > end-i {
 			f.fail(errCorrupt)
 			break
 		}

@@ -63,7 +63,7 @@ func Test_Variant(t *testing.T) {
 
 func Test_SetVariant(t *testing.T) {
 	g := mustFromString(t, "f5cbc1a9-4cba-45a0-bfdd-b6761fc7dcc0")
-	for i := 0; i < len(_Variant_index)-1; i++ {
+	for i := range len(_Variant_index) - 1 {
 		v := Variant(i)
 		if v == VariantUnknown {
 			// Unknown is not a valid variant
@@ -102,7 +102,7 @@ func Test_Version(t *testing.T) {
 
 func Test_SetVersion(t *testing.T) {
 	g := mustFromString(t, "f5cbc1a9-4cba-45a0-bfdd-b6761fc7dcc0")
-	for tc := 0; tc < 16; tc++ {
+	for tc := range 16 {
 		v := Version(tc)
 		t.Run(v.String(), func(t *testing.T) {
 			g.setVersion(v)

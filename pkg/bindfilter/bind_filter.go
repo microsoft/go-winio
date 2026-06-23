@@ -188,7 +188,7 @@ func getTargetsFromBuffer(buffer []byte, offset, count int) ([]string, error) {
 	}
 
 	targets := make([]string, count)
-	for i := 0; i < count; i++ {
+	for i := range count {
 		entryBuf := buffer[offset+i*8 : offset+i*8+8]
 		tgt := *(*mappingTargetEntry)(unsafe.Pointer(&entryBuf[0]))
 		if len(buffer) < int(tgt.TargetRootOffset)+int(tgt.TargetRootLength) {

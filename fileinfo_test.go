@@ -30,18 +30,16 @@ func checkFileStandardInfo(t *testing.T, current, expected *FileStandardInfo) {
 
 	if current.DeletePending != expected.DeletePending {
 		if current.DeletePending {
-			t.Fatalf("FileStandardInfo unexpectedly DeletePending")
-		} else {
-			t.Fatalf("FileStandardInfo unexpectedly not DeletePending")
+			t.Fatal("FileStandardInfo unexpectedly DeletePending")
 		}
+		t.Fatal("FileStandardInfo unexpectedly not DeletePending")
 	}
 
 	if current.Directory != expected.Directory {
 		if current.Directory {
-			t.Fatalf("FileStandardInfo unexpectedly Directory")
-		} else {
-			t.Fatalf("FileStandardInfo unexpectedly not Directory")
+			t.Fatal("FileStandardInfo unexpectedly Directory")
 		}
+		t.Fatal("FileStandardInfo unexpectedly not Directory")
 	}
 }
 
