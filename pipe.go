@@ -470,7 +470,9 @@ func (l *win32PipeListener) listenerRoutine() {
 				p, err = l.makeConnectedServerPipe()
 				// If the connection was immediately closed by the client, try
 				// again.
-				if err != windows.ERROR_NO_DATA { //nolint:errorlint // err is Errno
+				// Treat ERROR_BROKEN_PIPE as retryable, similar to ERROR_NO_DATA, 
+				// as it indicates a client disconnected before the connection was fully accepted.
+				if err != windows.ERROR_NO_DATA && err != windows.ERROR_BROKEN_PIPE { //nolint:errorlint // err is Errno
 					break
 				}
 			}
