@@ -77,19 +77,21 @@ func providerCallback(
 ) {
 	provider := providers.getProvider(uint(i))
 
-	switch state {
-	case ProviderStateCaptureState:
-	case ProviderStateDisable:
-		provider.enabled = false
-	case ProviderStateEnable:
-		provider.enabled = true
-		provider.level = level
-		provider.keywordAny = matchAnyKeyword
-		provider.keywordAll = matchAllKeyword
-	}
+	if provider != nil {
+		switch state {
+		case ProviderStateCaptureState:
+		case ProviderStateDisable:
+			provider.enabled = false
+		case ProviderStateEnable:
+			provider.enabled = true
+			provider.level = level
+			provider.keywordAny = matchAnyKeyword
+			provider.keywordAll = matchAllKeyword
+		}
 
-	if provider.callback != nil {
-		provider.callback(sourceID, state, level, matchAnyKeyword, matchAllKeyword, filterData)
+		if provider.callback != nil {
+			provider.callback(sourceID, state, level, matchAnyKeyword, matchAllKeyword, filterData)
+		}
 	}
 }
 
