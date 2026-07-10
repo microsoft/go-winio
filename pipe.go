@@ -432,7 +432,9 @@ func (l *win32PipeListener) makeConnectedServerPipe() (*win32File, error) {
 	}
 
 	// Wait for the client to connect.
-	ch := make(chan error)
+	// ch is buffered so that the connect goroutine can always deliver its
+	// result and exit, even if this function stops waiting on it below.
+	ch := make(chan error, 1)
 	go func(p *win32File) {
 		ch <- connectPipe(p)
 	}(p)
@@ -447,8 +449,13 @@ func (l *win32PipeListener) makeConnectedServerPipe() (*win32File, error) {
 		// Abort the connect request by closing the handle.
 		p.Close()
 		p = nil
-		err = <-ch
-		if err == nil || err == ErrFileClosed { //nolint:errorlint // err is Errno
+		// Bounded drain: wait briefly for the connect goroutine to report completion.
+		select {
+		case err = <-ch:
+			if err == nil || err == ErrFileClosed { //nolint:errorlint // err is Errno
+				err = ErrPipeListenerClosed
+			}
+		case <-time.After(100 * time.Millisecond):
 			err = ErrPipeListenerClosed
 		}
 	}

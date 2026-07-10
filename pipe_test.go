@@ -7,8 +7,10 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"net"
+	"os"
 	"sync"
 	"testing"
 	"time"
@@ -643,5 +645,54 @@ func TestListenConnectRace(t *testing.T) {
 			s.Close()
 		}
 		wg.Wait()
+	}
+}
+
+func TestListenerCloseDuringPendingConnectReturnsPromptly(t *testing.T) {
+	path := fmt.Sprintf(`\\.\pipe\winio_test_%d_%d`, os.Getpid(), time.Now().UnixNano())
+
+	l, err := ListenPipe(path, &PipeConfig{})
+	if err != nil {
+		t.Fatalf("ListenPipe failed: %v", err)
+	}
+
+	acceptErrCh := make(chan error, 1)
+	go func() {
+		_, aerr := l.Accept()
+		acceptErrCh <- aerr
+	}()
+
+	time.Sleep(20 * time.Millisecond)
+
+	done := make(chan struct{})
+	var closeErr error
+	start := time.Now()
+	go func() {
+		closeErr = l.Close()
+		close(done)
+	}()
+
+	select {
+	case <-done:
+		if closeErr != nil {
+			t.Fatalf("Close returned error: %v", closeErr)
+		}
+		if elapsed := time.Since(start); elapsed > 500*time.Millisecond {
+			t.Fatalf("Close too slow: %v", elapsed)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("Close did not return in time (possible deadlock)")
+	}
+
+	select {
+	case aerr := <-acceptErrCh:
+		if aerr == nil {
+			t.Fatalf("Accept unexpectedly succeeded")
+		}
+		if aerr != ErrPipeListenerClosed {
+			t.Fatalf("Accept error = %v, want ErrPipeListenerClosed", aerr)
+		}
+	case <-time.After(1 * time.Second):
+		t.Fatal("Accept did not return after Close")
 	}
 }

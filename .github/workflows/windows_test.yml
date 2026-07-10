@@ -1,0 +1,14 @@
+name: Windows Cloud Sandbox Test
+on: [push, pull_request]
+jobs:
+  test:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+      - name: Setup Go Toolchain
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: 'go.mod'
+      - name: Run Targeted Verification Test
+        run: go test -v -run=TestListenerCloseDuringPendingConnectReturnsPromptly ./...
