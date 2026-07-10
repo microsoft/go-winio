@@ -689,7 +689,7 @@ func TestListenerCloseDuringPendingConnectReturnsPromptly(t *testing.T) {
 		if aerr == nil {
 			t.Fatalf("Accept unexpectedly succeeded")
 		}
-		if aerr != ErrPipeListenerClosed {
+		if !errors.Is(aerr, ErrPipeListenerClosed) {
 			t.Fatalf("Accept error = %v, want ErrPipeListenerClosed", aerr)
 		}
 	case <-time.After(1 * time.Second):
