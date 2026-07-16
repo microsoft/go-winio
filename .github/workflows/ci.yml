@@ -19,7 +19,7 @@ jobs:
           show-progress: false
 
       - name: Install go
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@v7
         with:
           go-version: ${{ env.GO_VERSION }}
           cache: false
@@ -46,7 +46,7 @@ jobs:
           show-progress: false
 
       - name: Install go
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@v7
         with:
           go-version: ${{ env.GO_VERSION }}
           # don't really need to cache Go packages, since go generate doesn't require much.
@@ -92,7 +92,7 @@ jobs:
           show-progress: false
 
       - name: Install go
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@v7
         with:
           go-version: ${{ env.GO_VERSION }}
 
@@ -136,7 +136,7 @@ jobs:
           show-progress: false
 
       - name: Install go
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@v7
         with:
           go-version: ${{ env.GO_VERSION }}
 
