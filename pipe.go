@@ -444,13 +444,13 @@ func (l *win32PipeListener) makeConnectedServerPipe() (*win32File, error) {
 			p = nil
 		}
 	case <-l.closeCh:
-		// Abort the connect request by closing the handle.
-		p.Close()
+		// Abort the connect request by closing the handle. Consuming
+		// closeCh makes closure authoritative: ConnectNamedPipe may race
+		// cancellation and return a connection result instead.
+		_ = p.Close()
 		p = nil
-		err = <-ch
-		if err == nil || err == ErrFileClosed { //nolint:errorlint // err is Errno
-			err = ErrPipeListenerClosed
-		}
+		<-ch
+		err = ErrPipeListenerClosed
 	}
 	return p, err
 }
