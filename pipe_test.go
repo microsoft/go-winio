@@ -15,6 +15,8 @@ import (
 	"unsafe"
 
 	"golang.org/x/sys/windows"
+
+	"github.com/Microsoft/go-winio/internal/fs"
 )
 
 var testPipeName = `\\.\pipe\winiotestpipe`
@@ -217,6 +219,154 @@ func TestCloseAbortsListen(t *testing.T) {
 	err = <-ch
 	if !errors.Is(err, ErrPipeListenerClosed) {
 		t.Fatalf("expected ErrPipeListenerClosed, got %v", err)
+	}
+}
+
+func TestListenerCloseRacesPendingConnect(t *testing.T) {
+	// Regression test for issue #85. Closing the listener while a client
+	// connect is in flight must not lose the close signal, even when
+	// ConnectNamedPipe races the handle close and reports a connection
+	// (ERROR_PIPE_CONNECTED, normalized to nil) or a client disconnect
+	// (ERROR_NO_DATA) instead of ErrFileClosed.
+	for i := 0; i < 50; i++ {
+		l, err := ListenPipe(testPipeName, nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		acceptCh := make(chan error, 1)
+		go func() {
+			for {
+				c, err := l.Accept()
+				if err != nil {
+					acceptCh <- err
+					return
+				}
+				c.Close()
+			}
+		}()
+
+		dialDone := make(chan struct{})
+		go func() {
+			defer close(dialDone)
+			// Dial and disconnect immediately so the raced connect can
+			// complete or fail with ERROR_NO_DATA on the server side.
+			timeout := 250 * time.Millisecond
+			c, err := DialPipe(testPipeName, &timeout)
+			if err == nil {
+				c.Close()
+			}
+		}()
+
+		// Vary the interleaving between the connect and the close.
+		time.Sleep(time.Duration(i%5) * 100 * time.Microsecond)
+
+		closeDone := make(chan struct{})
+		go func() {
+			l.Close()
+			close(closeDone)
+		}()
+
+		select {
+		case <-closeDone:
+		case <-time.After(10 * time.Second):
+			t.Fatalf("iteration %d: Close did not complete; close signal was lost", i)
+		}
+
+		select {
+		case err := <-acceptCh:
+			if !errors.Is(err, ErrPipeListenerClosed) {
+				t.Fatalf("iteration %d: expected ErrPipeListenerClosed, got %v", i, err)
+			}
+		case <-time.After(10 * time.Second):
+			t.Fatalf("iteration %d: Accept did not fail after Close", i)
+		}
+		<-dialDone
+	}
+}
+
+func TestListenerCloseOverridesRacedConnect(t *testing.T) {
+	// Regression test for issue #85. Once makeConnectedServerPipe consumes
+	// the close signal, it must report ErrPipeListenerClosed even when the
+	// raced ConnectNamedPipe already completed with a different result: a
+	// client that attaches before ConnectNamedPipe is called produces a
+	// synchronous ERROR_PIPE_CONNECTED (normalized to nil by connectPipe),
+	// and one that also disconnects first produces ERROR_NO_DATA. If either
+	// result overrides the consumed close, listenerRoutine keeps running
+	// with the single close signal already spent and Listener.Close hangs.
+	c := PipeConfig{}
+	first, err := makeServerPipeHandle(testPipeName, nil, &c, true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer windows.Close(first)
+
+	l := &win32PipeListener{
+		firstHandle: first,
+		path:        testPipeName,
+		config:      c,
+		closeCh:     make(chan int),
+		doneCh:      make(chan int),
+	}
+
+	dial := func() (windows.Handle, error) {
+		return fs.CreateFile(testPipeName,
+			fs.GENERIC_READ|fs.GENERIC_WRITE,
+			0,   // mode
+			nil, // security attributes
+			fs.OPEN_EXISTING,
+			fs.FILE_FLAG_OVERLAPPED|fs.SECURITY_SQOS_PRESENT|fs.SECURITY_ANONYMOUS,
+			0, // template file handle
+		)
+	}
+
+	type result struct {
+		p   *win32File
+		err error
+	}
+	for i := 0; i < 100; i++ {
+		resCh := make(chan result, 1)
+		go func() {
+			p, err := l.makeConnectedServerPipe()
+			resCh <- result{p, err}
+		}()
+
+		// Attach and disconnect as soon as the server pipe exists so the
+		// raced connect can complete with ERROR_NO_DATA or
+		// ERROR_PIPE_CONNECTED instead of ErrFileClosed.
+		for a := 0; a < 200; a++ {
+			if cl, err := dial(); err == nil {
+				windows.Close(cl)
+				break
+			}
+		}
+
+		// Race the close signal against the completed connect.
+		closeSent := make(chan struct{})
+		go func() {
+			l.closeCh <- 1
+			close(closeSent)
+		}()
+
+		var res result
+		select {
+		case res = <-resCh:
+		case <-time.After(10 * time.Second):
+			t.Fatalf("iteration %d: makeConnectedServerPipe did not return", i)
+		}
+		consumed := false
+		select {
+		case <-l.closeCh:
+			// The connect result won the race; drain our close signal.
+		case <-closeSent:
+			consumed = true
+		}
+		if res.p != nil {
+			res.p.Close()
+		}
+		if consumed && !errors.Is(res.err, ErrPipeListenerClosed) {
+			t.Fatalf("iteration %d: close signal consumed, expected ErrPipeListenerClosed, got %v", i, res.err)
+		}
 	}
 }
 
