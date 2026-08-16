@@ -5,7 +5,7 @@ go 1.23.0
 toolchain go1.23.8
 
 require (
-	github.com/sirupsen/logrus v1.9.3
+	github.com/sirupsen/logrus v1.10.0
 	golang.org/x/sys v0.35.0
 	golang.org/x/tools v0.36.0
 )
