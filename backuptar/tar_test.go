@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"strings"
 	"testing"
 
 	"github.com/Microsoft/go-winio"
@@ -67,6 +68,38 @@ func compareReaders(t *testing.T, rActual io.Reader, rExpected io.Reader) {
 	if n, err := rActual.Read(b[:]); n != 0 || err != io.EOF {
 		t.Fatalf("rActual didn't return EOF at expected end. Read %d bytes with error %s", n, err)
 	}
+}
+
+func readBackupStream(t *testing.T, f *os.File) []byte {
+	t.Helper()
+	br := winio.NewBackupFileReader(f, true)
+	defer br.Close()
+	buf, err := io.ReadAll(br)
+	if err != nil {
+		t.Fatalf("reading backup stream: %s", err)
+	}
+	return buf
+}
+
+func buildBackupStream(t *testing.T, entries []struct {
+	hdr  winio.BackupHeader
+	data []byte
+}) []byte {
+	t.Helper()
+	var buf bytes.Buffer
+	bw := winio.NewBackupStreamWriter(&buf)
+	for _, e := range entries {
+		hdr := e.hdr
+		if err := bw.WriteHeader(&hdr); err != nil {
+			t.Fatalf("WriteHeader(id=%d): %v", hdr.Id, err)
+		}
+		if len(e.data) > 0 {
+			if _, err := bw.Write(e.data); err != nil {
+				t.Fatalf("Write(id=%d): %v", hdr.Id, err)
+			}
+		}
+	}
+	return buf.Bytes()
 }
 
 func TestRoundTrip(t *testing.T) {
@@ -216,6 +249,184 @@ func TestRoundTrip(t *testing.T) {
 			compareReaders(t, tr, f)
 		})
 	}
+}
+
+// TestRoundTripSeekable covers the two-pass sparse export regression.
+// TestRoundTrip uses a non-seekable BackupFileReader and only covers the single-pass path.
+func TestRoundTripSeekable(t *testing.T) {
+	//nolint:gosec // G306: test files do not need restrictive permissions
+	for name, setup := range map[string]func(*testing.T) string{
+		"normalFile": func(t *testing.T) string {
+			t.Helper()
+			path := filepath.Join(t.TempDir(), "foo.txt")
+			if err := os.WriteFile(path, []byte("testing 1 2 3\n"), 0644); err != nil {
+				t.Fatal(err)
+			}
+			return path
+		},
+		"normalFileEmpty": func(t *testing.T) string {
+			t.Helper()
+			path := filepath.Join(t.TempDir(), "foo.txt")
+			f, err := os.OpenFile(path, os.O_CREATE|os.O_WRONLY, 0644)
+			if err != nil {
+				t.Fatal(err)
+			}
+			f.Close()
+			return path
+		},
+		"sparseFileEmpty": func(t *testing.T) string {
+			t.Helper()
+			path := filepath.Join(t.TempDir(), "foo.txt")
+			f, err := os.OpenFile(path, os.O_CREATE|os.O_WRONLY, 0644)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer f.Close()
+			setSparse(t, f)
+			return path
+		},
+		"sparseFileAllHoles": func(t *testing.T) string {
+			t.Helper()
+			path := filepath.Join(t.TempDir(), "foo.txt")
+			f, err := os.OpenFile(path, os.O_CREATE|os.O_WRONLY, 0644)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer f.Close()
+			setSparse(t, f)
+			// Grow the logical size without allocating data.
+			if err := f.Truncate(1048576); err != nil {
+				t.Fatal(err)
+			}
+			return path
+		},
+		"sparseFileOneRange": func(t *testing.T) string {
+			t.Helper()
+			path := filepath.Join(t.TempDir(), "foo.txt")
+			f, err := os.OpenFile(path, os.O_CREATE|os.O_WRONLY, 0644)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer f.Close()
+			setSparse(t, f)
+			if _, err := f.WriteString("test sparse data"); err != nil {
+				t.Fatal(err)
+			}
+			return path
+		},
+		"sparseFileMultipleRanges": func(t *testing.T) string {
+			t.Helper()
+			path := filepath.Join(t.TempDir(), "foo.txt")
+			f, err := os.OpenFile(path, os.O_CREATE|os.O_WRONLY, 0644)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer f.Close()
+			setSparse(t, f)
+			if _, err = f.Write([]byte("leading data\n")); err != nil {
+				t.Fatal(err)
+			}
+			if _, err = f.Seek(1048576, 0); err != nil {
+				t.Fatal(err)
+			}
+			if _, err = f.Write([]byte("trailing data\n")); err != nil {
+				t.Fatal(err)
+			}
+			return path
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			path := setup(t)
+			f, err := os.Open(path)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer f.Close()
+
+			fi, err := f.Stat()
+			if err != nil {
+				t.Fatal(err)
+			}
+			bi, err := winio.GetFileBasicInfo(f)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			// bytes.Reader implements io.Seeker, selecting the two-pass path.
+			streamBytes := readBackupStream(t, f)
+			seekable := bytes.NewReader(streamBytes)
+			if _, ok := io.Reader(seekable).(io.Seeker); !ok {
+				t.Fatal("test reader must implement io.Seeker to exercise the two-pass path")
+			}
+
+			var buf bytes.Buffer
+			tw := tar.NewWriter(&buf)
+			if err := WriteTarFileFromBackupStream(tw, seekable, f.Name(), fi.Size(), bi); err != nil {
+				t.Fatalf("WriteTarFileFromBackupStream (seekable): %s", err)
+			}
+			if err := tw.Close(); err != nil {
+				t.Fatal(err)
+			}
+
+			tr := tar.NewReader(&buf)
+			hdr, err := tr.Next()
+			if err != nil {
+				t.Fatal(err)
+			}
+			_, size, _, err := FileInfoFromHeader(hdr)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if size != fi.Size() {
+				t.Errorf("got size %d, expected %d", size, fi.Size())
+			}
+			if _, err := f.Seek(0, 0); err != nil {
+				t.Fatal(err)
+			}
+			compareReaders(t, tr, f)
+		})
+	}
+}
+
+// Build an empty sparse stream with a trailing terminator independently of the Windows build.
+func TestWriteTarZeroLengthSparseTerminator(t *testing.T) {
+	stream := buildBackupStream(t, []struct {
+		hdr  winio.BackupHeader
+		data []byte
+	}{
+		{hdr: winio.BackupHeader{Id: winio.BackupData, Attributes: winio.StreamSparseAttributes, Size: 0}},
+		{hdr: winio.BackupHeader{Id: winio.BackupSparseBlock, Attributes: winio.StreamSparseAttributes, Size: 0, Offset: 0}},
+	})
+
+	// Use a seekable reader to exercise the two-pass path.
+	seekable := bytes.NewReader(stream)
+
+	var out bytes.Buffer
+	tw := tar.NewWriter(&out)
+	bi := &winio.FileBasicInfo{}
+	if err := WriteTarFileFromBackupStream(tw, seekable, "Files/Windows/Temp/DOBDAB.tmp", 0, bi); err != nil {
+		if strings.Contains(err.Error(), "unknown stream ID 9") {
+			t.Fatalf("sparse stream regression reproduced: %v", err)
+		}
+		t.Fatalf("WriteTarFileFromBackupStream: %v", err)
+	}
+	if err := tw.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	tr := tar.NewReader(&out)
+	hdr, err := tr.Next()
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, size, _, err := FileInfoFromHeader(hdr)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if size != 0 {
+		t.Errorf("got size %d, want 0 for zero-length sparse file", size)
+	}
+	compareReaders(t, tr, bytes.NewReader(nil))
 }
 
 func TestZeroReader(t *testing.T) {
