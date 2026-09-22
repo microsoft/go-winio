@@ -11,7 +11,7 @@ env:
 jobs:
   lint:
     name: Lint
-    runs-on: windows-2022
+    runs-on: windows-2025
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -84,7 +84,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [windows-2019, windows-2022, ubuntu-latest]
+        os: [windows-2022, windows-2025, ubuntu-latest]
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -112,7 +112,7 @@ jobs:
           #
           # see: https://go.dev/doc/articles/race_detector#Requirements
 
-          if ( '${{ matrix.os }}' -ne 'windows-2019' ) {
+          if ( '${{ matrix.os }}' -ne 'windows-2022' ) {
             $race = '-race'
           }
 
