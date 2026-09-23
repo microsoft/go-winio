@@ -18,10 +18,12 @@ import (
 	"io"
 	"log"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"runtime"
 	"sort"
 	"strings"
+	"sync"
 	"text/template"
 
 	"golang.org/x/sys/windows"
@@ -779,6 +781,14 @@ func (src *Source) parseFile(file *os.File) error {
 	return nil
 }
 
+var currentGOROOT = sync.OnceValues(func() (string, error) {
+	out, err := exec.Command("go", "env", "GOROOT").Output()
+	if err != nil {
+		return "", err
+	}
+	return strings.TrimSpace(string(out)), nil
+})
+
 // IsStdRepo reports whether src is part of standard library.
 func (src *Source) IsStdRepo() (bool, error) {
 	if len(src.Files) == 0 {
@@ -788,7 +798,10 @@ func (src *Source) IsStdRepo() (bool, error) {
 	if err != nil {
 		return false, err
 	}
-	goroot := runtime.GOROOT()
+	goroot, err := currentGOROOT()
+	if err != nil {
+		return false, err
+	}
 	if runtime.GOOS == "windows" {
 		abspath = strings.ToLower(abspath)
 		goroot = strings.ToLower(goroot)
