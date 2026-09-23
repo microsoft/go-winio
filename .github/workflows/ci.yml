@@ -3,6 +3,9 @@ on:
   - push
   - pull_request
 
+permissions:
+  contents: read
+
 env:
   GO_VERSION: "oldstable"
   GOTESTSUM_VERSION: "latest"
