@@ -22,7 +22,7 @@ import (
 
 // File attribute constants from Windows.
 //
-//nolint:revive // var-naming: ALL_CAPS
+//nolint:revive,nolintlint // var-naming: ALL_CAPS
 const (
 	FILE_ATTRIBUTE_READONLY            = 0x00000001
 	FILE_ATTRIBUTE_HIDDEN              = 0x00000002
@@ -46,7 +46,7 @@ const (
 
 // Windows processor architectures.
 //
-//nolint:revive // var-naming: ALL_CAPS
+//nolint:revive,nolintlint // var-naming: ALL_CAPS
 const (
 	PROCESSOR_ARCHITECTURE_INTEL         = 0
 	PROCESSOR_ARCHITECTURE_MIPS          = 1
