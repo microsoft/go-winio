@@ -211,7 +211,7 @@ func WriteTarFileFromBackupStream(t *tar.Writer, r io.Reader, name string, size 
 		if err != nil {
 			return err
 		}
-		switch bhdr.Id {
+		switch bhdr.Id { //nolint:revive // ignore "switch" with identical branches.
 		case winio.BackupData:
 			hdr.Mode |= cISREG
 			if !readTwice {
@@ -339,7 +339,7 @@ func WriteTarFileFromBackupStream(t *tar.Writer, r io.Reader, name string, size 
 		if err != nil {
 			return err
 		}
-		switch bhdr.Id {
+		switch bhdr.Id { //nolint:revive // ignore "switch" with identical branches.
 		case winio.BackupAlternateData:
 			if (bhdr.Attributes & winio.StreamSparseAttributes) != 0 {
 				// Unsupported for now, since the size of the alternate stream is not present
