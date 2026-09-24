@@ -16,7 +16,6 @@ import (
 	"golang.org/x/sys/windows"
 )
 
-//nolint:deadcode,varcheck // keep unused constants for potential future use
 const (
 	cISUID  = 0004000 // Set uid
 	cISGID  = 0002000 // Set gid

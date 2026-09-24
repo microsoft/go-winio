@@ -111,6 +111,8 @@ linters:
           disabled: true
         - name: flag-parameter # excessive, and a common idiom we use
           disabled: true
+        - name: multiline-if-init # too opinionated; see https://github.com/microsoft/go-winio/pull/325#issuecomment-5822487436
+          disabled: true
         - name: unhandled-error # warns over common fmt.Print* and io.Close; rely on errcheck instead
           disabled: true
         # general config

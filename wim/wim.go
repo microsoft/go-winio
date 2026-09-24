@@ -97,7 +97,6 @@ type resourceDescriptor struct {
 
 type resFlag byte
 
-//nolint:deadcode,varcheck // need unused variables for iota to work
 const (
 	resFlagFree resFlag = 1 << iota
 	resFlagMetadata
@@ -137,7 +136,6 @@ type streamDescriptor struct {
 
 type hdrFlag uint32
 
-//nolint:deadcode,varcheck // need unused variables for iota to work
 const (
 	hdrFlagReserved hdrFlag = 1 << iota
 	hdrFlagCompressed
@@ -149,7 +147,6 @@ const (
 	hdrFlagRpFix
 )
 
-//nolint:deadcode,varcheck // need unused variables for iota to work
 const (
 	hdrFlagCompressReserved hdrFlag = 1 << (iota + 16)
 	hdrFlagCompressXpress
