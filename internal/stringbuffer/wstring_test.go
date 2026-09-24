@@ -22,18 +22,18 @@ func Test_BufferCapacity(t *testing.T) {
 		t.Fatalf("resized buffer should be %d, was %d", nn, len(b.b))
 	}
 	if n > nn {
-		t.Fatalf("resized to a value smaller than requested")
+		t.Fatal("resized to a value smaller than requested")
 	}
 }
 
 func Test_BufferFree(t *testing.T) {
 	// make sure free-ing doesn't set pooled buffer to nil as well
-	for i := 0; i < 256; i++ {
+	for range 256 {
 		// try allocating and freeing repeatedly since pool does not guarantee item reuse
 		b := NewWString()
 		b.Free()
 		if b.b != nil {
-			t.Fatalf("freed buffer is not nil")
+			t.Fatal("freed buffer is not nil")
 		}
 
 		b = NewWString()

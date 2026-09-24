@@ -96,8 +96,8 @@ func verifyVMAccountDACLs(t *testing.T, name string, permissions []string) {
 
 	for _, p := range permissions {
 		// Avoid '(' and ')' being part of match groups
-		p = strings.Replace(p, "(", "\\(", -1)
-		p = strings.Replace(p, ")", "\\)", -1)
+		p = strings.ReplaceAll(p, "(", "\\(")
+		p = strings.ReplaceAll(p, ")", "\\)")
 
 		nameToCheck := vmAccountName + ":" + p
 		sidToCheck := vmAccountSID + ":" + p

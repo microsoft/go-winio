@@ -165,8 +165,8 @@ func (p *Param) TmpVarCode() string {
 
 // TmpVarReadbackCode returns source code for reading back the temp variable into the original variable.
 func (p *Param) TmpVarReadbackCode() string {
-	switch {
-	case p.Type == tBoolPtr:
+	switch p.Type {
+	case tBoolPtr:
 		return fmt.Sprintf("*%s = %s != 0", p.Name, p.tmpVar())
 	default:
 		return ""
@@ -303,7 +303,7 @@ func (r *Rets) useLongHandleErrorCode(retvar string) string {
 	}`
 	cond := retvar + " == 0"
 	if r.FailCond != "" {
-		cond = strings.Replace(r.FailCond, "failretval", retvar, 1)
+		cond = strings.ReplaceAll(r.FailCond, "failretval", retvar)
 	}
 	return fmt.Sprintf(code, cond)
 }
@@ -708,7 +708,7 @@ func (src *Source) ParseFile(path string) error {
 	if err == nil {
 		defer file.Close()
 		return src.parseFile(file)
-	} else if !(errors.Is(err, os.ErrNotExist) || errors.Is(err, windows.ERROR_INVALID_NAME)) {
+	} else if !errors.Is(err, os.ErrNotExist) && !errors.Is(err, windows.ERROR_INVALID_NAME) {
 		return err
 	}
 
@@ -743,7 +743,7 @@ func (src *Source) parseFile(file *os.File) error {
 			continue
 		}
 		t = t[5:]
-		if !(t[0] == ' ' || t[0] == '\t') {
+		if t[0] != ' ' && t[0] != '\t' {
 			continue
 		}
 		f, err := newFn(t[1:])
@@ -858,7 +858,7 @@ func (src *Source) Generate(w io.Writer) error {
 				return syscalldot() + "NewLazyDLL(" + arg + ")"
 			}
 			if strings.HasPrefix(dll, "api_") || strings.HasPrefix(dll, "ext_") {
-				arg = strings.Replace(arg, "_", "-", -1)
+				arg = strings.ReplaceAll(arg, "_", "-")
 			}
 			switch pkgtype {
 			case pkgStd:
