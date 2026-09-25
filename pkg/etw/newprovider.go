@@ -5,7 +5,6 @@ package etw
 import (
 	"bytes"
 	"encoding/binary"
-	"unsafe"
 
 	"github.com/Microsoft/go-winio/pkg/guid"
 	"golang.org/x/sys/windows"
@@ -62,8 +61,7 @@ func NewProviderWithOptions(name string, options ...ProviderOpt) (provider *Prov
 	if err := eventSetInformation(
 		provider.handle,
 		eventInfoClassProviderSetTraits,
-		uintptr(unsafe.Pointer(&provider.metadata[0])),
-		uint32(len(provider.metadata)),
+		provider.metadata,
 	); err != nil {
 		return nil, err
 	}
