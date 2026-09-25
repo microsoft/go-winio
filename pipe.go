@@ -370,7 +370,14 @@ func makeServerPipeHandle(path string, sd []byte, c *PipeConfig, first bool) (wi
 		}
 	}
 
-	typ := uint32(windows.FILE_PIPE_REJECT_REMOTE_CLIENTS)
+	var typ uint32
+	switch {
+	case c.AcceptRemoteClients:
+		typ |= windows.FILE_PIPE_ACCEPT_REMOTE_CLIENTS
+	default:
+		typ |= windows.FILE_PIPE_REJECT_REMOTE_CLIENTS
+	}
+
 	if c.MessageMode {
 		typ |= windows.FILE_PIPE_MESSAGE_TYPE
 	}
@@ -497,6 +504,10 @@ type PipeConfig struct {
 	// transferred to the reader (and returned as io.EOF in this implementation)
 	// when the pipe is in message mode.
 	MessageMode bool
+
+	// AcceptRemoteClients determines whether clients connecting from remote machines
+	// (for example over SMB) are permitted. When false, remote clients are rejected.
+	AcceptRemoteClients bool
 
 	// InputBufferSize specifies the size of the input buffer, in bytes.
 	InputBufferSize int32
