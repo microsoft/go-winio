@@ -220,6 +220,144 @@ func TestCloseAbortsListen(t *testing.T) {
 	}
 }
 
+func TestCloseRace(t *testing.T) {
+	// Regression test for issue #85: Close racing a pending Accept must not
+	// lose the close signal and hang.
+	for i := 0; i < 1000 && !t.Failed(); i++ {
+		l, err := ListenPipe(testPipeName, &PipeConfig{MessageMode: true})
+		if err != nil {
+			t.Fatal(err)
+		}
+		serverDone := make(chan struct{})
+		go func() {
+			defer close(serverDone)
+			for {
+				c, err := l.Accept()
+				if err != nil {
+					return
+				}
+				b, err := io.ReadAll(c)
+				if err != nil {
+					t.Error(err)
+					c.Close()
+					return
+				}
+				_, _ = c.Write(b)
+				c.Close()
+			}
+		}()
+
+		c, err := DialPipe(testPipeName, nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err = c.Write([]byte("hello")); err != nil {
+			t.Fatal(err)
+		}
+		if err := c.(CloseWriter).CloseWrite(); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := io.ReadAll(c); err != nil {
+			t.Fatal(err)
+		}
+		c.Close()
+
+		closeDone := make(chan struct{})
+		go func() {
+			l.Close()
+			close(closeDone)
+		}()
+		select {
+		case <-closeDone:
+		case <-time.After(10 * time.Second):
+			t.Fatalf("iteration %d: Close did not complete; close signal was lost", i)
+		}
+		<-serverDone
+	}
+}
+
+func TestListenerCloseRacesPendingConnect(t *testing.T) {
+	// Regression test for issue #85. Closing the listener while a client
+	// connect is in flight must not lose the close signal, and Accept must
+	// report ErrPipeListenerClosed even when ConnectNamedPipe races the handle
+	// close and reports a connection or error (e.g. ERROR_NO_DATA) instead of
+	// ErrFileClosed.
+	for i := 0; i < 200 && !t.Failed(); i++ {
+		l, err := ListenPipe(testPipeName, nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		acceptCh := make(chan error, 1)
+		go func() {
+			for {
+				c, err := l.Accept()
+				if err != nil {
+					acceptCh <- err
+					return
+				}
+				c.Close()
+			}
+		}()
+
+		dialDone := make(chan struct{})
+		go func() {
+			defer close(dialDone)
+			// Dial and disconnect immediately so the raced connect can
+			// complete or fail with ERROR_NO_DATA on the server side.
+			timeout := 250 * time.Millisecond
+			c, err := DialPipe(testPipeName, &timeout)
+			if err == nil {
+				c.Close()
+			}
+		}()
+
+		// Vary the interleaving between the connect and the close.
+		time.Sleep(time.Duration(i%5) * 100 * time.Microsecond)
+
+		closeDone := make(chan struct{})
+		go func() {
+			l.Close()
+			close(closeDone)
+		}()
+
+		select {
+		case <-closeDone:
+		case <-time.After(10 * time.Second):
+			t.Fatalf("iteration %d: Close did not complete; close signal was lost", i)
+		}
+
+		select {
+		case err := <-acceptCh:
+			if !errors.Is(err, ErrPipeListenerClosed) {
+				t.Errorf("iteration %d: expected ErrPipeListenerClosed, got %v", i, err)
+			}
+		case <-time.After(10 * time.Second):
+			t.Fatalf("iteration %d: Accept did not fail after Close", i)
+		}
+		<-dialDone
+	}
+}
+
+func TestListenerConcurrentClose(t *testing.T) {
+	l, err := ListenPipe(testPipeName, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var wg sync.WaitGroup
+	for range 10 {
+		wg.Go(func() {
+			if err := l.Close(); err != nil {
+				t.Error(err)
+			}
+		})
+	}
+	wg.Wait()
+	if _, err := l.Accept(); !errors.Is(err, ErrPipeListenerClosed) {
+		t.Fatalf("expected ErrPipeListenerClosed, got %v", err)
+	}
+}
+
 func ensureEOFOnClose(t *testing.T, r io.Reader, w io.Closer) {
 	t.Helper()
 

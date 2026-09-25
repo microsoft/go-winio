@@ -10,6 +10,7 @@ import (
 	"net"
 	"os"
 	"runtime"
+	"sync"
 	"time"
 	"unsafe"
 
@@ -316,8 +317,9 @@ type win32PipeListener struct {
 	path        string
 	config      PipeConfig
 	acceptCh    chan (chan acceptResponse)
-	closeCh     chan int
-	doneCh      chan int
+	closeOnce   sync.Once
+	closeCh     chan struct{} // closed (never sent on) to broadcast listener shutdown
+	doneCh      chan struct{}
 }
 
 func makeServerPipeHandle(path string, sd []byte, c *PipeConfig, first bool) (windows.Handle, error) {
@@ -445,13 +447,14 @@ func (l *win32PipeListener) makeConnectedServerPipe() (*win32File, error) {
 			p = nil
 		}
 	case <-l.closeCh:
-		// Abort the connect request by closing the handle.
-		p.Close()
+		// Abort the connect request by closing the handle. Listener closure is
+		// authoritative: ConnectNamedPipe may race the handle close and report a
+		// connection or error (e.g. ERROR_NO_DATA) instead of ErrFileClosed, and
+		// that result must not be surfaced or cause listenerRoutine to retry.
+		_ = p.Close()
 		p = nil
-		err = <-ch
-		if err == nil || err == ErrFileClosed { //nolint:errorlint // err is Errno
-			err = ErrPipeListenerClosed
-		}
+		<-ch
+		err = ErrPipeListenerClosed
 	}
 	return p, err
 }
@@ -530,8 +533,8 @@ func ListenPipe(path string, c *PipeConfig) (net.Listener, error) {
 		path:        path,
 		config:      *c,
 		acceptCh:    make(chan (chan acceptResponse)),
-		closeCh:     make(chan int),
-		doneCh:      make(chan int),
+		closeCh:     make(chan struct{}),
+		doneCh:      make(chan struct{}),
 	}
 	go l.listenerRoutine()
 	return l, nil
@@ -573,11 +576,10 @@ func (l *win32PipeListener) Accept() (net.Conn, error) {
 }
 
 func (l *win32PipeListener) Close() error {
-	select {
-	case l.closeCh <- 1:
-		<-l.doneCh
-	case <-l.doneCh:
-	}
+	l.closeOnce.Do(func() {
+		close(l.closeCh)
+	})
+	<-l.doneCh
 	return nil
 }
 
