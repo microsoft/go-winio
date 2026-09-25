@@ -229,7 +229,7 @@ func Test_MarshalJSON(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	gj := fmt.Sprintf("\"%s\"", g.String())
+	gj := fmt.Sprintf("%q", g.String())
 	if string(j) != gj {
 		t.Fatalf("JSON not equal: %s, %s", j, gj)
 	}
@@ -245,7 +245,7 @@ func Test_MarshalJSON_Nested(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	gj := fmt.Sprintf("{\"G\":\"%s\"}", g.String())
+	gj := fmt.Sprintf(`{"G":%q}`, g.String())
 	if string(j) != gj {
 		t.Fatalf("JSON not equal: %s, %s", j, gj)
 	}
