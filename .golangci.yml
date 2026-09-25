@@ -7,7 +7,9 @@ linters:
     # style
     - containedctx # struct contains a context
     - dupl # duplicate code
-    - errname # erorrs are named correctly
+    - dupword # duplicate words in comments
+    - errname # errors are named correctly
+    - intrange # integer ranges in for loop
     - nolintlint # "//nolint" directives are properly explained
     - revive # golint replacement
     - unconvert # unnecessary conversions
@@ -17,7 +19,9 @@ linters:
     - contextcheck # function uses a non-inherited context
     - errorlint # errors not wrapped for 1.13
     - exhaustive # check exhaustiveness of enum switch statements
+    - gocritic # various code quality checks
     - gosec # security
+    - mirror # avoid allocations
     - nilerr # returns nil even with non-nil error
     - thelper #  test helpers without t.Helper()
     - unparam # unused function params
@@ -68,6 +72,11 @@ linters:
   settings:
     exhaustive:
       default-signifies-exhaustive: true
+    gocritic:
+      disable-all: true
+      enabled-checks:
+        - nilValReturn
+        - sprintfQuotedString
     govet:
       enable-all: true
       disable:

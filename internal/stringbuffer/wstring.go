@@ -7,7 +7,7 @@ import (
 
 // TODO: worth exporting and using in mkwinsyscall?
 
-// Uint16BufferSize is the buffer size in the pool, chosen somewhat arbitrarily to accommodate
+// MinWStringCap is the buffer size in the pool, chosen somewhat arbitrarily to accommodate
 // large path strings:
 // MAX_PATH (260) + size of volume GUID prefix (49) + null terminator = 310.
 const MinWStringCap = 310
