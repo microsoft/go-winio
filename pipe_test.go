@@ -572,9 +572,7 @@ func TestMessageReadMode(t *testing.T) {
 
 	msg := ([]byte)("hello world")
 
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
+	wg.Go(func() {
 		s, err := l.Accept()
 		if err != nil {
 			t.Error(err)
@@ -586,7 +584,7 @@ func TestMessageReadMode(t *testing.T) {
 			return
 		}
 		s.Close()
-	}()
+	})
 
 	c, err := DialPipe(testPipeName, nil)
 	if err != nil {
@@ -628,14 +626,12 @@ func TestMessageReadMode(t *testing.T) {
 func TestListenConnectRace(t *testing.T) {
 	for i := 0; i < 50 && !t.Failed(); i++ {
 		var wg sync.WaitGroup
-		wg.Add(1)
-		go func() {
+		wg.Go(func() {
 			c, err := DialPipe(testPipeName, nil)
 			if err == nil {
 				c.Close()
 			}
-			wg.Done()
-		}()
+		})
 		s, err := ListenPipe(testPipeName, nil)
 		if err != nil {
 			t.Error(i, err)
