@@ -547,13 +547,18 @@ func (f *Fn) Syscall() string {
 	return syscalldot() + "SyscallN"
 }
 
-// SyscallParamList returns source code for SyscallN parameters for function f.
+// SyscallParamList returns source code for SyscallN parameters for function f,
+// including a leading "comma". If f has no parameters, it returns an empty
+// string.
 func (f *Fn) SyscallParamList() string {
 	a := make([]string, 0, len(f.Params))
 	for _, p := range f.Params {
 		a = append(a, p.SyscallArgList()...)
 	}
-	return strings.Join(a, ", ")
+	if len(a) == 0 {
+		return ""
+	}
+	return ", " + strings.Join(a, ", ")
 }
 
 // HelperCallParamList returns source code of call into function f helper.
@@ -1021,7 +1026,7 @@ func {{.HelperName}}({{.HelperParamList}}) {{template "results" .}}{
 
 {{define "results"}}{{if .Rets.List}}{{.Rets.List}} {{end}}{{end}}
 
-{{define "syscall"}}{{.Rets.SetReturnValuesCode}}{{.Syscall}}(proc{{.DLLFuncName}}.Addr(), {{.SyscallParamList}}){{end}}
+{{define "syscall"}}{{.Rets.SetReturnValuesCode}}{{.Syscall}}(proc{{.DLLFuncName}}.Addr(){{.SyscallParamList}}){{end}}
 
 {{define "tmpvarsreadback"}}{{range .Params}}{{if .TmpVarReadbackCode}}
 {{.TmpVarReadbackCode}}{{end}}{{end}}{{end}}
