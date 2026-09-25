@@ -182,7 +182,7 @@ func TestRoundTrip(t *testing.T) {
 			}
 			defer f.Close()
 			setSparse(t, f)
-			if _, err = f.Write([]byte("testing 1 2 3\n")); err != nil {
+			if _, err = f.WriteString("testing 1 2 3\n"); err != nil {
 				t.Fatal(err)
 			}
 			// The documentation talks about FSCTL_SET_ZERO_DATA, but seeking also
@@ -190,7 +190,7 @@ func TestRoundTrip(t *testing.T) {
 			if _, err = f.Seek(1000000, 0); err != nil {
 				t.Fatal(err)
 			}
-			if _, err = f.Write([]byte("more data later\n")); err != nil {
+			if _, err = f.WriteString("more data later\n"); err != nil {
 				t.Fatal(err)
 			}
 			return path
@@ -323,13 +323,13 @@ func TestRoundTripSeekable(t *testing.T) {
 			}
 			defer f.Close()
 			setSparse(t, f)
-			if _, err = f.Write([]byte("leading data\n")); err != nil {
+			if _, err = f.WriteString("leading data\n"); err != nil {
 				t.Fatal(err)
 			}
 			if _, err = f.Seek(1048576, 0); err != nil {
 				t.Fatal(err)
 			}
-			if _, err = f.Write([]byte("trailing data\n")); err != nil {
+			if _, err = f.WriteString("trailing data\n"); err != nil {
 				t.Fatal(err)
 			}
 			return path

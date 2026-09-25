@@ -770,7 +770,7 @@ func (img *Image) readNextEntry(r io.Reader) (*File, int64, error) {
 
 	if dentry.StreamCount > 0 {
 		var streams []*Stream
-		for i := uint16(0); i < dentry.StreamCount; i++ {
+		for i := range dentry.StreamCount {
 			s, n, err := img.readNextStream(r)
 			length += n
 			if err != nil {

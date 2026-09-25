@@ -511,7 +511,7 @@ func SmartField(name string, v any) FieldOpt {
 			return SmartField(name, rv.String())
 		case reflect.Struct:
 			fields := make([]FieldOpt, 0, rv.NumField())
-			for i := 0; i < rv.NumField(); i++ {
+			for i := range rv.NumField() {
 				field := rv.Field(i)
 				if field.CanInterface() {
 					fields = append(fields, SmartField(name, field.Interface()))

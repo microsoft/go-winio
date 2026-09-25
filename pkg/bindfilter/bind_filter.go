@@ -131,7 +131,7 @@ func GetBindMappings(volumePath string) ([]BindMapping, error) {
 	mappings := unsafe.Slice(mappingsPointer, header.MappingCount)
 
 	mappingEntries := make([]BindMapping, header.MappingCount)
-	for i := 0; i < int(header.MappingCount); i++ {
+	for i := range int(header.MappingCount) {
 		bindMapping, err := getBindMappingFromBuffer(result, mappings[i])
 		if err != nil {
 			return nil, fmt.Errorf("fetching bind mappings: %w", err)

@@ -283,7 +283,7 @@ func TestHvSockReadTooSmall(t *testing.T) {
 			if err != nil {
 				return fmt.Errorf("server rx: %w", err)
 			}
-			ss.WriteString(string(b[:n]))
+			ss.Write(b[:n])
 		}
 
 		if ss.String() != s {

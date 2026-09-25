@@ -30,7 +30,7 @@ func makeTestFile(makeADS bool) error {
 		return err
 	}
 	defer f.Close()
-	_, err = f.Write([]byte("testing 1 2 3\n"))
+	_, err = f.WriteString("testing 1 2 3\n")
 	if err != nil {
 		return err
 	}
@@ -40,7 +40,7 @@ func makeTestFile(makeADS bool) error {
 			return err
 		}
 		defer a.Close()
-		_, err = a.Write([]byte("alternate data stream\n"))
+		_, err = a.WriteString("alternate data stream\n")
 		if err != nil {
 			return err
 		}
@@ -205,7 +205,7 @@ func makeSparseFile() error {
 		return err
 	}
 
-	_, err = f.Write([]byte("testing 1 2 3\n"))
+	_, err = f.WriteString("testing 1 2 3\n")
 	if err != nil {
 		return err
 	}
@@ -215,7 +215,7 @@ func makeSparseFile() error {
 		return err
 	}
 
-	_, err = f.Write([]byte("more data later\n"))
+	_, err = f.WriteString("more data later\n")
 	if err != nil {
 		return err
 	}
