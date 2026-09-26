@@ -119,7 +119,11 @@ func (f *win32File) closeHandle() {
 		_ = cancelIoEx(f.handle, nil)
 		f.wg.Wait()
 		// at this point, no new IO can start
-		windows.Close(f.handle)
+		if f.socket {
+			_ = windows.Closesocket(f.handle)
+		} else {
+			windows.Close(f.handle)
+		}
 		f.handle = 0
 	} else {
 		f.wgLock.Unlock()
