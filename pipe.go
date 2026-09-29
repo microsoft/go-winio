@@ -27,7 +27,6 @@ import (
 //sys ntCreateNamedPipeFile(pipe *windows.Handle, access ntAccessMask, oa *objectAttributes, iosb *ioStatusBlock, share ntFileShareMode, disposition ntFileCreationDisposition, options ntFileOptions, typ uint32, readMode uint32, completionMode uint32, maxInstances uint32, inboundQuota uint32, outputQuota uint32, timeout *int64) (status ntStatus) = ntdll.NtCreateNamedPipeFile
 //sys rtlNtStatusToDosError(status ntStatus) (winerr error) = ntdll.RtlNtStatusToDosErrorNoTeb
 //sys rtlDosPathNameToNtPathName(name *uint16, ntName *unicodeString, filePart uintptr, reserved uintptr) (status ntStatus) = ntdll.RtlDosPathNameToNtPathName_U
-//sys rtlDefaultNpAcl(dacl *uintptr) (status ntStatus) = ntdll.RtlDefaultNpAcl
 
 type PipeConn interface {
 	net.Conn
@@ -328,15 +327,17 @@ func makeServerPipeHandle(path string, sd *windows.SECURITY_DESCRIPTOR, c *PipeC
 			oa.SecurityDescriptor = sd
 		} else {
 			// Construct the default named pipe security descriptor.
-			dacl := &windows.ACL{}
+			var dacl *windows.ACL
 			if err := windows.RtlDefaultNpAcl(&dacl); err != nil {
-				return 0, fmt.Errorf("getting default named pipe ACL: %s", err)
+				return 0, fmt.Errorf("getting default named pipe ACL: %w", err)
 			}
+			defer windows.LocalFree(windows.Handle(unsafe.Pointer(dacl))) //nolint:errcheck
+
 			sdb, err := windows.NewSecurityDescriptor()
 			if err != nil {
 				return 0, err
 			}
-			if err := sdb.SetDACL(dacl, true, true); err != nil {
+			if err := sdb.SetDACL(dacl, true, false); err != nil {
 				return 0, err
 			}
 			oa.SecurityDescriptor = sdb
