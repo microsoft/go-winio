@@ -72,7 +72,7 @@ type unicodeString struct {
 	Buffer        uintptr
 }
 
-type ntstatus int32
+type ntStatus int32
 
 func (status ntStatus) Err() error {
 	if status >= 0 {
@@ -301,7 +301,7 @@ type win32PipeListener struct {
 	doneCh      chan struct{}
 }
 
-func makeServerPipeHandle(path string, sd *windows.SECURITY_DESCRIPTOR, c *PipeConfig, first bool) (syscall.Handle, error) {
+func makeServerPipeHandle(path string, sd *windows.SECURITY_DESCRIPTOR, c *PipeConfig, first bool) (windows.Handle, error) {
 	path16, err := windows.UTF16FromString(path)
 	if err != nil {
 		return 0, &os.PathError{Op: "open", Path: path, Err: err}
