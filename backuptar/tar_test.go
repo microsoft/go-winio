@@ -251,6 +251,76 @@ func TestRoundTrip(t *testing.T) {
 	}
 }
 
+// TestRoundTripLxSymlink verifies that LX symlink identity is preserved when
+// converting between backup streams and tar archives. It is kept separate from
+// TestRoundTrip because LX symlinks are represented by reparse-point metadata,
+// rather than regular file contents.
+func TestRoundTripLxSymlink(t *testing.T) {
+	const target = "/usr/bin/bash"
+
+	reparseData := winio.EncodeReparsePoint(&winio.ReparsePoint{
+		Target:      target,
+		IsLxSymlink: true,
+	})
+
+	stream := buildBackupStream(t, []struct {
+		hdr  winio.BackupHeader
+		data []byte
+	}{
+		{
+			hdr: winio.BackupHeader{
+				Id:   winio.BackupReparseData,
+				Size: int64(len(reparseData)),
+			},
+			data: reparseData,
+		},
+	})
+
+	var buf bytes.Buffer
+	tw := tar.NewWriter(&buf)
+
+	if err := WriteTarFileFromBackupStream(
+		tw,
+		bytes.NewReader(stream),
+		"link",
+		0,
+		&winio.FileBasicInfo{},
+	); err != nil {
+		t.Fatal(err)
+	}
+	if err := tw.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	tr := tar.NewReader(&buf)
+	hdr, err := tr.Next()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if hdr.Typeflag != tar.TypeSymlink {
+		t.Fatalf("got type %v, want symlink", hdr.Typeflag)
+	}
+	if hdr.Linkname != target {
+		t.Errorf("got target %q, want %q", hdr.Linkname, target)
+	}
+	if _, ok := hdr.PAXRecords[hdrLxSymlink]; !ok {
+		t.Errorf("%s not present in tar header", hdrLxSymlink)
+	}
+
+	reparseData = EncodeReparsePointFromTarHeader(hdr)
+	rp, err := winio.DecodeReparsePoint(reparseData)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if rp.Target != target {
+		t.Errorf("got target %q, want %q", rp.Target, target)
+	}
+	if !rp.IsLxSymlink {
+		t.Error("LX symlink identity was not preserved")
+	}
+}
+
 // TestRoundTripSeekable covers the two-pass sparse export regression.
 // TestRoundTrip uses a non-seekable BackupFileReader and only covers the single-pass path.
 func TestRoundTripSeekable(t *testing.T) {
