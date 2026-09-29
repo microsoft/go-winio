@@ -5,8 +5,8 @@ package backuptar
 import (
 	"archive/tar"
 	"bytes"
+	"errors"
 	"io"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -450,12 +450,12 @@ func TestZeroReader(t *testing.T) {
 }
 
 func TestBackupStreamFromTar(t *testing.T) {
-	f, err := ioutil.TempFile("", "tst")
+	f, err := os.CreateTemp("", "tst")
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer f.Close()
-	defer os.Remove(f.Name())
+	defer func() { _ = os.Remove(f.Name()) }()
 
 	expectedContent := "testing 1 2 3\n"
 	if _, err = f.Write([]byte(expectedContent)); err != nil {
@@ -493,7 +493,7 @@ func TestBackupStreamFromTar(t *testing.T) {
 	}
 	var backupStreamBuf bytes.Buffer
 	_, err = WriteBackupStreamFromTarFile(&backupStreamBuf, tarContentReader, hdr2)
-	if err != nil && err != io.EOF {
+	if err != nil && !errors.Is(err, io.EOF) {
 		t.Fatal(err)
 	}
 
@@ -501,19 +501,19 @@ func TestBackupStreamFromTar(t *testing.T) {
 
 	// read the first header that has security descriptor
 	_, err = bsr.Next()
-	if err != nil && err != io.EOF {
+	if err != nil && !errors.Is(err, io.EOF) {
 		t.Fatal(err)
 	}
 
 	// read header for contents
 	bhdr, err := bsr.Next()
-	if err != nil && err != io.EOF {
+	if err != nil && !errors.Is(err, io.EOF) {
 		t.Fatal(err)
 	}
 
 	resultBuf := make([]byte, int(bhdr.Size))
 	written, err := bsr.Read(resultBuf)
-	if err != nil && err != io.EOF {
+	if err != nil && !errors.Is(err, io.EOF) {
 		t.Fatal(err)
 	}
 	if int64(written) != bhdr.Size {
