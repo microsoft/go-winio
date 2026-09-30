@@ -34,6 +34,7 @@ const (
 	hdrSecurityDescriptor    = "MSWINDOWS.sd"
 	hdrRawSecurityDescriptor = "MSWINDOWS.rawsd"
 	hdrMountPoint            = "MSWINDOWS.mountpoint"
+	hdrLxSymlink             = "MSWINDOWS.lxsymlink"
 	hdrEaPrefix              = "MSWINDOWS.xattr."
 
 	hdrCreationTime = "LIBARCHIVE.creationtime"
@@ -166,9 +167,12 @@ func ExtendedAttributesFromTarHeader(hdr *tar.Header) ([]byte, error) {
 // symlink.
 func EncodeReparsePointFromTarHeader(hdr *tar.Header) []byte {
 	_, isMountPoint := hdr.PAXRecords[hdrMountPoint]
+	_, isLxSymlink := hdr.PAXRecords[hdrLxSymlink]
+
 	rp := winio.ReparsePoint{
 		Target:       filepath.FromSlash(hdr.Linkname),
 		IsMountPoint: isMountPoint,
+		IsLxSymlink:  isLxSymlink,
 	}
 	return winio.EncodeReparsePoint(&rp)
 }
@@ -233,6 +237,9 @@ func WriteTarFileFromBackupStream(t *tar.Writer, r io.Reader, name string, size 
 			}
 			if rp.IsMountPoint {
 				hdr.PAXRecords[hdrMountPoint] = "1"
+			}
+			if rp.IsLxSymlink {
+				hdr.PAXRecords[hdrLxSymlink] = "1"
 			}
 			hdr.Linkname = rp.Target
 
