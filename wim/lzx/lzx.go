@@ -1,4 +1,4 @@
-// Package lzx implements a decompressor for the the WIM variant of the
+// Package lzx implements a decompressor for the WIM variant of the
 // LZX compression algorithm.
 //
 // The LZX algorithm is an earlier variant of LZX DELTA, which is documented
@@ -200,14 +200,14 @@ func buildTable(codelens []byte) *huffman {
 			v := uint16(cl)<<lenshift | uint16(i)
 			if cl <= tablebits {
 				extendedCode := code << (tablebits - cl)
-				for j := uint(0); j < 1<<(tablebits-cl); j++ {
+				for j := range uint(1 << (tablebits - cl)) {
 					h.table[extendedCode+j] = v
 				}
 			} else {
 				prefix := code >> (cl - tablebits)
 				suffix := code & (1<<(cl-tablebits) - 1)
 				extendedCode := suffix << (maxValue - cl)
-				for j := uint(0); j < 1<<(maxValue-cl); j++ {
+				for j := range uint(1 << (maxValue - cl)) {
 					h.extra[h.table[prefix]][extendedCode+j] = v
 				}
 			}
@@ -396,7 +396,7 @@ func (f *decompressor) readTrees(readAligned bool) (main *huffman, length *huffm
 		}
 		aligned = buildTable(alignedLen[:])
 		if aligned == nil {
-			return main, length, aligned, errors.New("corrupt")
+			return main, length, nil, errors.New("corrupt")
 		}
 	}
 
@@ -412,7 +412,7 @@ func (f *decompressor) readTrees(readAligned bool) (main *huffman, length *huffm
 
 	main = buildTable(f.mainlens[:])
 	if main == nil {
-		return main, length, aligned, errors.New("corrupt")
+		return nil, length, aligned, errors.New("corrupt")
 	}
 
 	// The length tree is encoding in a single part.
@@ -423,7 +423,7 @@ func (f *decompressor) readTrees(readAligned bool) (main *huffman, length *huffm
 
 	length = buildTable(f.lenlens[:])
 	if length == nil {
-		return main, length, aligned, errors.New("corrupt")
+		return main, nil, aligned, errors.New("corrupt")
 	}
 
 	return main, length, aligned, f.err

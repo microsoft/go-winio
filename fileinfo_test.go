@@ -65,7 +65,7 @@ func TestGetFileStandardInfo_File(t *testing.T) {
 	}
 	checkFileStandardInfo(t, info, expectedFileInfo)
 
-	bytesWritten, err := f.Write([]byte("0123456789"))
+	bytesWritten, err := f.WriteString("0123456789")
 	if err != nil {
 		t.Fatal(err)
 	}
