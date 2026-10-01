@@ -102,12 +102,12 @@ func (status ntStatus) Err() error {
 	return rtlNtStatusToDosError(status)
 }
 
-var (
-	// ErrPipeListenerClosed is returned for pipe operations on listeners that have been closed.
-	ErrPipeListenerClosed = net.ErrClosed
+// ErrPipeListenerClosed is returned for pipe operations on listeners that have been closed.
+//
+// Deprecated: use [net.ErrClosed] instead.
+var ErrPipeListenerClosed = net.ErrClosed
 
-	errPipeWriteClosed = errors.New("pipe has been closed for write")
-)
+var errPipeWriteClosed = errors.New("pipe has been closed for write")
 
 type win32Pipe struct {
 	*win32File
@@ -454,7 +454,7 @@ func (l *win32PipeListener) makeConnectedServerPipe() (*win32File, error) {
 		_ = p.Close()
 		p = nil
 		<-ch
-		err = ErrPipeListenerClosed
+		err = net.ErrClosed
 	}
 	return p, err
 }
@@ -479,7 +479,7 @@ func (l *win32PipeListener) listenerRoutine() {
 				}
 			}
 			responseCh <- acceptResponse{p, err}
-			closed = err == ErrPipeListenerClosed //nolint:errorlint // err is Errno
+			closed = err == net.ErrClosed //nolint:errorlint // err is Errno
 		}
 	}
 	windows.Close(l.firstHandle)
@@ -571,7 +571,7 @@ func (l *win32PipeListener) Accept() (net.Conn, error) {
 		}
 		return &win32Pipe{win32File: response.f, path: l.path}, nil
 	case <-l.doneCh:
-		return nil, ErrPipeListenerClosed
+		return nil, net.ErrClosed
 	}
 }
 
