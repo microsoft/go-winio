@@ -5,6 +5,7 @@ package winio
 import (
 	"errors"
 	"io"
+	"os"
 	"runtime"
 	"sync"
 	"sync/atomic"
@@ -30,6 +31,10 @@ type timeoutError struct{}
 func (*timeoutError) Error() string   { return "i/o timeout" }
 func (*timeoutError) Timeout() bool   { return true }
 func (*timeoutError) Temporary() bool { return true }
+
+// Unwrap returns os.ErrDeadlineExceeded so that errors.Is(err, os.ErrDeadlineExceeded)
+// returns true for ErrTimeout, enabling interoperability with the standard library.
+func (*timeoutError) Unwrap() error { return os.ErrDeadlineExceeded }
 
 type timeoutChan chan struct{}
 
