@@ -40,15 +40,13 @@ func eventWriteTransfer(
 func eventSetInformation(
 	providerHandle providerHandle,
 	class eventInfoClass,
-	information uintptr,
-	length uint32) (win32err error) {
+	information []byte) (win32err error) {
 
 	return eventSetInformation_32(
 		low(providerHandle),
 		high(providerHandle),
 		class,
-		information,
-		length)
+		information)
 }
 
 // providerCallbackAdapter acts as the first-level callback from the C/ETW side
