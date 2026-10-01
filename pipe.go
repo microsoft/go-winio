@@ -107,8 +107,6 @@ func (status ntStatus) Err() error {
 // Deprecated: use [net.ErrClosed] instead.
 var ErrPipeListenerClosed = net.ErrClosed
 
-var errPipeWriteClosed = errors.New("pipe has been closed for write")
-
 type win32Pipe struct {
 	*win32File
 	path string
@@ -144,9 +142,10 @@ func (f *win32Pipe) Disconnect() error {
 }
 
 // CloseWrite closes the write side of a message pipe in byte mode.
+// It returns [io.ErrClosedPipe] if the write side is already closed.
 func (f *win32MessageBytePipe) CloseWrite() error {
 	if f.writeClosed {
-		return errPipeWriteClosed
+		return io.ErrClosedPipe
 	}
 	err := f.win32File.Flush()
 	if err != nil {
@@ -161,10 +160,10 @@ func (f *win32MessageBytePipe) CloseWrite() error {
 }
 
 // Write writes bytes to a message pipe in byte mode. Zero-byte writes are ignored, since
-// they are used to implement CloseWrite().
+// they are used to implement CloseWrite. It returns [io.ErrClosedPipe] if the write side is closed.
 func (f *win32MessageBytePipe) Write(b []byte) (int, error) {
 	if f.writeClosed {
-		return 0, errPipeWriteClosed
+		return 0, io.ErrClosedPipe
 	}
 	if len(b) == 0 {
 		return 0, nil
