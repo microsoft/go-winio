@@ -3,8 +3,8 @@
 package winio
 
 import (
-	"errors"
 	"io"
+	"os"
 	"runtime"
 	"sync"
 	"sync/atomic"
@@ -20,10 +20,12 @@ import (
 //sys setFileCompletionNotificationModes(h windows.Handle, flags uint8) (err error) = SetFileCompletionNotificationModes
 //sys wsaGetOverlappedResult(h windows.Handle, o *windows.Overlapped, bytes *uint32, wait bool, flags *uint32) (err error) = ws2_32.WSAGetOverlappedResult
 
-var (
-	ErrFileClosed = errors.New("file has already been closed")
-	ErrTimeout    = &timeoutError{}
-)
+// ErrFileClosed is returned when an operation is performed on a closed file.
+//
+// Deprecated: use [os.ErrClosed] instead.
+var ErrFileClosed = os.ErrClosed
+
+var ErrTimeout = &timeoutError{}
 
 type timeoutError struct{}
 
@@ -143,7 +145,7 @@ func (f *win32File) prepareIO() (*ioOperation, error) {
 	f.wgLock.RLock()
 	if f.closing.Load() {
 		f.wgLock.RUnlock()
-		return nil, ErrFileClosed
+		return nil, os.ErrClosed
 	}
 	f.wg.Add(1)
 	f.wgLock.RUnlock()
@@ -192,7 +194,7 @@ func (f *win32File) asyncIO(c *ioOperation, d *deadlineHandler, bytes uint32, er
 		err = r.err
 		if err == windows.ERROR_OPERATION_ABORTED { //nolint:errorlint // err is Errno
 			if f.closing.Load() {
-				err = ErrFileClosed
+				err = os.ErrClosed
 			}
 		} else if err != nil && f.socket {
 			// err is from Win32. Query the overlapped structure to get the winsock error.
