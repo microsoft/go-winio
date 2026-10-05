@@ -215,7 +215,7 @@ func TestCloseAbortsListen(t *testing.T) {
 	l.Close()
 
 	err = <-ch
-	if !errors.Is(err, ErrPipeListenerClosed) {
+	if !errors.Is(err, net.ErrClosed) {
 		t.Fatalf("expected ErrPipeListenerClosed, got %v", err)
 	}
 }
@@ -329,8 +329,8 @@ func TestListenerCloseRacesPendingConnect(t *testing.T) {
 
 		select {
 		case err := <-acceptCh:
-			if !errors.Is(err, ErrPipeListenerClosed) {
-				t.Errorf("iteration %d: expected ErrPipeListenerClosed, got %v", i, err)
+			if !errors.Is(err, net.ErrClosed) {
+				t.Errorf("iteration %d: expected net.ErrClosed, got %v", i, err)
 			}
 		case <-time.After(10 * time.Second):
 			t.Fatalf("iteration %d: Accept did not fail after Close", i)
@@ -353,8 +353,8 @@ func TestListenerConcurrentClose(t *testing.T) {
 		})
 	}
 	wg.Wait()
-	if _, err := l.Accept(); !errors.Is(err, ErrPipeListenerClosed) {
-		t.Fatalf("expected ErrPipeListenerClosed, got %v", err)
+	if _, err := l.Accept(); !errors.Is(err, net.ErrClosed) {
+		t.Fatalf("expected net.ErrClosed, got %v", err)
 	}
 }
 
@@ -426,7 +426,7 @@ func TestAcceptAfterCloseFails(t *testing.T) {
 	}
 	l.Close()
 	_, err = l.Accept()
-	if !errors.Is(err, ErrPipeListenerClosed) {
+	if !errors.Is(err, net.ErrClosed) {
 		t.Fatalf("expected ErrPipeListenerClosed, got %v", err)
 	}
 }
@@ -677,7 +677,7 @@ func TestConnectRace(t *testing.T) {
 	go func() {
 		for {
 			s, err := l.Accept()
-			if errors.Is(err, ErrPipeListenerClosed) {
+			if errors.Is(err, net.ErrClosed) {
 				return
 			}
 

@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"math/rand"
+	"os"
 	"strings"
 	"testing"
 	"time"
@@ -568,7 +569,7 @@ func TestHvSockAcceptClose(t *testing.T) {
 		c.Close()
 		t.Fatal("listener should not have accepted anything")
 	}
-	u.Is(err, ErrFileClosed)
+	u.Is(err, os.ErrClosed)
 }
 
 //
