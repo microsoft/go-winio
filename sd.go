@@ -114,6 +114,10 @@ func LookupNameBySid(sid string) (name string, err error) {
 	return name, nil
 }
 
+// SddlToSecurityDescriptor converts an SDDL string to a self-relative security
+// descriptor.
+//
+// Deprecated: use [windows.SecurityDescriptorFromString] instead.
 func SddlToSecurityDescriptor(sddl string) ([]byte, error) {
 	sd, err := windows.SecurityDescriptorFromString(sddl)
 	if err != nil {
@@ -123,6 +127,11 @@ func SddlToSecurityDescriptor(sddl string) ([]byte, error) {
 	return b, nil
 }
 
+// SecurityDescriptorToSddl converts a self-relative security descriptor to its
+// SDDL string representation.
+//
+// Deprecated: convert the byte slice to a [*windows.SECURITY_DESCRIPTOR] and use
+// its String method instead.
 func SecurityDescriptorToSddl(sd []byte) (string, error) {
 	if l := int(unsafe.Sizeof(windows.SECURITY_DESCRIPTOR{})); len(sd) < l {
 		return "", fmt.Errorf("SecurityDescriptor (%d) smaller than expected (%d): %w", len(sd), l, windows.ERROR_INCORRECT_SIZE)
