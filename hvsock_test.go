@@ -671,3 +671,10 @@ func mustBeType[T any](tb testing.TB, v any) T {
 	}
 	return v2
 }
+func TestHvSockFlagIsSet(t *testing.T) {
+	u := newUtil(t)
+	cl, sv, _ := clientServer(u)
+
+	u.Assert(cl.sock.socket, "Client win32File.socket should be true")
+	u.Assert(sv.sock.socket, "Server win32File.socket should be true")
+}
