@@ -75,6 +75,9 @@ func providerCallback(
 	i uintptr,
 ) {
 	provider := providers.getProvider(uint(i))
+	if provider == nil {
+		return
+	}
 
 	switch state {
 	case ProviderStateCaptureState:
