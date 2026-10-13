@@ -834,14 +834,16 @@ func (src *Source) Generate(w io.Writer) error {
 	default:
 		pkgtype = pkgOther
 	}
-	if *systemDLL {
-		switch pkgtype {
-		case pkgStd:
+	switch pkgtype {
+	case pkgStd:
+		if *systemDLL {
 			src.Import("internal/syscall/windows/sysdll")
-		case pkgXSysWindows:
-		default:
-			src.ExternalImport("golang.org/x/sys/windows")
 		}
+	case pkgXSysWindows:
+	default:
+		// Always needed for ERROR_IO_PENDING, even when not loading DLLs from
+		// the system directory.
+		src.ExternalImport("golang.org/x/sys/windows")
 	}
 	if *winio {
 		src.ExternalImport("github.com/Microsoft/go-winio")
@@ -852,7 +854,13 @@ func (src *Source) Generate(w io.Writer) error {
 	funcMap := template.FuncMap{
 		"packagename": packagename,
 		"syscalldot":  syscalldot,
-		"windowsdot":  windowsdot,
+		// The std library cannot import golang.org/x/sys/windows, so use the syscall package's errno there.
+		"errnodot": func() string {
+			if pkgtype == pkgStd {
+				return syscalldot()
+			}
+			return windowsdot()
+		},
 		"newlazydll": func(dll string) string {
 			arg := "\"" + dll + ".dll\""
 			if !*systemDLL {
@@ -959,7 +967,7 @@ var _ unsafe.Pointer
 // Do the interface allocations only once for common
 // Errno values.
 var (
-	errERROR_IO_PENDING error = {{windowsdot}}ERROR_IO_PENDING
+	errERROR_IO_PENDING error = {{errnodot}}ERROR_IO_PENDING
 	errERROR_EINVAL error     = {{syscalldot}}EINVAL
 )
 
@@ -969,7 +977,7 @@ func errnoErr(e {{syscalldot}}Errno) error {
 	switch e {
 	case 0:
 		return errERROR_EINVAL
-	case {{windowsdot}}ERROR_IO_PENDING:
+	case {{errnodot}}ERROR_IO_PENDING:
 		return errERROR_IO_PENDING
 	}
 	{{- /*
