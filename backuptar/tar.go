@@ -11,6 +11,7 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"unsafe"
 
 	"github.com/Microsoft/go-winio"
 	"golang.org/x/sys/windows"
@@ -114,21 +115,35 @@ func BasicInfoHeader(name string, size int64, fileInfo *winio.FileBasicInfo) *ta
 // SecurityDescriptorFromTarHeader reads the SDDL associated with the header of the current file
 // from the tar header and returns the security descriptor into a byte slice.
 func SecurityDescriptorFromTarHeader(hdr *tar.Header) ([]byte, error) {
+	sd, err := securityDescriptorFromTarHeader(hdr)
+	if err != nil || sd == nil {
+		return nil, err
+	}
+	return unsafe.Slice((*byte)(unsafe.Pointer(sd)), sd.Length()), nil
+}
+
+// securityDescriptorFromTarHeader returns the security descriptor from hdr in
+// its native representation. SecurityDescriptorFromTarHeader is retained as a
+// compatibility wrapper for callers that expect the descriptor as a byte slice.
+func securityDescriptorFromTarHeader(hdr *tar.Header) (*windows.SECURITY_DESCRIPTOR, error) {
 	if sdraw, ok := hdr.PAXRecords[hdrRawSecurityDescriptor]; ok {
-		sd, err := base64.StdEncoding.DecodeString(sdraw)
+		sdAsByteSlice, err := base64.StdEncoding.DecodeString(sdraw)
 		if err != nil {
 			// Not returning sd as-is in the error-case, as base64.DecodeString
 			// may return partially decoded data (not nil or empty slice) in case
 			// of a failure: https://github.com/golang/go/blob/go1.17.7/src/encoding/base64/base64.go#L382-L387
 			return nil, err
 		}
-		return sd, nil
+		if len(sdAsByteSlice) == 0 {
+			return nil, nil
+		}
+		return (*windows.SECURITY_DESCRIPTOR)(unsafe.Pointer(&sdAsByteSlice[0])), nil
 	}
 	// Maintaining old SDDL-based behavior for backward compatibility. All new
 	// tar headers written by this library will have raw binary for the security
 	// descriptor.
 	if sddl, ok := hdr.PAXRecords[hdrSecurityDescriptor]; ok {
-		return winio.SddlToSecurityDescriptor(sddl)
+		return windows.SecurityDescriptorFromString(sddl)
 	}
 	return nil, nil
 }
@@ -416,20 +431,21 @@ func FileInfoFromHeader(hdr *tar.Header) (name string, size int64, fileInfo *win
 func WriteBackupStreamFromTarFile(w io.Writer, t *tar.Reader, hdr *tar.Header) (*tar.Header, error) {
 	bw := winio.NewBackupStreamWriter(w)
 
-	sd, err := SecurityDescriptorFromTarHeader(hdr)
+	sd, err := securityDescriptorFromTarHeader(hdr)
 	if err != nil {
 		return nil, err
 	}
-	if len(sd) != 0 {
+	if sd != nil {
+		sdLen := sd.Length()
 		bhdr := winio.BackupHeader{
 			Id:   winio.BackupSecurity,
-			Size: int64(len(sd)),
+			Size: int64(sdLen),
 		}
 		err := bw.WriteHeader(&bhdr)
 		if err != nil {
 			return nil, err
 		}
-		_, err = bw.Write(sd)
+		_, err = bw.Write(unsafe.Slice((*byte)(unsafe.Pointer(sd)), sdLen))
 		if err != nil {
 			return nil, err
 		}
