@@ -493,8 +493,7 @@ func (f *decompressor) readCompressedBlock(start, end uint16, hmain, hlength, ha
 			f.fail(errCorrupt)
 			break
 		}
-		copyend := i + matchlen
-		for ; i < copyend; i++ {
+		for copyend := i + matchlen; i < copyend; i++ {
 			f.window[i] = f.window[i-matchoffset]
 		}
 	}
