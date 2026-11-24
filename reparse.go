@@ -20,6 +20,8 @@ const (
 	lxSymlinkVersion = 2 // LX symlink format version
 )
 
+var errInvalidReparseBuffer = errors.New("invalid reparse point buffer")
+
 type reparseDataBuffer struct {
 	ReparseTag           uint32
 	ReparseDataLength    uint16
@@ -50,6 +52,9 @@ func (e *UnsupportedReparsePointError) Error() string {
 // DecodeReparsePoint decodes a Win32 REPARSE_DATA_BUFFER structure containing either a symlink
 // or a mount point.
 func DecodeReparsePoint(b []byte) (*ReparsePoint, error) {
+	if len(b) < 8 {
+		return nil, errInvalidReparseBuffer
+	}
 	tag := binary.LittleEndian.Uint32(b[0:4])
 	return DecodeReparsePointData(tag, b[8:])
 }
@@ -68,11 +73,17 @@ func DecodeReparsePointData(tag uint32, b []byte) (*ReparsePoint, error) {
 }
 
 func decodeWindowsReparsePointData(b []byte, isMountPoint bool) (*ReparsePoint, error) {
-	nameOffset := 8 + binary.LittleEndian.Uint16(b[4:6])
+	if len(b) < 8 {
+		return nil, errInvalidReparseBuffer
+	}
+	nameOffset := 8 + int(binary.LittleEndian.Uint16(b[4:6]))
 	if !isMountPoint {
 		nameOffset += 4
 	}
-	nameLength := binary.LittleEndian.Uint16(b[6:8])
+	nameLength := int(binary.LittleEndian.Uint16(b[6:8]))
+	if nameOffset+nameLength > len(b) {
+		return nil, errInvalidReparseBuffer
+	}
 	name := make([]uint16, nameLength/2)
 	err := binary.Read(bytes.NewReader(b[nameOffset:nameOffset+nameLength]), binary.LittleEndian, &name)
 	if err != nil {
